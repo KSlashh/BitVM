@@ -69,13 +69,7 @@ async fn test_disprove_success() {
         },
         amount: kick_off_2_tx.output[vout as usize].value,
     };
-    let mut assert = AssertTransaction::new(&operator_context, assert_input_0);
-
-    let secret_nonces_0 = assert.push_nonces(&verifier_0_context);
-    let secret_nonces_1 = assert.push_nonces(&verifier_1_context);
-
-    assert.pre_sign(&verifier_0_context, &secret_nonces_0);
-    assert.pre_sign(&verifier_1_context, &secret_nonces_1);
+    let assert = AssertTransaction::new(&operator_context, assert_input_0, &statement);
 
     let assert_tx = assert.finalize();
     let assert_txid = assert_tx.compute_txid();

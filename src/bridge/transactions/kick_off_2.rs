@@ -73,7 +73,7 @@ impl KickOff2Transaction {
             operator_commitment_pubkey,
         );
         let connector_3 = Connector3::new(network, operator_public_key);
-        let connector_b = ConnectorB::new(network, n_of_n_taproot_public_key);
+        let connector_b = ConnectorB::new(network, n_of_n_taproot_public_key, operator_commitment_pubkey);
 
         let input_0_leaf = 0;
         let _input_0 = connector_1.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);

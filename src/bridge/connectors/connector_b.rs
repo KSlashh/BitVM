@@ -1,10 +1,10 @@
 use bitcoin::{
-    key::Secp256k1,
+    key::Secp256k1, Witness,
     taproot::{TaprootBuilder, TaprootSpendInfo},
     Address, Network, ScriptBuf, TxIn, XOnlyPublicKey,
 };
 use serde::{Deserialize, Serialize};
-
+use crate::{bridge::graphs::base::CALC_ROUND, treepp::script};
 use super::{
     super::{
         constants::NUM_BLOCKS_PER_3_DAYS, scripts::*, transactions::base::Input,
@@ -12,20 +12,25 @@ use super::{
     },
     connector::*,
 };
+use crate::bridge::commitment::WPublicKey;
+use crate::bridge::hash_chain;
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct ConnectorB {
     pub network: Network,
     pub n_of_n_taproot_public_key: XOnlyPublicKey,
+    pub operator_commitment_pubkey: WPublicKey,
     pub num_blocks_timelock_1: u32,
 }
 
 impl ConnectorB {
-    pub fn new(network: Network, n_of_n_taproot_public_key: &XOnlyPublicKey) -> Self {
+    pub fn new(network: Network, n_of_n_taproot_public_key: &XOnlyPublicKey, operator_commitment_pubkey: &WPublicKey) -> Self {
         ConnectorB {
             network,
             n_of_n_taproot_public_key: n_of_n_taproot_public_key.clone(),
-            num_blocks_timelock_1: num_blocks_per_network(network, NUM_BLOCKS_PER_3_DAYS),
+            operator_commitment_pubkey: operator_commitment_pubkey.clone(),
+            num_blocks_timelock_1: 0, // TODO delete, just for test
+            // num_blocks_timelock_1: num_blocks_per_network(network, NUM_BLOCKS_PER_3_DAYS),
         }
     }
 
@@ -36,14 +41,30 @@ impl ConnectorB {
     fn generate_taproot_leaf_0_tx_in(&self, input: &Input) -> TxIn { generate_default_tx_in(input) }
 
     fn generate_taproot_leaf_1_script(&self) -> ScriptBuf {
-        generate_timelock_taproot_script(
-            &self.n_of_n_taproot_public_key,
-            self.num_blocks_timelock_1,
-        )
+        let round = CALC_ROUND;
+        script! {
+            // timelock
+            { self.num_blocks_timelock_1 }
+            OP_CSV
+            OP_DROP
+
+            // bitcommitment
+            for i in 0..round {
+                { hash_chain::commitment_script_lock(&self.operator_commitment_pubkey, i) }
+            }
+        }.compile()
     }
 
     fn generate_taproot_leaf_1_tx_in(&self, input: &Input) -> TxIn {
         generate_timelock_tx_in(input, self.num_blocks_timelock_1)
+    }
+
+    pub fn push_leaf_1_unlock_witness(&self, witness: &mut Witness, operator_commitment_seckey: &[u8; 20], statement: &[u8]) {
+        let round = CALC_ROUND;
+        witness.push([0x1]);
+        for i in 0..round {
+            hash_chain::push_commitment_unlock_witness(witness, operator_commitment_seckey, statement, round - 1 - i)
+        }
     }
 
     fn generate_taproot_leaf_2_script(&self) -> ScriptBuf {

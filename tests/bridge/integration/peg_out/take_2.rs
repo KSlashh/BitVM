@@ -40,7 +40,7 @@ async fn test_take_2_success() {
         _,
         depositor_evm_address,
         _,
-        _,
+        statement,
     ) = setup_test().await;
 
     // verify funding inputs
@@ -72,10 +72,9 @@ async fn test_take_2_success() {
     let (assert_tx, assert_txid) = create_and_mine_assert_tx(
         &client,
         &operator_context,
-        &verifier_0_context,
-        &verifier_1_context,
         &assert_funding_address,
         assert_input_amount,
+        &statement
     )
     .await;
 

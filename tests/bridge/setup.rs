@@ -90,7 +90,7 @@ pub async fn setup_test() -> (
         &operator_context.operator_taproot_public_key,
         &operator_context.n_of_n_taproot_public_key,
     );
-    let connector_b = ConnectorB::new(source_network, &operator_context.n_of_n_taproot_public_key);
+    let connector_b = ConnectorB::new(source_network, &operator_context.n_of_n_taproot_public_key, &operator_context.operator_commitment_pubkey);
     let connector_c = ConnectorC::new(
         source_network,
         &operator_context.operator_taproot_public_key,

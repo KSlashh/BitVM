@@ -16,8 +16,8 @@ async fn test_assert_tx_serialization() {
         _,
         _,
         operator_context,
-        verifier_0_context,
-        verifier_1_context,
+        _,
+        _,
         _,
         _,
         connector_b,
@@ -31,20 +31,14 @@ async fn test_assert_tx_serialization() {
         _,
         _,
         _,
-        _,
+        statement,
     ) = setup_test().await;
 
     let amount = Amount::from_sat(ONE_HUNDRED * 2 / 100);
     let outpoint =
         generate_stub_outpoint(&client, &connector_b.generate_taproot_address(), amount).await;
 
-    let mut assert_tx = AssertTransaction::new(&operator_context, Input { outpoint, amount });
-
-    let secret_nonces_0 = assert_tx.push_nonces(&verifier_0_context);
-    let secret_nonces_1 = assert_tx.push_nonces(&verifier_1_context);
-
-    assert_tx.pre_sign(&verifier_0_context, &secret_nonces_0);
-    assert_tx.pre_sign(&verifier_1_context, &secret_nonces_1);
+    let mut assert_tx = AssertTransaction::new(&operator_context, Input { outpoint, amount }, &statement);
 
     let json = serialize(&assert_tx);
     assert!(json.len() > 0);

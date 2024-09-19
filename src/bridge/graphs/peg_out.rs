@@ -333,6 +333,7 @@ impl PegOutGraph {
                 },
                 amount: kick_off_2_transaction.tx().output[assert_vout_0].value,
             },
+            statement,
         );
         let assert_txid = assert_transaction.tx().compute_txid();
 
@@ -549,6 +550,7 @@ impl PegOutGraph {
             &self.operator_public_key,
             &self.operator_taproot_public_key,
             &self.n_of_n_taproot_public_key,
+            &self.operator_commitment_pubkey,
             Input {
                 outpoint: OutPoint {
                     txid: peg_in_confirm_txid,
@@ -585,6 +587,7 @@ impl PegOutGraph {
             &self.operator_public_key,
             &self.operator_taproot_public_key,
             &self.n_of_n_taproot_public_key,
+            &self.operator_commitment_pubkey,
             Input {
                 outpoint: OutPoint {
                     txid: kick_off_2_txid,
@@ -662,6 +665,7 @@ impl PegOutGraph {
         let disprove_chain_transaction = DisproveChainTransaction::new_for_validation(
             self.network,
             &self.n_of_n_taproot_public_key,
+            &self.operator_commitment_pubkey,
             Input {
                 outpoint: OutPoint {
                     txid: kick_off_2_txid,
@@ -708,10 +712,6 @@ impl PegOutGraph {
         let mut secret_nonces = HashMap::new();
 
         secret_nonces.insert(
-            self.assert_transaction.tx().compute_txid(),
-            self.assert_transaction.push_nonces(context),
-        );
-        secret_nonces.insert(
             self.disprove_chain_transaction.tx().compute_txid(),
             self.disprove_chain_transaction.push_nonces(context),
         );
@@ -744,10 +744,6 @@ impl PegOutGraph {
         context: &VerifierContext,
         secret_nonces: &HashMap<Txid, HashMap<usize, SecNonce>>,
     ) {
-        self.assert_transaction.pre_sign(
-            context,
-            &secret_nonces[&self.assert_transaction.tx().compute_txid()],
-        );
         self.disprove_chain_transaction.pre_sign(
             context,
             &secret_nonces[&self.disprove_chain_transaction.tx().compute_txid()],
@@ -1573,9 +1569,6 @@ impl PegOutGraph {
     }
 
     pub fn merge(&mut self, source_peg_out_graph: &PegOutGraph) {
-        self.assert_transaction
-            .merge(&source_peg_out_graph.assert_transaction);
-
         self.challenge_transaction
             .merge(&source_peg_out_graph.challenge_transaction);
 

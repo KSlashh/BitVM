@@ -18,8 +18,8 @@ async fn test_assert_tx() {
         _,
         _,
         operator_context,
-        verifier_0_context,
-        verifier_1_context,
+        _,
+        _,
         _,
         _,
         connector_b,
@@ -33,26 +33,20 @@ async fn test_assert_tx() {
         _,
         _,
         _,
-        _,
+        statement,
     ) = setup_test().await;
 
     let amount = Amount::from_sat(ONE_HUNDRED * 2 / 100);
     let outpoint =
         generate_stub_outpoint(&client, &connector_b.generate_taproot_address(), amount).await;
 
-    let mut assert_tx = AssertTransaction::new(&operator_context, Input { outpoint, amount });
-
-    let secret_nonces_0 = assert_tx.push_nonces(&verifier_0_context);
-    let secret_nonces_1 = assert_tx.push_nonces(&verifier_1_context);
-
-    assert_tx.pre_sign(&verifier_0_context, &secret_nonces_0);
-    assert_tx.pre_sign(&verifier_1_context, &secret_nonces_1);
+    let assert_tx = AssertTransaction::new(&operator_context, Input { outpoint, amount }, &statement);
 
     let tx = assert_tx.finalize();
-    println!("Script Path Spend Transaction: {:?}\n", tx);
+    // println!("Script Path Spend Transaction: {:?}\n", tx);
     let result = client.esplora.broadcast(&tx).await;
-    println!("Txid: {:?}", tx.compute_txid());
+    println!("\nTxid: {:?}", tx.compute_txid());
     println!("Broadcast result: {:?}\n", result);
-    println!("Transaction hex: \n{}", serialize_hex(&tx));
+    // println!("Transaction hex: \n{}", serialize_hex(&tx));
     assert!(result.is_ok());
 }

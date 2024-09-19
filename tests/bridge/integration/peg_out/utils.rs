@@ -63,10 +63,9 @@ pub async fn create_and_mine_kick_off_2_tx(
 pub async fn create_and_mine_assert_tx(
     client: &BitVMClient,
     operator_context: &OperatorContext,
-    verifier_0_context: &VerifierContext,
-    verifier_1_context: &VerifierContext,
     assert_funding_utxo_address: &Address,
     input_amount: Amount,
+    statement: &[u8],
 ) -> (Transaction, Txid) {
     // create assert tx
     let assert_funding_outpoint =
@@ -75,13 +74,7 @@ pub async fn create_and_mine_assert_tx(
         outpoint: assert_funding_outpoint,
         amount: input_amount,
     };
-    let mut assert = AssertTransaction::new(&operator_context, assert_input);
-
-    let secret_nonces_0 = assert.push_nonces(&verifier_0_context);
-    let secret_nonces_1 = assert.push_nonces(&verifier_1_context);
-
-    assert.pre_sign(&verifier_0_context, &secret_nonces_0);
-    assert.pre_sign(&verifier_1_context, &secret_nonces_1);
+    let assert = AssertTransaction::new(&operator_context, assert_input, statement);
 
     let assert_tx = assert.finalize();
     let assert_txid = assert_tx.compute_txid();
