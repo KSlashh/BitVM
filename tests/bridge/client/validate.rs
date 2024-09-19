@@ -110,6 +110,7 @@ async fn setup_and_create_graphs() -> (BitVMClientPublicData, OutPoint) {
         _,
         depositor_evm_address,
         _,
+        statement,
     ) = setup_test().await;
 
     let amount_0 = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT + 1);
@@ -150,6 +151,7 @@ async fn setup_and_create_graphs() -> (BitVMClientPublicData, OutPoint) {
             outpoint: peg_out_outpoint,
             amount: amount_0,
         },
+        &statement,
     );
 
     let data = BitVMClientPublicData {

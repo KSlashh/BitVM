@@ -1,15 +1,9 @@
-use bitcoin::hashes::{hash160, Hash};
-use bitcoin::opcodes::all::{OP_EQUALVERIFY, OP_RETURN};
 use bitcoin::Witness;
-use crate::signatures::winternitz::{self, PublicKey};
 use crate::bridge::commitment;
 use crate::treepp::*;
 use blake3::hash as blake3_hash;
 use crate::hash::blake3::blake3_160_var_length;
-use bitcoin_scriptexec::ExecError::OpReturn;
-use hex::encode;
-
-use super::connectors::connector_c::UnlockWitnessData;
+use crate::bridge::commitment::WPublicKey;
 
 const TEMP_STACK_LEN: usize = 20;
 const INDEX_LEN: usize = 4;
@@ -119,7 +113,7 @@ pub fn chunk_script_unlock(input_sig: Script, output_sig: Script, input_stack: S
     }
 }
 
-pub fn chunk_script_lock(pubkey: &PublicKey, index: u32) -> Script {
+pub fn chunk_script_lock(pubkey: &WPublicKey, index: u32) -> Script {
     script! {
         // 1. check bitcommitment of the input 
         { commitment::check_sig_dup(pubkey, STACK_SCRIPT_LEN, STACK_SCRIPT_LEN) }
@@ -195,7 +189,7 @@ pub fn commitment_script_unlock(sig_script: Script, stack_script: Script, index:
     }
 }
 
-pub fn commitment_script_lock(pubkey: &PublicKey, index: u32) -> Script {
+pub fn commitment_script_lock(pubkey: &WPublicKey, index: u32) -> Script {
     script! {
         { commitment::check_sig_dup(pubkey, STACK_SCRIPT_LEN, INDEX_LEN) }
         { check_index_script(index) }
@@ -203,11 +197,12 @@ pub fn commitment_script_lock(pubkey: &PublicKey, index: u32) -> Script {
 }
 
 mod test {
-    use bitcoin::witness;
 
-    use crate::bridge::{graphs::base::{CALC_ROUND, OPERATOR_SECRET, OPERATOR_STATEMENT}, transactions::assert};
+    use crate::bridge::graphs::base::{CALC_ROUND, OPERATOR_SECRET, OPERATOR_STATEMENT};
 
     use super::*;
+
+    use bitcoin_scriptexec::ExecError::OpReturn;
 
     #[test]
     fn test_bitcommitment() {

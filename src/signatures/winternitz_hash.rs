@@ -1,5 +1,5 @@
 use crate::treepp::*;
-use crate::signatures::winternitz::{sign, sig_witness, checksig_verify, generate_public_key, PublicKey
+use crate::signatures::winternitz::{sign, sig_witness, checksig_verify, PublicKey
 };
 use crate::hash::blake3::blake3_160_var_length;
 use blake3::hash;
@@ -77,19 +77,17 @@ pub fn sign_hash(sec_key: &str, message: &[u8]) -> Script {
 }
 
 // push witness
-pub fn push_hash_sig_witness(witness: &mut Witness, sec_key: &[u8; 20], message: &[u8]) {
-    let secret_key = hex::encode(sec_key.clone());
-
-    // winternitz_hash::sign_hash(&sec_key, message)
+pub fn push_hash_sig_witness(witness: &mut Witness, sec_key: &str, message: &[u8]) {
     let message_hash = hash(message);
     let message_hash_bytes = &message_hash.as_bytes()[0..20];
 
-    sig_witness(witness, &secret_key, message_hash_bytes);
+    sig_witness(witness, &sec_key, message_hash_bytes);
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::signatures::winternitz::generate_public_key;
 
     #[test]
     fn test_check_hash_sig() {

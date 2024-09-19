@@ -17,6 +17,7 @@ use super::{
     pre_signed::*,
     pre_signed_musig2::*,
 };
+use crate::bridge::commitment::WPublicKey;
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct StartTimeTimeoutTransaction {
@@ -73,6 +74,7 @@ impl StartTimeTimeoutTransaction {
             context.network,
             &context.operator_taproot_public_key,
             &context.n_of_n_taproot_public_key,
+            &context.operator_commitment_pubkey,
             input_0,
             input_1,
         )
@@ -82,6 +84,7 @@ impl StartTimeTimeoutTransaction {
         network: Network,
         operator_taproot_public_key: &XOnlyPublicKey,
         n_of_n_taproot_public_key: &XOnlyPublicKey,
+        operator_commitment_pubkey: &WPublicKey,
         input_0: Input,
         input_1: Input,
     ) -> Self {
@@ -89,6 +92,7 @@ impl StartTimeTimeoutTransaction {
             network,
             operator_taproot_public_key,
             n_of_n_taproot_public_key,
+            operator_commitment_pubkey,
         );
         let connector_2 = Connector2::new(
             network,

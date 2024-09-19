@@ -3,10 +3,11 @@ use esplora_client::{AsyncClient, Error};
 
 pub const GRAPH_VERSION: &str = "0.1";
 
-pub const INITIAL_AMOUNT: u64 = 2 << 16; // 131072
+pub const INITIAL_AMOUNT: u64 = 100_000; 
 pub const FEE_AMOUNT: u64 = 1_000;
+pub const HUGE_FEE_AMOUNT: u64 = 100_000;
 pub const DUST_AMOUNT: u64 = 10_000;
-pub const ONE_HUNDRED: u64 = 2 << 26; // 134217728
+pub const ONE_HUNDRED: u64 = 10_000_000; 
 
 // TODO delete
 // DEMO SECRETS

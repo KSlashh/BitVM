@@ -138,6 +138,7 @@ async fn create_peg_out_graph(
         _,
         depositor_evm_address,
         _,
+        statement,
     ) = setup_test().await;
 
     // verify funding inputs
@@ -195,6 +196,7 @@ async fn create_peg_out_graph(
                 outpoint: kick_off_outpoint,
                 amount: kick_off_input_amount,
             },
+            &statement,
         )
         .await;
 

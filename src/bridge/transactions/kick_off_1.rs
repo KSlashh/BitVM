@@ -16,6 +16,7 @@ use super::{
     base::*,
     pre_signed::*,
 };
+use crate::bridge::commitment::WPublicKey;
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct KickOff1Transaction {
@@ -43,6 +44,7 @@ impl KickOff1Transaction {
             &context.operator_public_key,
             &context.operator_taproot_public_key,
             &context.n_of_n_taproot_public_key,
+            &context.operator_commitment_pubkey,
             operator_input,
         );
 
@@ -56,12 +58,14 @@ impl KickOff1Transaction {
         operator_public_key: &PublicKey,
         operator_taproot_public_key: &XOnlyPublicKey,
         n_of_n_taproot_public_key: &XOnlyPublicKey,
+        operator_commitment_pubkey: &WPublicKey,
         operator_input: Input,
     ) -> Self {
         let connector_1 = Connector1::new(
             network,
             operator_taproot_public_key,
             n_of_n_taproot_public_key,
+            operator_commitment_pubkey,
         );
         let connector_a = ConnectorA::new(
             network,

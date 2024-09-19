@@ -10,11 +10,13 @@ use super::{
             connector::*, connector_1::Connector1, connector_3::Connector3, connector_b::ConnectorB,
         },
         contexts::operator::OperatorContext,
-        graphs::base::{DUST_AMOUNT, FEE_AMOUNT},
+        graphs::base::{DUST_AMOUNT, HUGE_FEE_AMOUNT},
     },
     base::*,
     pre_signed::*,
 };
+use crate::bridge::commitment::WPublicKey;
+use super::signing::push_taproot_leaf_script_and_control_block_to_witness;
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct KickOff2Transaction {
@@ -37,16 +39,21 @@ impl PreSignedTransaction for KickOff2Transaction {
 }
 
 impl KickOff2Transaction {
-    pub fn new(context: &OperatorContext, input_0: Input) -> Self {
+    pub fn new(context: &OperatorContext, input_0: Input, statement: &[u8]) -> Self {
         let mut this = Self::new_for_validation(
             context.network,
             &context.operator_public_key,
             &context.operator_taproot_public_key,
             &context.n_of_n_taproot_public_key,
+            &context.operator_commitment_pubkey,
             input_0,
         );
 
-        this.sign_input_0(context);
+        // sign input[0], leaf_0
+        this.connector_1.push_leaf_0_unlock_witness(&mut this.tx.input[0].witness, &context.operator_commitment_seckey, statement);
+        let redeem_script = this.connector_1.generate_taproot_leaf_script(0);
+        let taproot_spend_info = this.connector_1.generate_taproot_spend_info();
+        push_taproot_leaf_script_and_control_block_to_witness(&mut this.tx, 0, &taproot_spend_info, &redeem_script);
 
         this
     }
@@ -56,12 +63,14 @@ impl KickOff2Transaction {
         operator_public_key: &PublicKey,
         operator_taproot_public_key: &XOnlyPublicKey,
         n_of_n_taproot_public_key: &XOnlyPublicKey,
+        operator_commitment_pubkey: &WPublicKey,
         input_0: Input,
     ) -> Self {
         let connector_1 = Connector1::new(
             network,
             operator_taproot_public_key,
             n_of_n_taproot_public_key,
+            operator_commitment_pubkey,
         );
         let connector_3 = Connector3::new(network, operator_public_key);
         let connector_b = ConnectorB::new(network, n_of_n_taproot_public_key);
@@ -69,7 +78,7 @@ impl KickOff2Transaction {
         let input_0_leaf = 0;
         let _input_0 = connector_1.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
 
-        let total_output_amount = input_0.amount - Amount::from_sat(FEE_AMOUNT);
+        let total_output_amount = input_0.amount - Amount::from_sat(HUGE_FEE_AMOUNT);
 
         let _output_0 = TxOut {
             value: Amount::from_sat(DUST_AMOUNT),
@@ -98,18 +107,6 @@ impl KickOff2Transaction {
     }
 
     pub fn num_blocks_timelock_0(&self) -> u32 { self.connector_1.num_blocks_timelock_0 }
-
-    fn sign_input_0(&mut self, context: &OperatorContext) {
-        let input_index = 0;
-        pre_sign_taproot_input(
-            self,
-            context,
-            input_index,
-            TapSighashType::All,
-            self.connector_1.generate_taproot_spend_info(),
-            &vec![&context.operator_keypair],
-        );
-    }
 }
 
 impl BaseTransaction for KickOff2Transaction {

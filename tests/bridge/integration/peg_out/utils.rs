@@ -41,6 +41,7 @@ pub async fn create_and_mine_kick_off_2_tx(
     operator_context: &OperatorContext,
     kick_off_2_funding_utxo_address: &Address,
     input_amount: Amount,
+    statement: &[u8],
 ) -> (Transaction, Txid) {
     let kick_off_2_funding_outpoint =
         generate_stub_outpoint(&client, kick_off_2_funding_utxo_address, input_amount).await;
@@ -48,7 +49,7 @@ pub async fn create_and_mine_kick_off_2_tx(
         outpoint: kick_off_2_funding_outpoint,
         amount: input_amount,
     };
-    let kick_off_2 = KickOff2Transaction::new(&operator_context, kick_off_2_input);
+    let kick_off_2 = KickOff2Transaction::new(&operator_context, kick_off_2_input, statement);
     let kick_off_2_tx = kick_off_2.finalize();
     let kick_off_2_txid = kick_off_2_tx.compute_txid();
 

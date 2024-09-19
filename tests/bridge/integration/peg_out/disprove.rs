@@ -36,6 +36,7 @@ async fn test_disprove_success() {
         _,
         _,
         _,
+        statement,
     ) = setup_test().await;
 
     // verify funding inputs
@@ -55,6 +56,7 @@ async fn test_disprove_success() {
         &operator_context,
         &kick_off_2_funding_utxo_address,
         kick_off_2_input_amount,
+        &statement,
     )
     .await;
 

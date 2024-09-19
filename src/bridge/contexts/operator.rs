@@ -5,6 +5,8 @@ use bitcoin::{
 };
 
 use super::base::{generate_keys_from_secret, generate_n_of_n_public_key, BaseContext};
+use crate::bridge::commitment::WPublicKey;
+use crate::bridge::commitment;
 
 pub struct OperatorContext {
     pub network: Network,
@@ -17,6 +19,9 @@ pub struct OperatorContext {
     pub n_of_n_public_keys: Vec<PublicKey>,
     pub n_of_n_public_key: PublicKey,
     pub n_of_n_taproot_public_key: XOnlyPublicKey,
+
+    pub operator_commitment_pubkey: WPublicKey,
+    pub operator_commitment_seckey: [u8; 20],
 }
 
 impl BaseContext for OperatorContext {
@@ -37,6 +42,9 @@ impl OperatorContext {
         let (n_of_n_public_key, n_of_n_taproot_public_key) =
             generate_n_of_n_public_key(n_of_n_public_keys);
 
+        let operator_commitment_pubkey = commitment::seed_to_pubkey(operator_secret.as_bytes());
+        let operator_commitment_seckey = commitment::seed_to_secret(operator_secret.as_bytes());
+
         OperatorContext {
             network,
             secp,
@@ -48,6 +56,9 @@ impl OperatorContext {
             n_of_n_public_keys: n_of_n_public_keys.clone(),
             n_of_n_public_key,
             n_of_n_taproot_public_key,
+
+            operator_commitment_pubkey,
+            operator_commitment_seckey,
         }
     }
 }

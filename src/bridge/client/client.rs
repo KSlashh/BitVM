@@ -640,6 +640,7 @@ impl BitVMClient {
         &mut self,
         peg_in_graph_id: &str,
         kickoff_input: Input,
+        statement: &[u8],
     ) -> String {
         if self.operator_context.is_none() {
             panic!("Operator context must be initialized");
@@ -669,6 +670,7 @@ impl BitVMClient {
             self.operator_context.as_ref().unwrap(),
             peg_in_graph.unwrap(),
             kickoff_input,
+            statement,
         );
 
         self.data.peg_out_graphs.push(peg_out_graph);

@@ -13,6 +13,8 @@ use std::{
     fmt::{Display, Formatter, Result as FmtResult},
 };
 
+use crate::bridge::commitment::WPublicKey;
+
 use super::{
     super::{
         contexts::{base::BaseContext, operator::OperatorContext, verifier::VerifierContext},
@@ -190,6 +192,7 @@ pub struct PegOutGraph {
 
     operator_public_key: PublicKey,
     operator_taproot_public_key: XOnlyPublicKey,
+    operator_commitment_pubkey: WPublicKey,
 
     withdrawer_public_key: Option<PublicKey>,
     withdrawer_taproot_public_key: Option<XOnlyPublicKey>,
@@ -205,7 +208,7 @@ impl BaseGraph for PegOutGraph {
 }
 
 impl PegOutGraph {
-    pub fn new(context: &OperatorContext, peg_in_graph: &PegInGraph, kickoff_input: Input) -> Self {
+    pub fn new(context: &OperatorContext, peg_in_graph: &PegInGraph, kickoff_input: Input, statement: &[u8]) -> Self {
         let peg_in_confirm_transaction = peg_in_graph.peg_in_confirm_transaction_ref();
         let peg_in_confirm_txid = peg_in_confirm_transaction.tx().compute_txid();
 
@@ -254,6 +257,7 @@ impl PegOutGraph {
                 },
                 amount: kick_off_1_transaction.tx().output[kick_off_2_vout_0].value,
             },
+            statement,
         );
         let kick_off_2_txid = kick_off_2_transaction.tx().compute_txid();
 
@@ -424,6 +428,7 @@ impl PegOutGraph {
             take_2_transaction,
             operator_public_key: context.operator_public_key,
             operator_taproot_public_key: context.operator_taproot_public_key,
+            operator_commitment_pubkey: context.operator_commitment_pubkey.clone(),
             withdrawer_public_key: None,
             withdrawer_taproot_public_key: None,
             withdrawer_evm_address: None,
@@ -440,6 +445,7 @@ impl PegOutGraph {
             &self.operator_public_key,
             &self.operator_taproot_public_key,
             &self.n_of_n_taproot_public_key,
+            &self.operator_commitment_pubkey,
             Input {
                 outpoint: self.kick_off_1_transaction.tx().input[kick_off_1_vout_0].previous_output, // Self-referencing
                 amount: self.kick_off_1_transaction.prev_outs()[kick_off_1_vout_0].value, // Self-referencing
@@ -468,6 +474,7 @@ impl PegOutGraph {
             self.network,
             &self.operator_taproot_public_key,
             &self.n_of_n_taproot_public_key,
+            &self.operator_commitment_pubkey,
             Input {
                 outpoint: OutPoint {
                     txid: kick_off_1_txid,
@@ -490,6 +497,7 @@ impl PegOutGraph {
             &self.operator_public_key,
             &self.operator_taproot_public_key,
             &self.n_of_n_taproot_public_key,
+            &self.operator_commitment_pubkey,
             Input {
                 outpoint: OutPoint {
                     txid: kick_off_1_txid,
@@ -505,6 +513,7 @@ impl PegOutGraph {
             self.network,
             &self.operator_taproot_public_key,
             &self.n_of_n_taproot_public_key,
+            &self.operator_commitment_pubkey,
             Input {
                 outpoint: OutPoint {
                     txid: kick_off_1_txid,
@@ -684,6 +693,7 @@ impl PegOutGraph {
             take_2_transaction,
             operator_public_key: self.operator_public_key,
             operator_taproot_public_key: self.operator_taproot_public_key,
+            operator_commitment_pubkey: self.operator_commitment_pubkey.clone(),
             withdrawer_public_key: None,
             withdrawer_taproot_public_key: None,
             withdrawer_evm_address: None,
