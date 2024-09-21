@@ -100,7 +100,7 @@ impl AssertTransaction {
         let connector_4 = Connector4::new(network, operator_public_key);
         let connector_5 = Connector5::new(network, n_of_n_taproot_public_key);
         let connector_b = ConnectorB::new(network, n_of_n_taproot_public_key, operator_commitment_pubkey);
-        let connector_c = ConnectorC::new(network, operator_taproot_public_key);
+        let connector_c = ConnectorC::new(network, operator_taproot_public_key, operator_commitment_pubkey);
 
         let input_0_leaf = 1;
         let _input_0 = connector_b.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);

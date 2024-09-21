@@ -96,9 +96,13 @@ pub fn step_script() -> Script {
     restored stack:
         bottom| 0x1 0x2 0x3 0x4
 */
-pub fn push_chunk_unlock_witness(witness: &mut Witness, sec_key: &[u8; 20], statement: &[u8], index: u32) {
-    push_commitment_unlock_witness(witness, sec_key, statement, index+1);
-    push_commitment_unlock_witness(witness, sec_key, statement, index);
+pub fn push_chunk_unlock_witness(witness: &mut Witness, pre_commitment: &Witness, post_commitment: &Witness) {
+    for item in post_commitment.iter() {
+        witness.push(item);
+    }
+    for item in pre_commitment.iter() {
+        witness.push(item);
+    }
 }
 
 pub fn chunk_script_unlock(input_sig: Script, output_sig: Script, input_stack: Script, output_stack: Script, index: u32) -> Script {
@@ -144,6 +148,12 @@ pub fn chunk_script_lock(pubkey: &WPublicKey, index: u32) -> Script {
         OP_RETURN
         OP_ENDIF
     }   
+}
+
+pub fn gen_commitment_unlock_witness(sec_key: &[u8; 20], statement: &[u8], index: u32) -> Witness {
+    let mut witness = Witness::new();
+    push_commitment_unlock_witness(&mut witness, sec_key, statement, index);
+    witness
 }
 
 pub fn push_commitment_unlock_witness(witness: &mut Witness, sec_key: &[u8; 20], statement: &[u8], index: u32) {
@@ -198,7 +208,7 @@ pub fn commitment_script_lock(pubkey: &WPublicKey, index: u32) -> Script {
 
 mod test {
 
-    use crate::bridge::graphs::base::{CALC_ROUND, OPERATOR_SECRET, OPERATOR_STATEMENT};
+    use crate::bridge::{graphs::base::{CALC_ROUND, OPERATOR_SECRET, OPERATOR_STATEMENT}, transactions::assert};
 
     use super::*;
 
@@ -259,7 +269,7 @@ mod test {
         let seed = OPERATOR_SECRET;
         let pubkey = commitment::seed_to_pubkey(seed.as_bytes());
         let statement = OPERATOR_STATEMENT;
-        let index: u32 = CALC_ROUND;
+        let index: u32 = 1;
         let sec_key = commitment::seed_to_secret(seed.as_bytes());
 
         let input_stack = push_stack_script(&statement, index);
@@ -272,20 +282,29 @@ mod test {
         //     OP_TRUE
         // }));
 
-        let mut witness = Witness::new();
 
-        push_commitment_unlock_witness(&mut witness, &sec_key, &statement, index);
+        let pre_witness = gen_commitment_unlock_witness(&sec_key, &statement, index);
+        let post_witness = gen_commitment_unlock_witness(&sec_key, &statement, index+1);
+        let mut merged_witness = Witness::new();
+        let mut expected_witness = Witness::new();
 
-        for i in 0..witness.len()/4 {
-            let ele_0 = witness.nth(4*i).unwrap();
-            let ele_1 = witness.nth(4*i+1).unwrap();
-            let ele_2 = witness.nth(4*i+2).unwrap();
-            let ele_3 = witness.nth(4*i+3).unwrap();
-            let res_0 = hex::encode(&ele_0);
-            let res_1 = hex::encode(&ele_1);
-            let res_2 = hex::encode(&ele_2);
-            let res_3 = hex::encode(&ele_3);
-            println!("{res_0} {res_1} {res_2} {res_3}");
-        }
+        push_chunk_unlock_witness(&mut merged_witness, &pre_witness, &post_witness);
+
+        push_commitment_unlock_witness(&mut expected_witness, &sec_key, &statement, index+1);
+        push_commitment_unlock_witness(&mut expected_witness, &sec_key, &statement, index);
+
+        assert_eq!(merged_witness, expected_witness);
+
+        // for i in 0..witness.len()/4 {
+        //     let ele_0 = witness.nth(4*i).unwrap();
+        //     let ele_1 = witness.nth(4*i+1).unwrap();
+        //     let ele_2 = witness.nth(4*i+2).unwrap();
+        //     let ele_3 = witness.nth(4*i+3).unwrap();
+        //     let res_0 = hex::encode(&ele_0);
+        //     let res_1 = hex::encode(&ele_1);
+        //     let res_2 = hex::encode(&ele_2);
+        //     let res_3 = hex::encode(&ele_3);
+        //     println!("{res_0} {res_1} {res_2} {res_3}");
+        // }
     }
 }

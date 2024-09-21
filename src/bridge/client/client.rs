@@ -6,7 +6,7 @@ use std::{
     path::Path,
 };
 
-use bitcoin::{absolute::Height, Address, Amount, Network, OutPoint, PublicKey, ScriptBuf, Txid};
+use bitcoin::{absolute::Height, Address, Amount, Network, OutPoint, PublicKey, ScriptBuf, Txid, Witness};
 use esplora_client::{AsyncClient, Builder, Utxo};
 
 use crate::bridge::{constants::DestinationNetwork, contexts::base::generate_n_of_n_public_key};
@@ -837,6 +837,8 @@ impl BitVMClient {
         peg_out_graph_id: &str,
         input_script_index: u32,
         output_script_pubkey: ScriptBuf,
+        pre_commitment: &Witness, 
+        post_commitment: &Witness,
     ) {
         let peg_out_graph = self
             .data
@@ -849,7 +851,7 @@ impl BitVMClient {
 
         peg_out_graph
             .unwrap()
-            .disprove(&self.esplora, input_script_index, output_script_pubkey)
+            .disprove(&self.esplora, input_script_index, output_script_pubkey, pre_commitment, post_commitment)
             .await;
     }
 

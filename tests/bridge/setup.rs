@@ -94,6 +94,7 @@ pub async fn setup_test() -> (
     let connector_c = ConnectorC::new(
         source_network,
         &operator_context.operator_taproot_public_key,
+        &operator_context.operator_commitment_pubkey,
     );
     let connector_z = ConnectorZ::new(
         source_network,

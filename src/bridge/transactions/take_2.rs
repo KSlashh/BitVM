@@ -5,6 +5,7 @@ use bitcoin::{
 use musig2::{secp256k1::schnorr::Signature, PartialSignature, PubNonce, SecNonce};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use crate::bridge::commitment::WPublicKey;
 
 use super::{
     super::{
@@ -84,6 +85,7 @@ impl Take2Transaction {
             &context.operator_public_key,
             &context.operator_taproot_public_key,
             &context.n_of_n_taproot_public_key,
+            &context.operator_commitment_pubkey,
             input_0,
             input_1,
             input_2,
@@ -101,6 +103,7 @@ impl Take2Transaction {
         operator_public_key: &PublicKey,
         operator_taproot_public_key: &XOnlyPublicKey,
         n_of_n_taproot_public_key: &XOnlyPublicKey,
+        operator_commitment_pubkey: &WPublicKey,
         input_0: Input,
         input_1: Input,
         input_2: Input,
@@ -109,7 +112,7 @@ impl Take2Transaction {
         let connector_0 = Connector0::new(network, n_of_n_taproot_public_key);
         let connector_4 = Connector4::new(network, operator_public_key);
         let connector_5 = Connector5::new(network, n_of_n_taproot_public_key);
-        let connector_c = ConnectorC::new(network, operator_taproot_public_key);
+        let connector_c = ConnectorC::new(network, operator_taproot_public_key, operator_commitment_pubkey);
 
         let input_0_leaf = 1;
         let _input_0 = connector_0.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);

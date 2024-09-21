@@ -1,12 +1,10 @@
 use bitcoin::{Address, Amount, OutPoint};
 use bitvm::bridge::{
-    graphs::base::{FEE_AMOUNT, INITIAL_AMOUNT},
-    scripts::generate_pay_to_pubkey_script_address,
-    transactions::{
+    graphs::base::{FEE_AMOUNT, HUGE_FEE_AMOUNT, INITIAL_AMOUNT}, hash_chain, scripts::generate_pay_to_pubkey_script_address, transactions::{
         assert::AssertTransaction,
         base::{BaseTransaction, Input},
         disprove::DisproveTransaction,
-    },
+    }
 };
 
 use crate::bridge::{
@@ -41,7 +39,7 @@ async fn test_disprove_success() {
 
     // verify funding inputs
     let mut funding_inputs: Vec<(&Address, Amount)> = vec![];
-    let kick_off_2_input_amount = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT);
+    let kick_off_2_input_amount = Amount::from_sat(INITIAL_AMOUNT + HUGE_FEE_AMOUNT);
     let kick_off_2_funding_utxo_address = generate_pay_to_pubkey_script_address(
         operator_context.network,
         &operator_context.operator_public_key,
@@ -114,7 +112,13 @@ async fn test_disprove_success() {
         &withdrawer_context.withdrawer_public_key,
     );
     let verifier_reward_script = reward_address.script_pubkey(); // send reward to withdrawer address
-    disprove.add_input_output(script_index, verifier_reward_script);
+
+    // the following commitment should be obtained from the witness of the assert transaction
+    let invalid_statement = [0u8; 20];
+    let pre_commitment = hash_chain::gen_commitment_unlock_witness(&operator_context.operator_commitment_seckey, &statement, script_index);
+    let post_commitment = hash_chain::gen_commitment_unlock_witness(&operator_context.operator_commitment_seckey, &invalid_statement, script_index+1);
+    
+    disprove.add_input_output(script_index, verifier_reward_script, &pre_commitment, &post_commitment);
 
     let disprove_tx = disprove.finalize();
     let disprove_txid = disprove_tx.compute_txid();

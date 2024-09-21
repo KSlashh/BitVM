@@ -1,6 +1,6 @@
 use bitcoin::{
     hex::{Case::Upper, DisplayHex},
-    key::Keypair,
+    key::Keypair, Witness,
     Amount, Network, OutPoint, PublicKey, ScriptBuf, Txid, XOnlyPublicKey,
 };
 use esplora_client::{AsyncClient, Error, TxStatus};
@@ -607,6 +607,7 @@ impl PegOutGraph {
             &self.operator_public_key,
             &self.operator_taproot_public_key,
             &self.n_of_n_taproot_public_key,
+            &self.operator_commitment_pubkey,
             Input {
                 outpoint: OutPoint {
                     txid: peg_in_confirm_txid,
@@ -644,6 +645,7 @@ impl PegOutGraph {
             self.network,
             &self.operator_taproot_public_key,
             &self.n_of_n_taproot_public_key,
+            &self.operator_commitment_pubkey,
             Input {
                 outpoint: OutPoint {
                     txid: assert_txid,
@@ -1246,6 +1248,8 @@ impl PegOutGraph {
         client: &AsyncClient,
         input_script_index: u32,
         output_script_pubkey: ScriptBuf,
+        pre_commitment: &Witness, 
+        post_commitment: &Witness,
     ) {
         verify_if_not_mined(client, self.disprove_transaction.tx().compute_txid()).await;
 
@@ -1255,7 +1259,7 @@ impl PegOutGraph {
         if assert_status.is_ok_and(|status| status.confirmed) {
             // complete disprove tx
             self.disprove_transaction
-                .add_input_output(input_script_index, output_script_pubkey);
+                .add_input_output(input_script_index, output_script_pubkey, pre_commitment, post_commitment);
             let disprove_tx = self.disprove_transaction.finalize();
 
             // broadcast disprove tx
