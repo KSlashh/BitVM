@@ -55,6 +55,7 @@ pub async fn create_and_mine_kick_off_2_tx(
 
     // mine kick-off 2 tx
     let kick_off_2_result = client.esplora.broadcast(&kick_off_2_tx).await;
+    println!("\nBroadcast kick_off_2 result: {:?}\n", kick_off_2_result);
     assert!(kick_off_2_result.is_ok());
 
     return (kick_off_2_tx, kick_off_2_txid);

@@ -4,7 +4,8 @@ use bitvm::bridge::{
         assert::AssertTransaction,
         base::{BaseTransaction, Input},
         disprove::DisproveTransaction,
-    }
+    },
+    connectors::connector::TaprootConnector,
 };
 
 use crate::bridge::{
@@ -27,7 +28,7 @@ async fn test_disprove_success() {
         _,
         _,
         _,
-        _,
+        connector_1,
         _,
         _,
         _,
@@ -39,11 +40,8 @@ async fn test_disprove_success() {
 
     // verify funding inputs
     let mut funding_inputs: Vec<(&Address, Amount)> = vec![];
-    let kick_off_2_input_amount = Amount::from_sat(INITIAL_AMOUNT + HUGE_FEE_AMOUNT);
-    let kick_off_2_funding_utxo_address = generate_pay_to_pubkey_script_address(
-        operator_context.network,
-        &operator_context.operator_public_key,
-    );
+    let kick_off_2_input_amount = Amount::from_sat(INITIAL_AMOUNT + 3*HUGE_FEE_AMOUNT);
+    let kick_off_2_funding_utxo_address = connector_1.generate_taproot_address();
     funding_inputs.push((&kick_off_2_funding_utxo_address, kick_off_2_input_amount));
 
     verify_funding_inputs(&client, &funding_inputs).await;
@@ -72,6 +70,7 @@ async fn test_disprove_success() {
     let assert_tx = assert.finalize();
     let assert_txid = assert_tx.compute_txid();
     let assert_result = client.esplora.broadcast(&assert_tx).await;
+    println!("\nBroadcast assert result: {:?}\n", assert_result);
     assert!(assert_result.is_ok());
 
     // disprove
@@ -125,6 +124,7 @@ async fn test_disprove_success() {
 
     // mine disprove
     let disprove_result = client.esplora.broadcast(&disprove_tx).await;
+    println!("\nBroadcast disprove result: {:?}\n", disprove_result);
     assert!(disprove_result.is_ok());
 
     // reward balance

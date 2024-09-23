@@ -5,7 +5,7 @@ use bitcoin::{
 use musig2::{secp256k1::schnorr::Signature, PartialSignature, PubNonce, SecNonce};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::bridge::commitment::WPublicKey;
+use crate::bridge::{commitment::WPublicKey, graphs::base::{CALC_ROUND, HUGE_FEE_AMOUNT}};
 
 use super::{
     super::{
@@ -122,11 +122,11 @@ impl Take2Transaction {
         let input_2_leaf = 0;
         let _input_2 = connector_5.generate_taproot_leaf_tx_in(input_2_leaf, &input_2);
 
-        let input_3_leaf = 0;
+        let input_3_leaf = CALC_ROUND;
         let _input_3 = connector_c.generate_taproot_leaf_tx_in(input_3_leaf, &input_3);
 
         let total_output_amount = input_0.amount + input_1.amount + input_2.amount + input_3.amount
-            - Amount::from_sat(FEE_AMOUNT);
+            - Amount::from_sat(HUGE_FEE_AMOUNT);
 
         let _output_0 = TxOut {
             value: total_output_amount,

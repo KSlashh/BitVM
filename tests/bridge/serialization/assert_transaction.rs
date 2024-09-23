@@ -38,7 +38,7 @@ async fn test_assert_tx_serialization() {
     let outpoint =
         generate_stub_outpoint(&client, &connector_b.generate_taproot_address(), amount).await;
 
-    let mut assert_tx = AssertTransaction::new(&operator_context, Input { outpoint, amount }, &statement);
+    let assert_tx = AssertTransaction::new(&operator_context, Input { outpoint, amount }, &statement);
 
     let json = serialize(&assert_tx);
     assert!(json.len() > 0);

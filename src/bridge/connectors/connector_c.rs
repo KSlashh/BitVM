@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use super::{super::transactions::base::Input, connector::*};
 use crate::bridge::commitment::WPublicKey;
 use crate::bridge::hash_chain;
+use crate::bridge::scripts::generate_pay_to_pubkey_taproot_script;
 
 // Specialized for assert leaves currently.
 pub type LockScript = fn(index: u32) -> ScriptBuf;
@@ -39,13 +40,19 @@ impl ConnectorC {
     }
 
     pub fn generate_taproot_leaf_script(&self, leaf_index: u32) -> ScriptBuf {
+        assert!(leaf_index <= CALC_ROUND, "Invalid leaf index.");
+        if leaf_index == CALC_ROUND {
+            generate_pay_to_pubkey_taproot_script(&self.operator_taproot_public_key)
+        } else {
         script! {
-            { hash_chain::chunk_script_lock(&self.operator_commitment_pubkey, leaf_index) }
+                { hash_chain::chunk_script_lock(&self.operator_commitment_pubkey, leaf_index) }
+            }
+            .compile()
         }
-        .compile()
     }
 
     pub fn push_leaf_unlock_witness(&self, witness: &mut Witness, pre_commitment: &Witness, post_commitment: &Witness, leaf_index: u32) {
+        assert!(leaf_index < CALC_ROUND, "Invalid leaf index.");
         witness.push([0x1]);
         hash_chain::push_chunk_unlock_witness(witness, pre_commitment, post_commitment);
     }
@@ -58,7 +65,7 @@ impl TaprootConnector for ConnectorC {
 
     fn generate_taproot_leaf_tx_in(&self, leaf_index: u32, input: &Input) -> TxIn {
         let index = leaf_index.to_usize().unwrap();
-        if index >= CALC_ROUND as usize {
+        if index >= (CALC_ROUND+1) as usize {
             panic!("Invalid leaf index.")
         }
         generate_default_tx_in(input)
@@ -66,7 +73,7 @@ impl TaprootConnector for ConnectorC {
 
     fn generate_taproot_spend_info(&self) -> TaprootSpendInfo {
         let mut lock_scripts = Vec::with_capacity(CALC_ROUND as usize);
-        for i in 0..CALC_ROUND {
+        for i in 0..(CALC_ROUND+1) {
             lock_scripts.push(self.generate_taproot_leaf_script(i))
         }
         let script_weights = lock_scripts.iter().map(|script| (1, script.clone()));

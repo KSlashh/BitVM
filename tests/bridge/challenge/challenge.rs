@@ -1,7 +1,7 @@
 use bitcoin::{consensus::encode::serialize_hex, Amount, OutPoint};
 
 use bitvm::bridge::{
-    connectors::connector::TaprootConnector,
+    connectors::{connector::TaprootConnector, connector_a},
     graphs::base::{DUST_AMOUNT, INITIAL_AMOUNT},
     scripts::{generate_pay_to_pubkey_script, generate_pay_to_pubkey_script_address},
     transactions::{
@@ -22,7 +22,7 @@ async fn test_challenge_tx() {
         _,
         _,
         _,
-        _,
+        connector_a,
         _,
         _,
         _,
@@ -43,7 +43,7 @@ async fn test_challenge_tx() {
 
     let amount_0 = Amount::from_sat(DUST_AMOUNT);
     let outpoint_0 =
-        generate_stub_outpoint(&client, &connector_1.generate_taproot_address(), amount_0).await;
+        generate_stub_outpoint(&client, &connector_a.generate_taproot_address(), amount_0).await;
 
     // Create two inputs that exceed the crowdfunding total
     let input_amount_crowdfunding_total = Amount::from_sat(INITIAL_AMOUNT);
