@@ -1,5 +1,6 @@
 use musig2::SecNonce;
 use serde::{Deserialize, Serialize};
+use tokio::time::{sleep, Duration};
 use std::{
     collections::HashMap,
     fs::{self},
@@ -1203,4 +1204,22 @@ impl BitVMClient {
     //         }
     //     }
     // }
+}
+
+pub async  fn wait_util_confirmed(client: &AsyncClient, txid: &Txid) {
+    let mut err_tolerance = 3;
+    loop {
+        let status = client.get_tx_status(txid).await;
+        let is_confirmed = match status {
+            Ok(t) => t.confirmed,
+            Err(e) => {
+                println!("\n{}",e);
+                err_tolerance -= 1;
+                if err_tolerance == 0 { panic!("too much error!") };
+                false
+            },
+        };
+        if is_confirmed { break; }
+        sleep(Duration::from_secs(10)).await;
+    }
 }

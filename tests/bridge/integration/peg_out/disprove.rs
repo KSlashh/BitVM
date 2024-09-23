@@ -1,11 +1,10 @@
 use bitcoin::{Address, Amount, OutPoint};
 use bitvm::bridge::{
-    graphs::base::{FEE_AMOUNT, HUGE_FEE_AMOUNT, INITIAL_AMOUNT}, hash_chain, scripts::generate_pay_to_pubkey_script_address, transactions::{
+    client::client, connectors::connector::TaprootConnector, graphs::base::{FEE_AMOUNT, HUGE_FEE_AMOUNT, INITIAL_AMOUNT}, hash_chain, scripts::generate_pay_to_pubkey_script_address, transactions::{
         assert::AssertTransaction,
         base::{BaseTransaction, Input},
         disprove::DisproveTransaction,
-    },
-    connectors::connector::TaprootConnector,
+    }
 };
 
 use crate::bridge::{
@@ -56,6 +55,10 @@ async fn test_disprove_success() {
     )
     .await;
 
+    // wait until kickoff_2 is comfirmed
+    // println!("wait for kickoff_2 tx: {} confrimation", kick_off_2_txid);
+    client::wait_util_confirmed(&client.esplora, &kick_off_2_txid).await;
+
     // assert
     let vout = 1; // connector B
     let assert_input_0 = Input {
@@ -72,6 +75,10 @@ async fn test_disprove_success() {
     let assert_result = client.esplora.broadcast(&assert_tx).await;
     println!("\nBroadcast assert result: {:?}\n", assert_result);
     assert!(assert_result.is_ok());
+
+    // wait until assert is comfirmed
+    // println!("wait for assert tx: {} confrimation", assert_txid);
+    client::wait_util_confirmed(&client.esplora, &assert_txid).await;
 
     // disprove
     let vout = 1;
