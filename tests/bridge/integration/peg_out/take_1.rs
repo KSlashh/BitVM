@@ -3,7 +3,7 @@ use std::time::Duration;
 use bitcoin::{Address, Amount, OutPoint};
 use bitvm::bridge::{
     connectors::connector::TaprootConnector,
-    graphs::base::{FEE_AMOUNT, INITIAL_AMOUNT},
+    graphs::base::{FEE_AMOUNT, HUGE_FEE_AMOUNT, INITIAL_AMOUNT},
     scripts::generate_pay_to_pubkey_script_address,
     transactions::{
         base::{BaseTransaction, Input},
@@ -43,16 +43,17 @@ async fn test_take_1_success() {
         _,
         depositor_evm_address,
         _,
+        statement,
     ) = setup_test().await;
 
     // verify funding inputs
     let mut funding_inputs: Vec<(&Address, Amount)> = vec![];
 
-    let deposit_input_amount = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT);
+    let deposit_input_amount = Amount::from_sat(INITIAL_AMOUNT + HUGE_FEE_AMOUNT);
     let peg_in_confirm_funding_address = connector_z.generate_taproot_address();
     funding_inputs.push((&peg_in_confirm_funding_address, deposit_input_amount));
 
-    let kick_off_1_input_amount = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT);
+    let kick_off_1_input_amount = Amount::from_sat(INITIAL_AMOUNT + HUGE_FEE_AMOUNT);
     let kick_off_1_funding_utxo_address = generate_pay_to_pubkey_script_address(
         operator_context.network,
         &operator_context.operator_public_key,
@@ -91,7 +92,7 @@ async fn test_take_1_success() {
         },
         amount: kick_off_1_tx.output[vout as usize].value,
     };
-    let kick_off_2 = KickOff2Transaction::new(&operator_context, kick_off_2_input_0);
+    let kick_off_2 = KickOff2Transaction::new(&operator_context, kick_off_2_input_0, &statement);
     let kick_off_2_tx = kick_off_2.finalize();
     let kick_off_2_txid = kick_off_2_tx.compute_txid();
 

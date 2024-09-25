@@ -15,7 +15,7 @@ use bitvm::bridge::{
     },
     graphs::base::{
         DEPOSITOR_EVM_ADDRESS, DEPOSITOR_SECRET, OPERATOR_SECRET, VERIFIER_0_SECRET,
-        VERIFIER_1_SECRET, WITHDRAWER_EVM_ADDRESS, WITHDRAWER_SECRET,
+        VERIFIER_1_SECRET, WITHDRAWER_EVM_ADDRESS, WITHDRAWER_SECRET, OPERATOR_STATEMENT
     },
 };
 
@@ -39,6 +39,7 @@ pub async fn setup_test() -> (
     Connector5,
     String,
     String,
+    [u8; 20]
 ) {
     let source_network = Network::Testnet;
     let destination_network = DestinationNetwork::EthereumSepolia;
@@ -89,10 +90,11 @@ pub async fn setup_test() -> (
         &operator_context.operator_taproot_public_key,
         &operator_context.n_of_n_taproot_public_key,
     );
-    let connector_b = ConnectorB::new(source_network, &operator_context.n_of_n_taproot_public_key);
+    let connector_b = ConnectorB::new(source_network, &operator_context.n_of_n_taproot_public_key, &operator_context.operator_commitment_pubkey);
     let connector_c = ConnectorC::new(
         source_network,
         &operator_context.operator_taproot_public_key,
+        &operator_context.operator_commitment_pubkey,
     );
     let connector_z = ConnectorZ::new(
         source_network,
@@ -105,6 +107,7 @@ pub async fn setup_test() -> (
         source_network,
         &operator_context.operator_taproot_public_key,
         &operator_context.n_of_n_taproot_public_key,
+        &operator_context.operator_commitment_pubkey,
     );
     let connector_2 = Connector2::new(
         source_network,
@@ -135,5 +138,6 @@ pub async fn setup_test() -> (
         connector_5,
         DEPOSITOR_EVM_ADDRESS.to_string(),
         WITHDRAWER_EVM_ADDRESS.to_string(),
+        OPERATOR_STATEMENT
     );
 }

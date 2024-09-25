@@ -1,10 +1,11 @@
 use bitcoin::{
     absolute, consensus, Amount, Network, PublicKey, ScriptBuf, TapSighashType, Transaction, TxOut,
-    XOnlyPublicKey,
+    XOnlyPublicKey, Witness,
 };
 use musig2::{secp256k1::schnorr::Signature, PartialSignature, PubNonce, SecNonce};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use crate::bridge::{commitment::WPublicKey, graphs::base::HUGE_FEE_AMOUNT};
 
 use super::{
     super::{
@@ -79,6 +80,7 @@ impl DisproveTransaction {
             context.network,
             &context.operator_taproot_public_key,
             &context.n_of_n_taproot_public_key,
+            &context.operator_commitment_pubkey,
             input_0,
             input_1,
             script_index,
@@ -89,12 +91,13 @@ impl DisproveTransaction {
         network: Network,
         operator_taproot_public_key: &XOnlyPublicKey,
         n_of_n_taproot_public_key: &XOnlyPublicKey,
+        operator_commitment_pubkey: &WPublicKey,
         input_0: Input,
         input_1: Input,
         script_index: u32,
     ) -> Self {
         let connector_5 = Connector5::new(network, &n_of_n_taproot_public_key);
-        let connector_c = ConnectorC::new(network, &operator_taproot_public_key);
+        let connector_c = ConnectorC::new(network, &operator_taproot_public_key, operator_commitment_pubkey);
 
         let input_0_leaf = 1;
         let _input_0 = connector_5.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
@@ -102,7 +105,7 @@ impl DisproveTransaction {
         let input_1_leaf = script_index;
         let _input_1 = connector_c.generate_taproot_leaf_tx_in(input_1_leaf, &input_1);
 
-        let total_output_amount = input_0.amount + input_1.amount - Amount::from_sat(FEE_AMOUNT);
+        let total_output_amount = input_0.amount + input_1.amount - Amount::from_sat(HUGE_FEE_AMOUNT);
 
         let _output_0 = TxOut {
             value: total_output_amount / 2,
@@ -191,7 +194,7 @@ impl DisproveTransaction {
         self.sign_input_0(context, &secret_nonces[&input_index]);
     }
 
-    pub fn add_input_output(&mut self, input_script_index: u32, output_script_pubkey: ScriptBuf) {
+    pub fn add_input_output(&mut self, input_script_index: u32, output_script_pubkey: ScriptBuf, pre_commitment: &Witness, post_commitment: &Witness) {
         // Add output
         let output_index = 1;
         self.tx.output[output_index].script_pubkey = output_script_pubkey;
@@ -199,10 +202,8 @@ impl DisproveTransaction {
         let input_index = 1;
 
         // Push the unlocking witness
-        let unlock_witness = self
-            .connector_c
-            .generate_taproot_leaf_script_witness(input_script_index);
-        self.tx.input[input_index].witness.push(unlock_witness);
+        let witness = &mut self.tx.input[input_index].witness;
+        self.connector_c.push_leaf_unlock_witness(witness, pre_commitment, post_commitment, input_script_index);
 
         // Push script + control block
         let script = self

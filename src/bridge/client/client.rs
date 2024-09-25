@@ -1,12 +1,13 @@
 use musig2::SecNonce;
 use serde::{Deserialize, Serialize};
+use tokio::time::{sleep, Duration};
 use std::{
     collections::HashMap,
     fs::{self},
     path::Path,
 };
 
-use bitcoin::{absolute::Height, Address, Amount, Network, OutPoint, PublicKey, ScriptBuf, Txid};
+use bitcoin::{absolute::Height, Address, Amount, Network, OutPoint, PublicKey, ScriptBuf, Txid, Witness};
 use esplora_client::{AsyncClient, Builder, Utxo};
 
 use crate::bridge::{constants::DestinationNetwork, contexts::base::generate_n_of_n_public_key};
@@ -640,6 +641,7 @@ impl BitVMClient {
         &mut self,
         peg_in_graph_id: &str,
         kickoff_input: Input,
+        statement: &[u8],
     ) -> String {
         if self.operator_context.is_none() {
             panic!("Operator context must be initialized");
@@ -669,6 +671,7 @@ impl BitVMClient {
             self.operator_context.as_ref().unwrap(),
             peg_in_graph.unwrap(),
             kickoff_input,
+            statement,
         );
 
         self.data.peg_out_graphs.push(peg_out_graph);
@@ -835,6 +838,8 @@ impl BitVMClient {
         peg_out_graph_id: &str,
         input_script_index: u32,
         output_script_pubkey: ScriptBuf,
+        pre_commitment: &Witness, 
+        post_commitment: &Witness,
     ) {
         let peg_out_graph = self
             .data
@@ -847,7 +852,7 @@ impl BitVMClient {
 
         peg_out_graph
             .unwrap()
-            .disprove(&self.esplora, input_script_index, output_script_pubkey)
+            .disprove(&self.esplora, input_script_index, output_script_pubkey, pre_commitment, post_commitment)
             .await;
     }
 
@@ -1199,4 +1204,22 @@ impl BitVMClient {
     //         }
     //     }
     // }
+}
+
+pub async  fn wait_util_confirmed(client: &AsyncClient, txid: &Txid) {
+    let mut err_tolerance = 3;
+    loop {
+        let status = client.get_tx_status(txid).await;
+        let is_confirmed = match status {
+            Ok(t) => t.confirmed,
+            Err(e) => {
+                println!("\n{}",e);
+                err_tolerance -= 1;
+                if err_tolerance == 0 { panic!("too much error!") };
+                false
+            },
+        };
+        if is_confirmed { break; }
+        sleep(Duration::from_secs(10)).await;
+    }
 }

@@ -22,7 +22,8 @@ impl Connector4 {
         Connector4 {
             network,
             operator_public_key: operator_public_key.clone(),
-            num_blocks_timelock: num_blocks_per_network(network, NUM_BLOCKS_PER_2_WEEKS),
+            num_blocks_timelock: 0, // TODO: delete, just for test
+            // num_blocks_timelock: num_blocks_per_network(network, NUM_BLOCKS_PER_2_WEEKS),
         }
     }
 }

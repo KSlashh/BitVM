@@ -30,6 +30,7 @@ async fn test_sync() {
         _,
         depositor_evm_address,
         _,
+        statement,
     ) = setup_test().await;
 
     println!("Read from remote");
@@ -66,6 +67,7 @@ async fn test_sync() {
                 .await,
                 amount,
             },
+            &statement,
         )
         .await;
 

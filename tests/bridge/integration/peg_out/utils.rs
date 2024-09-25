@@ -41,6 +41,7 @@ pub async fn create_and_mine_kick_off_2_tx(
     operator_context: &OperatorContext,
     kick_off_2_funding_utxo_address: &Address,
     input_amount: Amount,
+    statement: &[u8],
 ) -> (Transaction, Txid) {
     let kick_off_2_funding_outpoint =
         generate_stub_outpoint(&client, kick_off_2_funding_utxo_address, input_amount).await;
@@ -48,12 +49,13 @@ pub async fn create_and_mine_kick_off_2_tx(
         outpoint: kick_off_2_funding_outpoint,
         amount: input_amount,
     };
-    let kick_off_2 = KickOff2Transaction::new(&operator_context, kick_off_2_input);
+    let kick_off_2 = KickOff2Transaction::new(&operator_context, kick_off_2_input, statement);
     let kick_off_2_tx = kick_off_2.finalize();
     let kick_off_2_txid = kick_off_2_tx.compute_txid();
 
     // mine kick-off 2 tx
     let kick_off_2_result = client.esplora.broadcast(&kick_off_2_tx).await;
+    println!("\nBroadcast kick_off_2 result: {:?}\n", kick_off_2_result);
     assert!(kick_off_2_result.is_ok());
 
     return (kick_off_2_tx, kick_off_2_txid);
@@ -62,10 +64,9 @@ pub async fn create_and_mine_kick_off_2_tx(
 pub async fn create_and_mine_assert_tx(
     client: &BitVMClient,
     operator_context: &OperatorContext,
-    verifier_0_context: &VerifierContext,
-    verifier_1_context: &VerifierContext,
     assert_funding_utxo_address: &Address,
     input_amount: Amount,
+    statement: &[u8],
 ) -> (Transaction, Txid) {
     // create assert tx
     let assert_funding_outpoint =
@@ -74,13 +75,7 @@ pub async fn create_and_mine_assert_tx(
         outpoint: assert_funding_outpoint,
         amount: input_amount,
     };
-    let mut assert = AssertTransaction::new(&operator_context, assert_input);
-
-    let secret_nonces_0 = assert.push_nonces(&verifier_0_context);
-    let secret_nonces_1 = assert.push_nonces(&verifier_1_context);
-
-    assert.pre_sign(&verifier_0_context, &secret_nonces_0);
-    assert.pre_sign(&verifier_1_context, &secret_nonces_1);
+    let assert = AssertTransaction::new(&operator_context, assert_input, statement);
 
     let assert_tx = assert.finalize();
     let assert_txid = assert_tx.compute_txid();

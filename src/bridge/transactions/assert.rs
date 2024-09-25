@@ -5,6 +5,7 @@ use bitcoin::{
 use musig2::{secp256k1::schnorr::Signature, PartialSignature, PubNonce, SecNonce};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use crate::bridge::{commitment::WPublicKey, graphs::base::HUGE_FEE_AMOUNT};
 
 use super::{
     super::{
@@ -19,6 +20,7 @@ use super::{
     pre_signed::*,
     pre_signed_musig2::*,
 };
+use super::signing::push_taproot_leaf_script_and_control_block_to_witness;
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct AssertTransaction {
@@ -68,14 +70,23 @@ impl PreSignedMusig2Transaction for AssertTransaction {
 }
 
 impl AssertTransaction {
-    pub fn new(context: &OperatorContext, input_0: Input) -> Self {
-        Self::new_for_validation(
+    pub fn new(context: &OperatorContext, input_0: Input, statement: &[u8]) -> Self {
+        let mut this = Self::new_for_validation(
             context.network,
             &context.operator_public_key,
             &context.operator_taproot_public_key,
             &context.n_of_n_taproot_public_key,
+            &context.operator_commitment_pubkey,
             input_0,
-        )
+        );
+
+        // sign input[0], leaf[1]
+        this.connector_b.push_leaf_1_unlock_witness(&mut this.tx.input[0].witness, &context.operator_commitment_seckey, statement);
+        let redeem_script = this.connector_b.generate_taproot_leaf_script(1);
+        let taproot_spend_info = this.connector_b.generate_taproot_spend_info();
+        push_taproot_leaf_script_and_control_block_to_witness(&mut this.tx, 0, &taproot_spend_info, &redeem_script);
+
+        this
     }
 
     pub fn new_for_validation(
@@ -83,17 +94,18 @@ impl AssertTransaction {
         operator_public_key: &PublicKey,
         operator_taproot_public_key: &XOnlyPublicKey,
         n_of_n_taproot_public_key: &XOnlyPublicKey,
+        operator_commitment_pubkey: &WPublicKey,
         input_0: Input,
     ) -> Self {
         let connector_4 = Connector4::new(network, operator_public_key);
         let connector_5 = Connector5::new(network, n_of_n_taproot_public_key);
-        let connector_b = ConnectorB::new(network, n_of_n_taproot_public_key);
-        let connector_c = ConnectorC::new(network, operator_taproot_public_key);
+        let connector_b = ConnectorB::new(network, n_of_n_taproot_public_key, operator_commitment_pubkey);
+        let connector_c = ConnectorC::new(network, operator_taproot_public_key, operator_commitment_pubkey);
 
         let input_0_leaf = 1;
         let _input_0 = connector_b.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
 
-        let total_output_amount = input_0.amount - Amount::from_sat(FEE_AMOUNT);
+        let total_output_amount = input_0.amount - Amount::from_sat(HUGE_FEE_AMOUNT);
 
         let _output_0 = TxOut {
             value: Amount::from_sat(DUST_AMOUNT),
@@ -130,57 +142,6 @@ impl AssertTransaction {
     }
 
     pub fn num_blocks_timelock_0(&self) -> u32 { self.connector_b.num_blocks_timelock_1 }
-
-    fn sign_input_0(&mut self, context: &VerifierContext, secret_nonce: &SecNonce) {
-        let input_index = 0;
-        pre_sign_musig2_taproot_input(
-            self,
-            context,
-            input_index,
-            TapSighashType::All,
-            secret_nonce,
-        );
-
-        // TODO: Consider verifying the final signature against the n-of-n public key and the tx.
-        if self.musig2_signatures[&input_index].len() == context.n_of_n_public_keys.len() {
-            self.finalize_input_0(context);
-        }
-    }
-
-    fn finalize_input_0(&mut self, context: &dyn BaseContext) {
-        let input_index = 0;
-        finalize_musig2_taproot_input(
-            self,
-            context,
-            input_index,
-            TapSighashType::All,
-            self.connector_b.generate_taproot_spend_info(),
-        );
-    }
-
-    pub fn push_nonces(&mut self, context: &VerifierContext) -> HashMap<usize, SecNonce> {
-        let mut secret_nonces = HashMap::new();
-
-        let input_index = 0;
-        let secret_nonce = push_nonce(self, context, input_index);
-        secret_nonces.insert(input_index, secret_nonce);
-
-        secret_nonces
-    }
-
-    pub fn pre_sign(
-        &mut self,
-        context: &VerifierContext,
-        secret_nonces: &HashMap<usize, SecNonce>,
-    ) {
-        let input_index = 0;
-        self.sign_input_0(context, &secret_nonces[&input_index]);
-    }
-
-    pub fn merge(&mut self, assert: &AssertTransaction) {
-        merge_transactions(&mut self.tx, &assert.tx);
-        merge_musig2_nonces_and_signatures(self, assert);
-    }
 }
 
 impl BaseTransaction for AssertTransaction {

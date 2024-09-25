@@ -35,6 +35,7 @@ async fn test_peg_out_graph_serialization() {
         _,
         depositor_evm_address,
         _,
+        statement,
     ) = setup_test().await;
 
     let amount = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT);
@@ -74,6 +75,7 @@ async fn test_peg_out_graph_serialization() {
             outpoint: kick_off_outpoint,
             amount: kick_off_amount,
         },
+        &statement,
     );
 
     let json = serialize(&peg_out_graph);

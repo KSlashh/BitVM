@@ -68,6 +68,7 @@ async fn setup_and_create_graphs() -> (BitVMClient, PegInGraph, PegOutGraph) {
         _,
         depositor_evm_address,
         _,
+        statement,
     ) = setup_test().await;
 
     let amount = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT + 1);
@@ -97,6 +98,7 @@ async fn setup_and_create_graphs() -> (BitVMClient, PegInGraph, PegOutGraph) {
                 outpoint: peg_out_outpoint,
                 amount,
             },
+            &statement,
         )
         .await;
 
@@ -116,6 +118,7 @@ async fn setup_and_create_graphs() -> (BitVMClient, PegInGraph, PegOutGraph) {
             outpoint: peg_out_outpoint,
             amount,
         },
+        &statement,
     );
 
     return (client, new_peg_in_graph, new_peg_out_graph);
