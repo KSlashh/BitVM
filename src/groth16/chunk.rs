@@ -1,7 +1,8 @@
-use crate::bn254::ell_coeffs::G2Prepared;
+use crate::bn254::ell_coeffs::{G2Prepared, EllCoeff};
 use crate::bn254::fp254impl::Fp254Impl;
 use crate::bn254::fq::Fq;
 use crate::bn254::fq2::Fq2;
+use crate::bn254::fq6::Fq6;
 use crate::bn254::fq12::Fq12;
 use crate::bn254::msm::{
     hinted_msm_with_constant_bases, msm_with_constant_bases, msm_with_constant_bases_affine,
@@ -21,12 +22,207 @@ use ark_ec::pairing::Pairing as ark_Pairing;
 use ark_ec::short_weierstrass::Projective;
 use ark_ec::{AffineRepr, CurveGroup, VariableBaseMSM};
 use ark_ec::bn::BnConfig;
-use ark_ff::{Field, QuadExtField};
+use ark_ff::{Field, QuadExtField, Fp12Config};
 use ark_groth16::{Proof, VerifyingKey};
 use core::ops::Neg;
+use rand_chacha::ChaCha20Rng;
 
 type G1Affine = <Bn254 as ark_Pairing>::G1Affine;
 type G2Affine = <Bn254 as ark_Pairing>::G2Affine;
+
+// pre_stack:  [a(12) b(12)]
+// post_stack: [tmp(30)]
+pub fn fq12_mul_0() -> Script {
+    script! {
+        { Fq6::copy(18) }
+        { Fq6::copy(12) }
+        { Fq6::mul(6, 0) }
+    }
+}
+// pre_stack:  [tmp(30)]
+// post_stack: [tmp(36)]
+pub fn fq12_mul_1() -> Script {
+    script! {
+        { Fq6::copy(18) }
+        { Fq6::copy(12) }
+        { Fq6::mul(6, 0) }
+    }
+}
+// pre_stack:  [tmp[36]]
+// post_stack: [c(12)]
+pub fn fq12_mul_2() -> Script {
+    script! {
+        { Fq6::add(24, 30) }
+        { Fq6::add(18, 24) }
+        { Fq6::mul(6, 0) }
+        { Fq6::copy(12) }
+        { Fq6::copy(12) }
+        { Fq12::mul_fq6_by_nonresidue() } 
+        { Fq6::add(6, 0) }
+        { Fq6::add(18, 12)}
+        { Fq6::sub(12, 0) }
+    }
+}
+
+
+// pre_stack:  [c(12)]
+// post_stack: [tmp(18)]
+pub fn fq12_square_0() -> Script {
+    script! {
+        // v0 = c0 + c1
+        { Fq6::copy(6) }
+        { Fq6::copy(6) }
+        { Fq6::add(6, 0) }
+
+        // v3 = c0 + beta * c1
+        { Fq6::copy(6) }
+        { Fq12::mul_fq6_by_nonresidue() }
+        { Fq6::copy(18) }
+        { Fq6::add(0, 6) }
+
+        // v2 = c0 * c1
+        { Fq6::mul(12, 18) }
+    }
+}
+// pre_stack: [tmp(18)]
+// pre_stack: [final_c(12)]
+pub fn fq12_square_1() -> Script {
+    script! {
+        // v0 = v0 * v3
+        { Fq6::mul(12, 6) }
+
+        // final c0 = v0 - (beta + 1) * v2
+        { Fq6::copy(6) }
+        { Fq12::mul_fq6_by_nonresidue() }
+        { Fq6::copy(12) }
+        { Fq6::add(6, 0) }
+        { Fq6::sub(6, 0) }
+
+        // final c1 = 2 * v2
+        { Fq6::double(6) }
+    }
+}
+
+
+// pre_stack:  [c(12)]
+// post_stack: [tmp(12)]
+pub fn fq12_frobenius_map_0(i: usize) -> Script {
+    script! {
+        { Fq6::roll(6) }
+        { Fq6::frobenius_map(i) }
+    }
+}
+// pre_stack:  [tmp(12)]
+// post_stack: [final_c(12)]
+pub fn fq12_frobenius_map_1(i: usize) -> Script {
+    script! {
+        { Fq6::roll(6) }
+        { Fq6::frobenius_map(i) }
+        { Fq6::mul_by_fp2_constant(&ark_bn254::Fq12Config::FROBENIUS_COEFF_FP12_C1[i % ark_bn254::Fq12Config::FROBENIUS_COEFF_FP12_C1.len()]) }
+    }
+}
+
+
+
+// pre_stack:  [f(12) x(1) y(1)]
+// post_stack: [tmp(22)]
+pub fn ell_by_constant_affine_0(constant: &EllCoeff) -> Script {
+    script! {
+        // [f, x', y']
+        // update c1, c1' = x' * c1
+        { Fq::copy(1) }
+        { Fq::mul_by_constant(&constant.1.c0) }
+        // [f, x', y', x' * c1.0]
+        { Fq::roll(2) }
+        { Fq::mul_by_constant(&constant.1.c1) }
+        // [f, y', x' * c1.0, x' * c1.1]
+        // [f, y', x' * c1]
+
+        // update c2, c2' = -y' * c2
+        { Fq::copy(2) }
+        { Fq::mul_by_constant(&constant.2.c0) }
+        // [f, y', x' * c1, y' * c2.0]
+        { Fq::roll(3) }
+        { Fq::mul_by_constant(&constant.2.c1) }
+        // [f, x' * c1, y' * c2.0, y' * c2.1]
+        // [f, x' * c1, y' * c2]
+        // [f, c1', c2']
+
+        // Fq12::mul_by_34
+        // copy f.c1, c3(c1'), c4(c2')
+        { Fq6::copy(4) }
+        { Fq2::copy(8) }
+        { Fq2::copy(8) }
+        // [f, c3, c4, f.c1, c3, c4]
+
+        // compute b = f.c1 * (c3, c4)
+        { Fq6::mul_by_01() }
+        // [f, c3, c4, b]
+    }
+}
+// pre_stack:  [[tmp(22)]
+// post_stack: [final_f(12)]
+pub fn ell_by_constant_affine_1() -> Script {
+    script! {
+        // [f, c3, c4, b]
+
+        // a = f.c0 * c0, where c0 = 1
+        { Fq6::copy(16) }
+        // [f, c3, c4, b, a]
+
+        // compute beta * b
+        { Fq6::copy(6) }
+        { Fq12::mul_fq6_by_nonresidue() }
+        // [f, c3, c4, b, a, beta * b]
+
+        // compute final c0 = a + beta * b
+        { Fq6::copy(6) }
+        { Fq6::add(6, 0) }
+        // [f, c3, c4, b, a, c0]
+
+        // compute e = f.c0 + f.c1
+        { Fq6::add(28, 22) }
+        // [c3, c4, b, a, c0, e]
+
+        // compute c0 + c3, where c0 = 1
+        { Fq2::roll(26) }
+        { Fq2::push_one() }
+        { Fq2::add(2, 0) }
+        // [c4, b, a, c0, e, 1 + c3]
+
+        // update e = e * (c0 + c3, c4), where c0 = 1
+        { Fq2::roll(26) }
+        { Fq6::mul_by_01() }
+        // [b, a, c0, e]
+
+        // sum a and b
+        { Fq6::add(18, 12) }
+        // [c0, e, a + b]
+
+        // compute final c1 = e - (a + b)
+        { Fq6::sub(6, 0) }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 pub fn prepare_stack_elements(
     public_inputs: &Vec<<Bn254 as ark_Pairing>::ScalarField>,
@@ -268,7 +464,7 @@ pub fn sub_script_0_0() -> Script {
     }
 }
 
-// pre_stack:  [f(12), c_inv] or [f(12), c]
+// pre_stack:  [f(12), c_inv(12)] or [f(12), c(12)]
 // post_stack: [f(12)]
 pub fn sub_script_0_1() -> Script {
     script! {
@@ -279,7 +475,7 @@ pub fn sub_script_0_1() -> Script {
 
 // pre_stack:  [f(12), P_{j+1}] (j = 0, 1, 2, 3)
 // post_stack: [f(12)]
-pub fn sub_script_0_2_0(i: usize, j: usize, line_coeffs: Vec<Vec<Vec<(ark_bn254::Fq2, ark_bn254::Fq2, ark_bn254::Fq2)>>>) -> Script {
+pub fn sub_script_0_2_0(i: usize, j: usize, line_coeffs: &Vec<Vec<Vec<(ark_bn254::Fq2, ark_bn254::Fq2, ark_bn254::Fq2)>>>) -> Script {
     let num_lines = line_coeffs.len();
     script! {
         // update f with double line evaluation
@@ -289,7 +485,7 @@ pub fn sub_script_0_2_0(i: usize, j: usize, line_coeffs: Vec<Vec<Vec<(ark_bn254:
 
 // pre_stack:  [T4(4)]
 // post_stack: [T4(4)]
-pub fn sub_script_0_2_1(i: usize, j: usize, line_coeffs: Vec<Vec<Vec<(ark_bn254::Fq2, ark_bn254::Fq2, ark_bn254::Fq2)>>>) -> Script {
+pub fn sub_script_0_2_1(i: usize, j: usize, line_coeffs: &Vec<Vec<Vec<(ark_bn254::Fq2, ark_bn254::Fq2, ark_bn254::Fq2)>>>) -> Script {
     let num_lines = line_coeffs.len();
     script! {
         // copy T4 
@@ -307,7 +503,7 @@ pub fn sub_script_0_2_1(i: usize, j: usize, line_coeffs: Vec<Vec<Vec<(ark_bn254:
 
 // pre_stack:  [f(12), P_{j+1}] (j = 0, 1, 2, 3)
 // post_stack: [f(12)]
-pub fn sub_script_0_3_0(i: usize, j: usize, line_coeffs: Vec<Vec<Vec<(ark_bn254::Fq2, ark_bn254::Fq2, ark_bn254::Fq2)>>>) -> Script {
+pub fn sub_script_0_3_0(i: usize, j: usize, line_coeffs: &Vec<Vec<Vec<(ark_bn254::Fq2, ark_bn254::Fq2, ark_bn254::Fq2)>>>) -> Script {
     let num_lines = line_coeffs.len();
     script! {
         // update f with adding line evaluation
@@ -317,7 +513,7 @@ pub fn sub_script_0_3_0(i: usize, j: usize, line_coeffs: Vec<Vec<Vec<(ark_bn254:
 
 // pre_stack:  [T4(4), Q4(4)]
 // post_stack: [T4(4)]
-pub fn sub_script_0_3_1(i: usize, j: usize, line_coeffs: Vec<Vec<Vec<(ark_bn254::Fq2, ark_bn254::Fq2, ark_bn254::Fq2)>>>) -> Script {
+pub fn sub_script_0_3_1(i: usize, j: usize, line_coeffs: &Vec<Vec<Vec<(ark_bn254::Fq2, ark_bn254::Fq2, ark_bn254::Fq2)>>>) -> Script {
     let num_lines = line_coeffs.len();
     script! {
         // copy T4
@@ -385,7 +581,7 @@ pub fn sub_script_1_2() -> Script {
 
 // pre_stack:  [f(12), P_{j+1}] (j = 0, 1, 2, 3)
 // post_stack: [f(12)]
-pub fn sub_script_2_0(j: usize, line_coeffs: Vec<Vec<Vec<(ark_bn254::Fq2, ark_bn254::Fq2, ark_bn254::Fq2)>>>) -> Script {
+pub fn sub_script_2_0(j: usize, line_coeffs: &Vec<Vec<Vec<(ark_bn254::Fq2, ark_bn254::Fq2, ark_bn254::Fq2)>>>) -> Script {
     let num_lines = line_coeffs.len();   
     script! {
         // update f with add line evaluation of one-time of frobenius map on Q4
@@ -424,7 +620,7 @@ pub fn sub_script_2_1_0() -> Script {
 
 // pre_stack:  [T4(4), phi(Q4)(4)]
 // post_stack: [T4(4)]
-pub fn sub_script_2_1_1(j: usize, line_coeffs: Vec<Vec<Vec<(ark_bn254::Fq2, ark_bn254::Fq2, ark_bn254::Fq2)>>>) -> Script {
+pub fn sub_script_2_1_1(j: usize, line_coeffs: &Vec<Vec<Vec<(ark_bn254::Fq2, ark_bn254::Fq2, ark_bn254::Fq2)>>>) -> Script {
     let num_lines = line_coeffs.len();   
     script! {
         // check chord line
@@ -453,7 +649,7 @@ pub fn sub_script_2_1_1(j: usize, line_coeffs: Vec<Vec<Vec<(ark_bn254::Fq2, ark_
 
 // pre_stack:  [f(12), P_{j+1}] (j = 0, 1, 2, 3)
 // post_stack: [f(12)]
-pub fn sub_script_3_0(j: usize, line_coeffs: Vec<Vec<Vec<(ark_bn254::Fq2, ark_bn254::Fq2, ark_bn254::Fq2)>>>) -> Script {
+pub fn sub_script_3_0(j: usize, line_coeffs: &Vec<Vec<Vec<(ark_bn254::Fq2, ark_bn254::Fq2, ark_bn254::Fq2)>>>) -> Script {
     let num_lines = line_coeffs.len();   
     script! {
         { ell_by_constant_affine(&line_coeffs[num_lines - 1][j][0]) }
@@ -462,7 +658,7 @@ pub fn sub_script_3_0(j: usize, line_coeffs: Vec<Vec<Vec<(ark_bn254::Fq2, ark_bn
 
 // pre_stack:  [beta_22(2), Q4(4), T4(4)]
 // post_stack: []
-pub fn sub_script_3_1(j: usize, line_coeffs: Vec<Vec<Vec<(ark_bn254::Fq2, ark_bn254::Fq2, ark_bn254::Fq2)>>>) -> Script {
+pub fn sub_script_3_1(j: usize, line_coeffs: &Vec<Vec<Vec<(ark_bn254::Fq2, ark_bn254::Fq2, ark_bn254::Fq2)>>>) -> Script {
     let num_lines = line_coeffs.len();   
     script! {
         { Fq2::roll(8) }
@@ -489,7 +685,6 @@ pub fn sub_script_3_1(j: usize, line_coeffs: Vec<Vec<Vec<(ark_bn254::Fq2, ark_bn
 pub fn sub_script_4() -> Script {
     script! {
         { Fq12::equalverify() }
-        OP_TRUE
+        // OP_TRUE
     }
 }
-
