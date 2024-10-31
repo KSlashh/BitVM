@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use crate::bn254::ell_coeffs::{G2Prepared, EllCoeff};
 use crate::bn254::fp254impl::Fp254Impl;
 use crate::bn254::fq::Fq;
@@ -8,15 +9,18 @@ use crate::bn254::msm::{
     hinted_msm_with_constant_bases, msm_with_constant_bases, msm_with_constant_bases_affine,
 };
 use crate::bn254::pairing::Pairing;
+use crate::bn254::curves;
 use crate::bn254::utils::{
     fq12_push, fq12_push_not_montgomery, fq2_push, fq2_push_not_montgomery, from_eval_point,
     hinted_from_eval_point, Hint, ell_by_constant_affine, check_tangent_line, affine_double_line,
-    check_chord_line, affine_add_line,
+    check_chord_line, affine_add_line, fr_push
 };
 use crate::groth16::constants::{LAMBDA, P_POW3};
 use crate::groth16::offchain_checker::compute_c_wi;
 use crate::groth16::verifier::Verifier;
+use crate::hash::blake3_u32::S;
 use crate::treepp::{script, Script};
+use alloy::signers::k256::elliptic_curve::scalar;
 use ark_bn254::{Bn254, G1Projective};
 use ark_ec::pairing::Pairing as ark_Pairing;
 use ark_ec::short_weierstrass::Projective;
@@ -29,6 +33,7 @@ use rand_chacha::ChaCha20Rng;
 
 type G1Affine = <Bn254 as ark_Pairing>::G1Affine;
 type G2Affine = <Bn254 as ark_Pairing>::G2Affine;
+
 
 // pre_stack:  [a(12) b(12)]
 // post_stack: [tmp(30)]
@@ -123,7 +128,6 @@ pub fn fq12_frobenius_map_1(i: usize) -> Script {
 }
 
 
-
 // pre_stack:  [f(12) x(1) y(1)]
 // post_stack: [tmp(22)]
 pub fn ell_by_constant_affine_0(constant: &EllCoeff) -> Script {
@@ -205,11 +209,132 @@ pub fn ell_by_constant_affine_1() -> Script {
 }
 
 
+// // pre_stack:  [scalar]
+// // post_stack: []
+// pub fn msm_0(
+//     bases_i: ark_bn254::G1Affine,
+//     scalars_i: ark_bn254::Fr,
+//     inner_coeffs_i: &(Vec<(ark_bn254::Fq, ark_bn254::Fq)>,Vec<ark_bn254::G1Affine>,Vec<ark_bn254::G1Affine>,),
+// ) -> Script {
+//     script! {
+//         if scalars_i != ark_bn254::Fr::ONE {
+//             { fr_push(scalars_i) }
+//             { curves::G1Affine::scalar_mul_by_constant_g1(bases_i, inner_coeffs_i.0.clone(), inner_coeffs_i.1.clone(), inner_coeffs_i.2.clone()) }
+//         } else {
+//             { curves::G1Affine::push(bases_i) }
+//         }
+//     }
+// }
+// pub fn msm_i(
+//     bases_i: ark_bn254::G1Affine,
+//     scalars_i: ark_bn254::Fr,
+//     inner_coeffs_i: &(Vec<(ark_bn254::Fq, ark_bn254::Fq)>,Vec<ark_bn254::G1Affine>,Vec<ark_bn254::G1Affine>,),
+//     outer_coeffs_i_minus_1: &(ark_bn254::Fq, ark_bn254::Fq),
+// ) -> Script {
+//     script! {
+//         if scalars_i != ark_bn254::Fr::ONE {
+//             { fr_push(scalars_i) }
+//             { curves::G1Affine::scalar_mul_by_constant_g1(bases_i, inner_coeffs_i.0.clone(), inner_coeffs_i.1.clone(), inner_coeffs_i.2.clone()) }
+//         } else {
+//             { curves::G1Affine::push(bases_i) }
+//         }
+//         { curves::G1Affine::check_add(outer_coeffs_i_minus_1.0, outer_coeffs_i_minus_1.1) }
+//     }
+// }
 
 
+#[derive(Clone)]
+enum ChunkScript {
+    Mul0,
+    Mul1,
+    Mul2,
+    Sqr0,
+    Sqr1,
+    Frob0,
+    Frob1,
+    Ell0,
+    Ell1,
+    XXX(usize,usize),
+}
 
 
+#[derive(Clone)]
+pub struct Stack {}
+impl Stack {
 
+} 
+
+#[derive(Clone)]
+pub struct TapScript {
+    id: usize,
+    deps: Vec<usize>,
+    main_script: ChunkScript,
+    output_stack_len: usize,
+}
+impl TapScript {
+    pub fn new(id: usize, deps: Vec<usize>, main_script: ChunkScript, output_stack_len: usize) -> Self {
+        TapScript {
+            id,
+            deps,
+            main_script,
+            output_stack_len,
+        }
+    }
+}
+
+pub fn exec_tap(tap: &TapScript, stack_deps: &Vec<Stack>) -> Stack {
+    Stack{}
+}
+
+pub fn add_bitcommitment(tap: &TapScript, tap_deps: &Vec<TapScript>) -> Script {
+    // // input witness 
+    // { input_stack }
+    // { bitcom(hash_input_stack) }
+    // { hash(output_stack) }
+    // { bitcom(hash_output_stack) }
+    let main_script = match tap.main_script {
+        ChunkScript::Mul0 => fq12_mul_0(),
+        // ...
+        ChunkScript::XXX(i,j) => script!{},
+        _ => script!{} ,
+    };
+    let full_script = script! {
+        // // check bitcom
+        // { check_bitcom(hash_output_stack) }
+        // { keep hashed_output_stack at bottom } 
+        // { check_bitcom(hash_input_stack) }
+        // { keep input_stack }
+
+        // calc 
+        // before stack : [hashed_output input]
+        { main_script } 
+        // after stack : [hashed_output calc_output]
+
+        // // check output
+        // { hash(calc_output) }
+        // { op_equalverify }
+    };
+    full_script
+}
+
+pub fn gene_chunk_map() -> HashMap<usize, TapScript> {
+    let mut chunks = HashMap::new();
+
+    // preparation
+    let p1 = 1;
+    let p2 = 2;
+    let p3 = 3;
+    let p4 = 4;
+    let q4 = 5;
+    let c = 6;
+    let c_inv = 7;
+    let wi = 8;
+
+    // check pairing
+    
+
+    chunks
+}
 
 
 

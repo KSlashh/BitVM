@@ -2,11 +2,13 @@ use crate::groth16::verifier::Verifier;
 use crate::{execute_script_as_chunks, execute_script_without_stack_limit};
 use crate::groth16::chunk;
 use crate::bn254::utils;
+use crate::bn254::msm;
 use crate::bn254::ell_coeffs::{G2Prepared, EllCoeff};
+use alloy::signers::k256::elliptic_curve::scalar;
 use ark_bn254::Bn254;
 use ark_crypto_primitives::snark::{CircuitSpecificSetupSNARK, SNARK};
 use ark_ec::pairing::Pairing;
-use ark_ff::{BigInteger, PrimeField};
+use ark_ff::{BigInteger, PrimeField, Field};
 use ark_groth16::Groth16;
 use ark_relations::lc;
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
@@ -493,3 +495,34 @@ fn test_ell_by_constant_affine() {
     assert!(!exec_result.success);
     println!("ell_by_constant_affine_1: script len {:?} stack len {:?}", script_len_1, exec_result.stats.max_nb_stack_items);
 }
+
+// #[test]
+// fn test_msm() {
+//     type E = Bn254;
+//     let k = 6;
+//     let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
+//     let circuit = DummyCircuit::<<E as Pairing>::ScalarField> {
+//         a: Some(<E as Pairing>::ScalarField::rand(&mut rng)),
+//         b: Some(<E as Pairing>::ScalarField::rand(&mut rng)),
+//         num_variables: 10,
+//         num_constraints: 1 << k,
+//     };
+//     let (_, vk) = Groth16::<E>::setup(circuit, &mut rng).unwrap();
+//     let c = circuit.a.unwrap() * circuit.b.unwrap();
+//     let scalars = [
+//         vec![<Bn254 as Pairing>::ScalarField::ONE],
+//         vec![c],
+//     ]
+//     .concat();
+//     let bases = vk.gamma_abc_g1;
+
+//     let (inner_coeffs, outer_coeffs) = msm::prepare_msm_input(&bases, &scalars, 12);
+
+//     let script = script! {
+//         { chunk::msm_i(bases[1], scalars[1], &inner_coeffs[1], &outer_coeffs[0]) }
+//     };
+//     let script_len_1  = script.len();
+//     let exec_result = execute_script_without_stack_limit(script);
+//     assert!(!exec_result.success);
+//     println!("\nmsm_i: script len {:?} stack len {:?}", script_len_1, exec_result.stats.max_nb_stack_items);
+// }
