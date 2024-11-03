@@ -1,8 +1,7 @@
 use crate::treepp::*;
-use crate::signatures::winternitz::{sign, sig_witness, checksig_verify, PublicKey
+use crate::signatures::winternitz::{sign, sig_witness, sign_witness, checksig_verify, PublicKey
 };
 use crate::hash::blake3::blake3_160_var_length;
-use crate::signatures::winternitz::{checksig_verify, sign, sign_witness, PublicKey};
 use crate::treepp::*;
 use blake3::hash;
 use bitcoin::Witness;
