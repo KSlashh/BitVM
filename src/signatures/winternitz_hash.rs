@@ -1,12 +1,12 @@
 use crate::treepp::*;
-use crate::signatures::winternitz::{sign, sig_witness, checksig_verify, PublicKey
+use crate::signatures::winternitz::{sign, sig_witness, sign_witness, checksig_verify, PublicKey
 };
 use crate::hash::blake3::blake3_160_var_length;
+use crate::treepp::*;
 use blake3::hash;
 use bitcoin::Witness;
 
 const MESSAGE_HASH_LEN: u8 = 20;
-
 
 /// Verify a Winternitz signature for the hash of the top `input_len` many bytes on the stack
 /// The hash function is blake3 with a 20-byte digest size
@@ -84,6 +84,12 @@ pub fn push_hash_sig_witness(witness: &mut Witness, sec_key: &str, message: &[u8
     sig_witness(witness, &sec_key, message_hash_bytes);
 }
 
+pub fn sign_hash_witness(sec_key: &str, message: &[u8]) -> Vec<Vec<u8>> {
+    let message_hash = hash(message);
+    let message_hash_bytes = &message_hash.as_bytes()[0..20];
+    sign_witness(sec_key, message_hash_bytes)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -91,36 +97,33 @@ mod test {
 
     #[test]
     fn test_check_hash_sig() {
-
-        // My secret key 
+        // My secret key
         let my_sec_key = "b138982ce17ac813d505b5b40b665d404e9528e7";
-        
+
         // My public key
         let public_key = generate_public_key(my_sec_key);
 
         // The message to sign
         let message = *b"This is an arbitrary length input intended for testing purposes....";
 
-
         run(script! {
             //
             // Unlocking Script
             //
 
-            // 1. Push the message 
+            // 1. Push the message
             for byte in message.iter().rev() {
                 { *byte }
             }
             // 2. Push the signature
             { sign_hash(my_sec_key, &message) }
-            
-            
+
+
             //
             // Locking Script
             //
             { check_hash_sig(&public_key, message.len()) }
             OP_TRUE
-        });   
+        });
     }
-
 }
