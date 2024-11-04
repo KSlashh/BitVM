@@ -86,6 +86,7 @@ pub fn bigint_to_u32_limbs(n: BigInt, n_bits: u32) -> Vec<u32> {
     limbs
 }
 
+
 macro_rules! fp_lc_mul {
     ($NAME:ident, $MOD_WIDTH:literal, $VAR_WIDTH:literal, $LCS:expr) => {
         paste::paste! {

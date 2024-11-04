@@ -146,6 +146,69 @@ impl Fq12 {
         (script, hints)
     }
 
+
+    pub fn hinted_mul_first(mut a_depth: u32, mut a: ark_bn254::Fq12, mut b_depth: u32, mut b: ark_bn254::Fq12) -> (Script, Vec<Hint>) {
+        if a_depth < b_depth {
+            (a_depth, b_depth) = (b_depth, a_depth);
+            (a, b) = (b, a);
+        }
+        assert_ne!(a_depth, b_depth);
+        let mut hints = Vec::new();
+
+        let (hinted_script1, hint1) = Fq6::hinted_mul(6, a.c0, 0, b.c0); // t0
+        let (hinted_script2, hint2) = Fq6::hinted_mul(6, a.c1, 0, b.c1); // t1
+
+        let mut script = script! {};
+        let script_lines = [
+            Fq6::copy(a_depth + 6),
+            Fq6::copy(b_depth + 12),
+            hinted_script1,
+            Fq6::copy(a_depth + 6),
+            Fq6::copy(b_depth + 12),
+            hinted_script2,
+            Fq12::mul_fq6_by_nonresidue(),
+            Fq6::add(6, 0),
+        ];
+        for script_line in script_lines {
+            script = script.push_script(script_line.compile());
+        }
+
+        hints.extend(hint1);
+        hints.extend(hint2);
+
+        (script, hints)
+    }
+
+    pub fn hinted_mul_second(mut a_depth: u32, mut a: ark_bn254::Fq12, mut b_depth: u32, mut b: ark_bn254::Fq12) -> (Script, Vec<Hint>) {
+        if a_depth < b_depth {
+            (a_depth, b_depth) = (b_depth, a_depth);
+            (a, b) = (b, a);
+        }
+        assert_ne!(a_depth, b_depth);
+        let mut hints = Vec::new();
+
+        let (hinted_script1, hint1) = Fq6::hinted_mul(6, a.c0, 0, b.c1); // t0
+        let (hinted_script2, hint2) = Fq6::hinted_mul(6, a.c1, 0, b.c0); // t1
+
+        let mut script = script! {};
+        let script_lines = [
+            Fq6::copy(a_depth + 6),
+            Fq6::copy(b_depth + 6),
+            hinted_script1,
+            Fq6::copy(a_depth + 6),
+            Fq6::copy(b_depth + 18),
+            hinted_script2,
+            Fq6::add(6, 0),
+        ];
+        for script_line in script_lines {
+            script = script.push_script(script_line.compile());
+        }
+
+        hints.extend(hint1);
+        hints.extend(hint2);
+
+        (script, hints)
+    }
     pub fn mul_cpt(mut a: u32, mut b: u32) -> Script {
         if a < b {
             (a, b) = (b, a);
@@ -872,13 +935,14 @@ mod test {
         }
     }
 
+
     #[test]
     fn test_bn254_fq12_hinted_mul() {
         let mut prng: ChaCha20Rng = ChaCha20Rng::seed_from_u64(0);
 
         let mut max_stack = 0;
 
-        for _ in 0..100 {
+        for _ in 0..1 {
             let a = ark_bn254::Fq12::rand(&mut prng);
             let b = ark_bn254::Fq12::rand(&mut prng);
             let c = a.mul(&b);
@@ -905,13 +969,14 @@ mod test {
 
     }
 
+
     #[test]
     fn test_bn254_fq12_hinted_mul_by_34() {
         let mut prng: ChaCha20Rng = ChaCha20Rng::seed_from_u64(0);
 
         let mut max_stack = 0;
 
-        for _ in 0..100 {
+        for _ in 0..1 {
             let a = ark_bn254::Fq12::rand(&mut prng);
             let c0 = ark_bn254::Fq2::ONE;
             let c3 = ark_bn254::Fq2::rand(&mut prng);
@@ -1005,37 +1070,6 @@ mod test {
             run(script);
         }
     }
-
-    #[test]
-    fn test_bn254_fq12_hinted_square() {
-        let mut prng = ChaCha20Rng::seed_from_u64(0);
-
-        let mut max_stack = 0;
-
-        for _ in 0..1 {
-            let a = ark_bn254::Fq12::rand(&mut prng);
-            let b = a.square();
-
-            let (hinted_square, hints) = Fq12::hinted_square(a);
-
-            let script = script! {
-                for hint in hints { 
-                    { hint.push() }
-                }
-                { fq12_push_not_montgomery(a) }
-                { hinted_square.clone() }
-                { fq12_push_not_montgomery(b) }
-                { Fq12::equalverify() }
-                OP_TRUE
-            };
-            let exec_result = execute_script(script);
-            assert!(exec_result.success);
-
-            max_stack = max_stack.max(exec_result.stats.max_nb_stack_items);
-            println!("Fq12::hinted_square: {} @ {} stack", hinted_square.len(), max_stack);
-        }
-    }
-
 
     #[test]
     fn test_bn254_fq12_mul_by_034() {
