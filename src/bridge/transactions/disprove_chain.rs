@@ -5,7 +5,7 @@ use bitcoin::{
 use musig2::{secp256k1::schnorr::Signature, PartialSignature, PubNonce, SecNonce};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::bridge::commitment::WPublicKey;
+use crate::bridge::groth16::WotsPublicKeys;
 
 use super::{
     super::{
@@ -19,11 +19,9 @@ use super::{
     pre_signed_musig2::*,
 };
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Clone)]
 pub struct DisproveChainTransaction {
-    #[serde(with = "consensus::serde::With::<consensus::serde::Hex>")]
     tx: Transaction,
-    #[serde(with = "consensus::serde::With::<consensus::serde::Hex>")]
     prev_outs: Vec<TxOut>,
     prev_scripts: Vec<ScriptBuf>,
     connector_b: ConnectorB,
@@ -69,16 +67,15 @@ impl PreSignedMusig2Transaction for DisproveChainTransaction {
 
 impl DisproveChainTransaction {
     pub fn new(context: &OperatorContext, input_0: Input) -> Self {
-        Self::new_for_validation(context.network, &context.n_of_n_taproot_public_key, &context.operator_commitment_pubkey, input_0)
+        Self::new_for_validation(context.network, &context.n_of_n_taproot_public_key, input_0)
     }
 
     pub fn new_for_validation(
         network: Network,
         n_of_n_taproot_public_key: &XOnlyPublicKey,
-        operator_commitment_pubkey: &WPublicKey,
         input_0: Input,
     ) -> Self {
-        let connector_b = ConnectorB::new(network, &n_of_n_taproot_public_key, operator_commitment_pubkey);
+        let connector_b = ConnectorB::new(network, &n_of_n_taproot_public_key);
 
         let input_0_leaf = 2;
         let _input_0 = connector_b.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);

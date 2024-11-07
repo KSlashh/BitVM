@@ -11,6 +11,7 @@ use bitcoin::{absolute::Height, Address, Amount, Network, OutPoint, PublicKey, S
 use esplora_client::{AsyncClient, Builder, Utxo};
 
 use crate::bridge::{constants::DestinationNetwork, contexts::base::generate_n_of_n_public_key};
+use crate::treepp::*;
 
 use super::{
     super::{
@@ -34,11 +35,11 @@ const TEN_MINUTES: u64 = 10 * 60;
 
 pub type UtxoSet = HashMap<OutPoint, Height>;
 
-#[derive(Serialize, Deserialize, Eq, PartialEq)]
-pub struct BitVMClientPublicData {
+#[derive()]
+pub struct BitVMClientPublicData<'a> {
     pub version: u32,
     pub peg_in_graphs: Vec<PegInGraph>,
-    pub peg_out_graphs: Vec<PegOutGraph>,
+    pub peg_out_graphs: Vec<PegOutGraph<'a>>,
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq)]
@@ -48,7 +49,7 @@ pub struct BitVMClientPrivateData {
     pub secret_nonces: HashMap<PublicKey, HashMap<String, HashMap<Txid, HashMap<usize, SecNonce>>>>,
 }
 
-pub struct BitVMClient {
+pub struct BitVMClient<'a> {
     pub esplora: AsyncClient,
 
     depositor_context: Option<DepositorContext>,
@@ -57,14 +58,14 @@ pub struct BitVMClient {
     withdrawer_context: Option<WithdrawerContext>,
 
     data_store: DataStore,
-    data: BitVMClientPublicData,
+    data: BitVMClientPublicData<'a>,
     pub fetched_file_name: Option<String>,
     pub file_path: String,
 
     private_data: BitVMClientPrivateData,
 }
 
-impl BitVMClient {
+impl<'a> BitVMClient<'a> {
     pub async fn new(
         source_network: Network,
         destination_network: DestinationNetwork,
@@ -329,7 +330,7 @@ impl BitVMClient {
         data_store: &DataStore,
         file_names: &mut Vec<String>,
         file_path: Option<&str>,
-    ) -> (Option<BitVMClientPublicData>, Option<String>) {
+    ) -> (Option<BitVMClientPublicData<'a>>, Option<String>) {
         let mut latest_valid_file: Option<BitVMClientPublicData> = None;
         let mut latest_valid_file_name: Option<String> = None;
 
@@ -362,7 +363,7 @@ impl BitVMClient {
         data_store: &DataStore,
         key: &String,
         file_path: Option<&str>,
-    ) -> (Option<BitVMClientPublicData>, usize) {
+    ) -> (Option<BitVMClientPublicData<'a>>, usize) {
         let result = data_store.fetch_data_by_key(key, file_path).await;
         if result.is_ok() {
             if let Some(json) = result.unwrap() {
@@ -438,7 +439,7 @@ impl BitVMClient {
     /// # Arguments
     ///
     /// * `data` - Must be valid data verified via `BitVMClient::validate_data()` function
-    pub fn merge_data(&mut self, data: BitVMClientPublicData) {
+    pub fn merge_data(&mut self, data: BitVMClientPublicData<'a>) {
         // peg-in graphs
         let mut peg_in_graphs_by_id: HashMap<String, &mut PegInGraph> = HashMap::new();
         for peg_in_graph in self.data.peg_in_graphs.iter_mut() {
@@ -641,7 +642,7 @@ impl BitVMClient {
         &mut self,
         peg_in_graph_id: &str,
         kickoff_input: Input,
-        statement: &[u8],
+        disprove_taps: &'a Vec<Script>,
     ) -> String {
         if self.operator_context.is_none() {
             panic!("Operator context must be initialized");
@@ -671,7 +672,7 @@ impl BitVMClient {
             self.operator_context.as_ref().unwrap(),
             peg_in_graph.unwrap(),
             kickoff_input,
-            statement,
+            disprove_taps,
         );
 
         self.data.peg_out_graphs.push(peg_out_graph);

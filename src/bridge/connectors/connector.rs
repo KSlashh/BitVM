@@ -1,4 +1,4 @@
-use bitcoin::{taproot::TaprootSpendInfo, Address, ScriptBuf, Sequence, TxIn, Witness};
+use bitcoin::{taproot::TaprootSpendInfo, Address, ScriptBuf, Sequence, TxIn, Witness, key, Network};
 
 use super::super::transactions::base::Input;
 
@@ -33,4 +33,8 @@ pub trait TaprootConnector {
     fn generate_taproot_spend_info(&self) -> TaprootSpendInfo;
 
     fn generate_taproot_address(&self) -> Address;
+}
+
+pub fn generate_taproot_address(tweaked_pk: key::TweakedPublicKey, network: Network) -> Address {
+    Address::p2tr_tweaked( tweaked_pk, network)
 }

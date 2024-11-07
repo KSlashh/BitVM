@@ -22,11 +22,9 @@ use super::{
     pre_signed_musig2::*,
 };
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Clone)]
 pub struct Take1Transaction {
-    #[serde(with = "consensus::serde::With::<consensus::serde::Hex>")]
     tx: Transaction,
-    #[serde(with = "consensus::serde::With::<consensus::serde::Hex>")]
     prev_outs: Vec<TxOut>,
     prev_scripts: Vec<ScriptBuf>,
     connector_0: Connector0,
@@ -85,7 +83,6 @@ impl Take1Transaction {
             &context.operator_public_key,
             &context.operator_taproot_public_key,
             &context.n_of_n_taproot_public_key,
-            &context.operator_commitment_pubkey,
             input_0,
             input_1,
             input_2,
@@ -103,7 +100,6 @@ impl Take1Transaction {
         operator_public_key: &PublicKey,
         operator_taproot_public_key: &XOnlyPublicKey,
         n_of_n_taproot_public_key: &XOnlyPublicKey,
-        operator_commitment_pubkey: &WPublicKey,
         input_0: Input,
         input_1: Input,
         input_2: Input,
@@ -116,7 +112,7 @@ impl Take1Transaction {
             operator_taproot_public_key,
             n_of_n_taproot_public_key,
         );
-        let connector_b = ConnectorB::new(network, n_of_n_taproot_public_key, operator_commitment_pubkey);
+        let connector_b = ConnectorB::new(network, n_of_n_taproot_public_key);
 
         let input_0_leaf = 0;
         let _input_0 = connector_0.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);

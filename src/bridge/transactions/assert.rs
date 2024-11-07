@@ -22,21 +22,19 @@ use super::{
 };
 use super::signing::push_taproot_leaf_script_and_control_block_to_witness;
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct AssertTransaction {
-    #[serde(with = "consensus::serde::With::<consensus::serde::Hex>")]
+#[derive(Clone)]
+pub struct AssertTransaction<'a> {
     tx: Transaction,
-    #[serde(with = "consensus::serde::With::<consensus::serde::Hex>")]
     prev_outs: Vec<TxOut>,
     prev_scripts: Vec<ScriptBuf>,
     connector_b: ConnectorB,
-
+    connector_c: ConnectorC<'a>,
     musig2_nonces: HashMap<usize, HashMap<PublicKey, PubNonce>>,
     musig2_nonce_signatures: HashMap<usize, HashMap<PublicKey, Signature>>,
     musig2_signatures: HashMap<usize, HashMap<PublicKey, PartialSignature>>,
 }
 
-impl PreSignedTransaction for AssertTransaction {
+impl<'a> PreSignedTransaction for AssertTransaction<'a> {
     fn tx(&self) -> &Transaction { &self.tx }
 
     fn tx_mut(&mut self) -> &mut Transaction { &mut self.tx }
@@ -46,7 +44,7 @@ impl PreSignedTransaction for AssertTransaction {
     fn prev_scripts(&self) -> &Vec<ScriptBuf> { &self.prev_scripts }
 }
 
-impl PreSignedMusig2Transaction for AssertTransaction {
+impl<'a> PreSignedMusig2Transaction for AssertTransaction<'a> {
     fn musig2_nonces(&self) -> &HashMap<usize, HashMap<PublicKey, PubNonce>> { &self.musig2_nonces }
     fn musig2_nonces_mut(&mut self) -> &mut HashMap<usize, HashMap<PublicKey, PubNonce>> {
         &mut self.musig2_nonces
@@ -69,19 +67,19 @@ impl PreSignedMusig2Transaction for AssertTransaction {
     }
 }
 
-impl AssertTransaction {
-    pub fn new(context: &OperatorContext, input_0: Input, statement: &[u8]) -> Self {
+impl<'a> AssertTransaction<'a> {
+    pub fn new(context: &OperatorContext, input_0: Input, connector_c: ConnectorC<'a>) -> Self {
         let mut this = Self::new_for_validation(
             context.network,
             &context.operator_public_key,
             &context.operator_taproot_public_key,
             &context.n_of_n_taproot_public_key,
-            &context.operator_commitment_pubkey,
+            connector_c,
             input_0,
         );
 
         // sign input[0], leaf[1]
-        this.connector_b.push_leaf_1_unlock_witness(&mut this.tx.input[0].witness, &context.operator_commitment_seckey, statement);
+        this.connector_b.push_leaf_1_unlock_witness();
         let redeem_script = this.connector_b.generate_taproot_leaf_script(1);
         let taproot_spend_info = this.connector_b.generate_taproot_spend_info();
         push_taproot_leaf_script_and_control_block_to_witness(&mut this.tx, 0, &taproot_spend_info, &redeem_script);
@@ -94,13 +92,12 @@ impl AssertTransaction {
         operator_public_key: &PublicKey,
         operator_taproot_public_key: &XOnlyPublicKey,
         n_of_n_taproot_public_key: &XOnlyPublicKey,
-        operator_commitment_pubkey: &WPublicKey,
+        connector_c: ConnectorC<'a>,
         input_0: Input,
     ) -> Self {
         let connector_4 = Connector4::new(network, operator_public_key);
         let connector_5 = Connector5::new(network, n_of_n_taproot_public_key);
-        let connector_b = ConnectorB::new(network, n_of_n_taproot_public_key, operator_commitment_pubkey);
-        let connector_c = ConnectorC::new(network, operator_taproot_public_key, operator_commitment_pubkey);
+        let connector_b = ConnectorB::new(network, n_of_n_taproot_public_key);
 
         let input_0_leaf = 1;
         let _input_0 = connector_b.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
@@ -135,6 +132,7 @@ impl AssertTransaction {
             }],
             prev_scripts: vec![connector_b.generate_taproot_leaf_script(input_0_leaf)],
             connector_b,
+            connector_c,
             musig2_nonces: HashMap::new(),
             musig2_nonce_signatures: HashMap::new(),
             musig2_signatures: HashMap::new(),
@@ -144,6 +142,6 @@ impl AssertTransaction {
     pub fn num_blocks_timelock_0(&self) -> u32 { self.connector_b.num_blocks_timelock_1 }
 }
 
-impl BaseTransaction for AssertTransaction {
+impl<'a> BaseTransaction for AssertTransaction<'a> {
     fn finalize(&self) -> Transaction { self.tx.clone() }
 }

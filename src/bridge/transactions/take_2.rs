@@ -5,8 +5,8 @@ use bitcoin::{
 use musig2::{secp256k1::schnorr::Signature, PartialSignature, PubNonce, SecNonce};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::bridge::{commitment::WPublicKey, graphs::base::{CALC_ROUND, HUGE_FEE_AMOUNT}};
-
+use crate::bridge::{commitment::WPublicKey, connectors::connector_c, graphs::base::{CALC_ROUND, HUGE_FEE_AMOUNT}};
+use crate::treepp::*;
 use super::{
     super::{
         connectors::{
@@ -16,30 +16,25 @@ use super::{
         contexts::{base::BaseContext, operator::OperatorContext, verifier::VerifierContext},
         graphs::base::FEE_AMOUNT,
         scripts::*,
-    },
-    base::*,
-    pre_signed::*,
-    pre_signed_musig2::*,
+    }, base::*, disprove, pre_signed::*, pre_signed_musig2::*
 };
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct Take2Transaction {
-    #[serde(with = "consensus::serde::With::<consensus::serde::Hex>")]
+#[derive(Clone)]
+pub struct Take2Transaction<'a> {
     tx: Transaction,
-    #[serde(with = "consensus::serde::With::<consensus::serde::Hex>")]
     prev_outs: Vec<TxOut>,
     prev_scripts: Vec<ScriptBuf>,
     connector_0: Connector0,
     connector_4: Connector4,
     connector_5: Connector5,
-    connector_c: ConnectorC,
+    connector_c: ConnectorC<'a>,
 
     musig2_nonces: HashMap<usize, HashMap<PublicKey, PubNonce>>,
     musig2_nonce_signatures: HashMap<usize, HashMap<PublicKey, Signature>>,
     musig2_signatures: HashMap<usize, HashMap<PublicKey, PartialSignature>>,
 }
 
-impl PreSignedTransaction for Take2Transaction {
+impl<'a> PreSignedTransaction for Take2Transaction<'a> {
     fn tx(&self) -> &Transaction { &self.tx }
 
     fn tx_mut(&mut self) -> &mut Transaction { &mut self.tx }
@@ -49,7 +44,7 @@ impl PreSignedTransaction for Take2Transaction {
     fn prev_scripts(&self) -> &Vec<ScriptBuf> { &self.prev_scripts }
 }
 
-impl PreSignedMusig2Transaction for Take2Transaction {
+impl<'a> PreSignedMusig2Transaction for Take2Transaction<'a> {
     fn musig2_nonces(&self) -> &HashMap<usize, HashMap<PublicKey, PubNonce>> { &self.musig2_nonces }
     fn musig2_nonces_mut(&mut self) -> &mut HashMap<usize, HashMap<PublicKey, PubNonce>> {
         &mut self.musig2_nonces
@@ -72,9 +67,10 @@ impl PreSignedMusig2Transaction for Take2Transaction {
     }
 }
 
-impl Take2Transaction {
+impl<'a> Take2Transaction<'a> {
     pub fn new(
         context: &OperatorContext,
+        connector_c: ConnectorC<'a>,
         input_0: Input,
         input_1: Input,
         input_2: Input,
@@ -85,7 +81,7 @@ impl Take2Transaction {
             &context.operator_public_key,
             &context.operator_taproot_public_key,
             &context.n_of_n_taproot_public_key,
-            &context.operator_commitment_pubkey,
+            connector_c,
             input_0,
             input_1,
             input_2,
@@ -103,7 +99,7 @@ impl Take2Transaction {
         operator_public_key: &PublicKey,
         operator_taproot_public_key: &XOnlyPublicKey,
         n_of_n_taproot_public_key: &XOnlyPublicKey,
-        operator_commitment_pubkey: &WPublicKey,
+        connector_c: ConnectorC<'a>,
         input_0: Input,
         input_1: Input,
         input_2: Input,
@@ -112,8 +108,7 @@ impl Take2Transaction {
         let connector_0 = Connector0::new(network, n_of_n_taproot_public_key);
         let connector_4 = Connector4::new(network, operator_public_key);
         let connector_5 = Connector5::new(network, n_of_n_taproot_public_key);
-        let connector_c = ConnectorC::new(network, operator_taproot_public_key, operator_commitment_pubkey);
-
+        
         let input_0_leaf = 1;
         let _input_0 = connector_0.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
 
@@ -122,7 +117,7 @@ impl Take2Transaction {
         let input_2_leaf = 0;
         let _input_2 = connector_5.generate_taproot_leaf_tx_in(input_2_leaf, &input_2);
 
-        let input_3_leaf = CALC_ROUND;
+        let input_3_leaf = (connector_c.leaf_num - 1) as u32;
         let _input_3 = connector_c.generate_taproot_leaf_tx_in(input_3_leaf, &input_3);
 
         let total_output_amount = input_0.amount + input_1.amount + input_2.amount + input_3.amount
@@ -286,6 +281,6 @@ impl Take2Transaction {
     }
 }
 
-impl BaseTransaction for Take2Transaction {
+impl<'a> BaseTransaction for Take2Transaction<'a> {
     fn finalize(&self) -> Transaction { self.tx.clone() }
 }

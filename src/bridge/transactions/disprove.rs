@@ -5,7 +5,7 @@ use bitcoin::{
 use musig2::{secp256k1::schnorr::Signature, PartialSignature, PubNonce, SecNonce};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::bridge::{commitment::WPublicKey, graphs::base::HUGE_FEE_AMOUNT};
+use crate::bridge::{commitment::WPublicKey, connectors::connector, graphs::base::HUGE_FEE_AMOUNT};
 
 use super::{
     super::{
@@ -20,23 +20,20 @@ use super::{
     signing::push_taproot_leaf_script_and_control_block_to_witness,
 };
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct DisproveTransaction {
-    #[serde(with = "consensus::serde::With::<consensus::serde::Hex>")]
+#[derive(Clone)]
+pub struct DisproveTransaction<'a> {
     tx: Transaction,
-    #[serde(with = "consensus::serde::With::<consensus::serde::Hex>")]
     prev_outs: Vec<TxOut>,
     prev_scripts: Vec<ScriptBuf>,
     connector_5: Connector5,
-    connector_c: ConnectorC,
+    connector_c: ConnectorC<'a>,
     reward_output_amount: Amount,
-
     musig2_nonces: HashMap<usize, HashMap<PublicKey, PubNonce>>,
     musig2_nonce_signatures: HashMap<usize, HashMap<PublicKey, Signature>>,
     musig2_signatures: HashMap<usize, HashMap<PublicKey, PartialSignature>>,
 }
 
-impl PreSignedTransaction for DisproveTransaction {
+impl<'a> PreSignedTransaction for DisproveTransaction<'a> {
     fn tx(&self) -> &Transaction { &self.tx }
 
     fn tx_mut(&mut self) -> &mut Transaction { &mut self.tx }
@@ -46,7 +43,7 @@ impl PreSignedTransaction for DisproveTransaction {
     fn prev_scripts(&self) -> &Vec<ScriptBuf> { &self.prev_scripts }
 }
 
-impl PreSignedMusig2Transaction for DisproveTransaction {
+impl<'a> PreSignedMusig2Transaction for DisproveTransaction<'a> {
     fn musig2_nonces(&self) -> &HashMap<usize, HashMap<PublicKey, PubNonce>> { &self.musig2_nonces }
     fn musig2_nonces_mut(&mut self) -> &mut HashMap<usize, HashMap<PublicKey, PubNonce>> {
         &mut self.musig2_nonces
@@ -69,9 +66,10 @@ impl PreSignedMusig2Transaction for DisproveTransaction {
     }
 }
 
-impl DisproveTransaction {
+impl<'a> DisproveTransaction<'a> {
     pub fn new(
         context: &OperatorContext,
+        connector_c: ConnectorC<'a>,
         input_0: Input,
         input_1: Input,
         script_index: u32,
@@ -80,7 +78,7 @@ impl DisproveTransaction {
             context.network,
             &context.operator_taproot_public_key,
             &context.n_of_n_taproot_public_key,
-            &context.operator_commitment_pubkey,
+            connector_c,
             input_0,
             input_1,
             script_index,
@@ -91,13 +89,12 @@ impl DisproveTransaction {
         network: Network,
         operator_taproot_public_key: &XOnlyPublicKey,
         n_of_n_taproot_public_key: &XOnlyPublicKey,
-        operator_commitment_pubkey: &WPublicKey,
+        connector_c: ConnectorC<'a>,
         input_0: Input,
         input_1: Input,
         script_index: u32,
     ) -> Self {
         let connector_5 = Connector5::new(network, &n_of_n_taproot_public_key);
-        let connector_c = ConnectorC::new(network, &operator_taproot_public_key, operator_commitment_pubkey);
 
         let input_0_leaf = 1;
         let _input_0 = connector_5.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
@@ -203,7 +200,7 @@ impl DisproveTransaction {
 
         // Push the unlocking witness
         let witness = &mut self.tx.input[input_index].witness;
-        self.connector_c.push_leaf_unlock_witness(witness, pre_commitment, post_commitment, input_script_index);
+        self.connector_c.push_leaf_unlock_witness();
 
         // Push script + control block
         let script = self
@@ -224,7 +221,7 @@ impl DisproveTransaction {
     }
 }
 
-impl BaseTransaction for DisproveTransaction {
+impl<'a> BaseTransaction for DisproveTransaction<'a> {
     fn finalize(&self) -> Transaction {
         if self.tx.input.len() < 2 || self.tx.output.len() < 2 {
             panic!("Missing input or output. Call add_input_output before finalizing");
