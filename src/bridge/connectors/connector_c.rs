@@ -1,4 +1,4 @@
-use crate::{bridge::graphs::base::CALC_ROUND, treepp::*};
+use crate::{bridge::{graphs::base::CALC_ROUND, groth16}, treepp::*};
 use bitcoin::{
     hashes::{ripemd160, Hash},
     key::Secp256k1, Witness,
@@ -63,11 +63,12 @@ impl<'a> ConnectorC<'a> {
         }
     }
 
-    pub fn push_leaf_unlock_witness(&self) {
-        // TODO
-        // assert!(leaf_index < CALC_ROUND, "Invalid leaf index.");
-        // witness.push([0x1]);
-        // hash_chain::push_chunk_unlock_witness(witness, pre_commitment, post_commitment);
+    pub fn push_leaf_unlock_witness(&self, witness: &mut Witness, _leaf_index: u32, hint_script: Script) {
+        witness.push([0x1]);
+        let wit = groth16::hint_script_to_witness(hint_script);
+        for w in wit {
+            witness.push(w);
+        }
     }
 }
 

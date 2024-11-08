@@ -6,7 +6,7 @@ use musig2::{secp256k1::schnorr::Signature, PartialSignature, PubNonce, SecNonce
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use crate::bridge::{commitment::WPublicKey, connectors::connector, graphs::base::HUGE_FEE_AMOUNT};
-
+use crate::treepp::*;
 use super::{
     super::{
         connectors::{connector::*, connector_5::Connector5, connector_c::ConnectorC},
@@ -191,7 +191,12 @@ impl<'a> DisproveTransaction<'a> {
         self.sign_input_0(context, &secret_nonces[&input_index]);
     }
 
-    pub fn add_input_output(&mut self, input_script_index: u32, output_script_pubkey: ScriptBuf, pre_commitment: &Witness, post_commitment: &Witness) {
+    pub fn add_input_output(
+        &mut self, 
+        disprove_leaf_index: u32, 
+        output_script_pubkey: ScriptBuf, 
+        diprove_hint_sciprt: Script, 
+    ) {
         // Add output
         let output_index = 1;
         self.tx.output[output_index].script_pubkey = output_script_pubkey;
@@ -200,12 +205,12 @@ impl<'a> DisproveTransaction<'a> {
 
         // Push the unlocking witness
         let witness = &mut self.tx.input[input_index].witness;
-        self.connector_c.push_leaf_unlock_witness();
+        self.connector_c.push_leaf_unlock_witness(witness, disprove_leaf_index, diprove_hint_sciprt);
 
         // Push script + control block
         let script = self
             .connector_c
-            .generate_taproot_leaf_script(input_script_index);
+            .generate_taproot_leaf_script(disprove_leaf_index);
         let taproot_spend_info = self.connector_c.generate_taproot_spend_info();
         push_taproot_leaf_script_and_control_block_to_witness(
             &mut self.tx,

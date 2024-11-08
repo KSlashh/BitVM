@@ -1252,8 +1252,7 @@ impl<'a> PegOutGraph<'a> {
         client: &AsyncClient,
         input_script_index: u32,
         output_script_pubkey: ScriptBuf,
-        pre_commitment: &Witness, 
-        post_commitment: &Witness,
+        disprove_hint_script: Script,
     ) {
         verify_if_not_mined(client, self.disprove_transaction.tx().compute_txid()).await;
 
@@ -1263,7 +1262,7 @@ impl<'a> PegOutGraph<'a> {
         if assert_status.is_ok_and(|status| status.confirmed) {
             // complete disprove tx
             self.disprove_transaction
-                .add_input_output(input_script_index, output_script_pubkey, pre_commitment, post_commitment);
+                .add_input_output(input_script_index, output_script_pubkey, disprove_hint_script);
             let disprove_tx = self.disprove_transaction.finalize();
 
             // broadcast disprove tx

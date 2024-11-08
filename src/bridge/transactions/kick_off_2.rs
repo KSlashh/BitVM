@@ -47,7 +47,7 @@ impl KickOff2Transaction {
         );
 
         // sign input[0], leaf_0
-        this.connector_1.push_leaf_0_unlock_witness();
+        this.connector_1.push_leaf_0_unlock_witness(&mut this.tx.input[0].witness);
         let redeem_script = this.connector_1.generate_taproot_leaf_script(0);
         let taproot_spend_info = this.connector_1.generate_taproot_spend_info();
         push_taproot_leaf_script_and_control_block_to_witness(&mut this.tx, 0, &taproot_spend_info, &redeem_script);

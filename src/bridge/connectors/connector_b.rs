@@ -12,8 +12,6 @@ use super::{
     },
     connector::*,
 };
-use crate::bridge::commitment::WPublicKey;
-use crate::bridge::hash_chain;
 use crate::bridge::groth16::WotsPublicKeys;
 
 #[derive(Clone)]
@@ -41,7 +39,6 @@ impl ConnectorB {
     fn generate_taproot_leaf_0_tx_in(&self, input: &Input) -> TxIn { generate_default_tx_in(input) }
 
     fn generate_taproot_leaf_1_script(&self) -> ScriptBuf {
-        let round = CALC_ROUND;
         script! {
             // timelock
             { self.num_blocks_timelock_1 }
@@ -57,8 +54,9 @@ impl ConnectorB {
         generate_timelock_tx_in(input, self.num_blocks_timelock_1)
     }
 
-    pub fn push_leaf_1_unlock_witness(&self) {
-        // TODO
+    pub fn push_leaf_1_unlock_witness(&self, witness: &mut Witness) {
+        // TODO: bitcommitment witness
+        witness.push([0x1]);
     }
 
     fn generate_taproot_leaf_2_script(&self) -> ScriptBuf {

@@ -839,8 +839,7 @@ impl<'a> BitVMClient<'a> {
         peg_out_graph_id: &str,
         input_script_index: u32,
         output_script_pubkey: ScriptBuf,
-        pre_commitment: &Witness, 
-        post_commitment: &Witness,
+        disprove_hint_script: Script,
     ) {
         let peg_out_graph = self
             .data
@@ -853,7 +852,7 @@ impl<'a> BitVMClient<'a> {
 
         peg_out_graph
             .unwrap()
-            .disprove(&self.esplora, input_script_index, output_script_pubkey, pre_commitment, post_commitment)
+            .disprove(&self.esplora, input_script_index, output_script_pubkey, disprove_hint_script)
             .await;
     }
 

@@ -79,7 +79,7 @@ impl<'a> AssertTransaction<'a> {
         );
 
         // sign input[0], leaf[1]
-        this.connector_b.push_leaf_1_unlock_witness();
+        this.connector_b.push_leaf_1_unlock_witness(&mut this.tx.input[0].witness);
         let redeem_script = this.connector_b.generate_taproot_leaf_script(1);
         let taproot_spend_info = this.connector_b.generate_taproot_spend_info();
         push_taproot_leaf_script_and_control_block_to_witness(&mut this.tx, 0, &taproot_spend_info, &redeem_script);

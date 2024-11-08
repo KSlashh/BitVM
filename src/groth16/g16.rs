@@ -67,7 +67,7 @@ mod test {
     use ark_ff::Field;
     use rand::Rng;
 
-    use crate::chunk::{api::mock_pubkeys, test_utils::{read_scripts_from_file, write_map_to_file, write_scripts_to_file, write_scripts_to_separate_files}};
+    use crate::{bridge::groth16::Proof, chunk::{api::mock_pubkeys, test_utils::{read_scripts_from_file, write_map_to_file, write_scripts_to_file, write_scripts_to_separate_files}}};
 
     use crate::chunk::{config::NUM_PUBS, test_utils::read_map_from_file};
 
