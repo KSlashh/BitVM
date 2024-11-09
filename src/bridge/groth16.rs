@@ -373,6 +373,17 @@ pub fn load_proof_from_file(filename: &str) -> (VerifyingKey, Proof, PublicInput
     use ark_serialize::CanonicalDeserialize;
     use ark_serialize::Compress;
     use ark_serialize::Validate;
+    fn tmp_fr_deserialization(v: Vec<u8>) -> Fr {
+        use ark_ff::PrimeField;
+        use ark_ff::BigInt;
+    
+        let mut arr = [0u64; 4];
+        for (i, chunk) in v.chunks(8).enumerate() {
+            arr[i] = u64::from_le_bytes(chunk.try_into().expect("Invalid fr length"));
+        }
+        Fr::from_bigint(BigInt(arr)).unwrap()
+    }
+    
 
     let read = read_map_from_file(filename).expect(&format!("fail to read proof file: {filename}"));
     let vk_vec = read.get(&0).unwrap();
@@ -382,15 +393,29 @@ pub fn load_proof_from_file(filename: &str) -> (VerifyingKey, Proof, PublicInput
     let vk = VerifyingKey::deserialize_with_mode(vk_vec[0].as_slice(), Compress::Yes, Validate::Yes).unwrap();
     let proof = Proof::deserialize_with_mode(proof_vec[0].as_slice(), Compress::Yes, Validate::Yes).unwrap();
 
-    let mut pubin: PublicInputs = Default::default();
+    let mut pubin= vec![];
     for i in 0..pubin_vec.len() {
-        pubin[i] = Fr::deserialize_with_mode(pubin_vec[i].as_slice(), Compress::Yes, Validate::Yes).unwrap();
+        let f = tmp_fr_deserialization(pubin_vec[i].clone());
+        pubin.push(f);
     }
 
-    (vk, proof, pubin)
+    (vk, proof, pubin.try_into().unwrap())
 }
 
 fn serialize_proof(vk: VerifyingKey, proof: Proof, pubin: PublicInputs) -> HashMap<u32, Vec<Vec<u8>>> {
+    fn tmp_fr_serialization(f: Fr) -> Vec<u8> {
+        use ark_ff::PrimeField;
+        use ark_ff::BigInt;
+    
+        let f_big = match f.into_bigint() { BigInt(x) => x };
+        let mut res = Vec::with_capacity(f_big.len() * 8);
+        for &num in f_big.iter() {
+            res.extend_from_slice(&num.to_le_bytes());
+        }
+        res
+    }   
+    
+
     use ark_serialize::CanonicalSerialize;
     use ark_serialize::Compress;
 
@@ -402,8 +427,7 @@ fn serialize_proof(vk: VerifyingKey, proof: Proof, pubin: PublicInputs) -> HashM
 
     let mut public_inputs_sered = Vec::new();
     for f in pubin {
-        let mut f_sered = vec![0; f.serialized_size(Compress::Yes)];
-        f.serialize_with_mode(&mut f_sered, Compress::Yes).expect("fail to serialize public input");
+        let f_sered = tmp_fr_serialization(f);
         public_inputs_sered.push(f_sered);
     }
 
