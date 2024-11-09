@@ -75,14 +75,6 @@ pub fn hint_script_to_witness(hint_script: Script) -> Vec<Vec<u8>> {
     witness
 }
 
-pub fn validate_assertions(
-    vk: &VerifyingKey,
-    signed_asserts: WotsSignatures,
-    inpubkeys: WotsPublicKeys,
-) -> Option<(usize, Script)> {
-    chunk::api::validate_assertions(vk, signed_asserts, inpubkeys)
-}   
-
 pub fn sig_to_witness(
     wots_sig: WotsSignature,
 ) -> Vec<Vec<u8>> {
@@ -103,6 +95,24 @@ pub fn sig_to_witness(
     }
     res
 }
+
+pub fn generate_assert_tapscripts(
+    vk: &VerifyingKey, 
+    wots_pk: WotsPublicKeys, 
+    write_to_file: bool,
+    file_prefix: &str,
+) -> Vec<Script> {
+    let ops_scripts = chunk::api::api_compile(vk);
+    let taps = chunk::api::generate_tapscripts(wots_pk, &ops_scripts);
+    if write_to_file {
+        let mut script_cache = HashMap::new();
+        for i in 0..taps.len() {
+            script_cache.insert(i as u32, vec![taps[i].clone()]);
+        }
+        chunk::test_utils::write_scripts_to_separate_files(script_cache, file_prefix);
+    }
+    taps
+}   
 
 pub fn generate_signed_assertions(
     proof: Proof,
@@ -152,6 +162,127 @@ pub fn generate_signed_assertions(
         }
     }
     sigs
+}
+
+pub fn gene_assertions(
+    proof: Proof,
+    public_inputs: PublicInputs,
+    vk: &VerifyingKey,
+) -> Assertions {
+    chunk::api::generate_assertions(proof, public_inputs.to_vec(), vk)
+}
+
+pub fn sign_assertions(
+    wots_sk: &WotsSecretKeys,
+    asserttions: Assertions,
+) -> WotsSignatures {
+    let (ps, fs, hs) = (asserttions.0, asserttions.1, asserttions.2);
+    let secret = String::from_utf8(wots_sk.clone()).unwrap();
+
+    let mut psig: Vec<wots256::Signature> = vec![];
+    for i in 0..ps.len() {
+        let psi = wots256::get_signature(&format!("{secret}{:04x}", i), &ps[i]);
+        psig.push(psi);
+    }
+    let psig: [wots256::Signature; g16::N_VERIFIER_PUBLIC_INPUTS] = psig.try_into().unwrap();
+
+    let mut fsig: Vec<wots256::Signature> = vec![];
+    for i in 0..fs.len() {
+        let fsi = wots256::get_signature(&format!("{secret}{:04x}", g16::N_VERIFIER_PUBLIC_INPUTS + i), &fs[i]);
+        fsig.push(fsi);
+    }
+    let fsig: [wots256::Signature; g16::N_VERIFIER_FQS] = fsig.try_into().unwrap();
+
+    let mut hsig: Vec<wots160::Signature> = vec![];
+    for i in 0..hs.len() {
+        let hsi =
+            wots160::get_signature(&format!("{secret}{:04x}", g16::N_VERIFIER_PUBLIC_INPUTS + fs.len() + i), &hs[i]);
+        hsig.push(hsi);
+    }
+    let hsig: [wots160::Signature; g16::N_VERIFIER_HASHES] = hsig.try_into().unwrap();
+
+    (psig, fsig, hsig)
+}
+
+
+pub fn corrupt_signed_assertions(
+    wots_sk: &WotsSecretKeys,
+    signed_assertions: &mut WotsSignatures,
+    index: usize,
+) { 
+    assert!(index < g16::N_TAPLEAVES, "index exceed limit");
+    let secret = String::from_utf8(wots_sk.clone()).unwrap();
+    if index < g16::N_VERIFIER_PUBLIC_INPUTS {
+        let scramble: [u8; 32] = [0u8; 32];
+        let corrupt_sig = wots256::get_signature(&format!("{secret}{:04x}", index), &scramble);
+        let i = index;
+        signed_assertions.0[i] = corrupt_sig;
+    } else if index < (g16::N_VERIFIER_PUBLIC_INPUTS + g16::N_VERIFIER_FQS) {
+        let scramble: [u8; 32] = [0u8; 32];
+        let corrupt_sig = wots256::get_signature(&format!("{secret}{:04x}", index), &scramble);
+        let i = index - g16::N_VERIFIER_PUBLIC_INPUTS;
+        signed_assertions.1[i] = corrupt_sig;
+    } else {
+        let scramble: [u8; 20] = [0u8; 20];
+        let corrupt_sig = wots160::get_signature(&format!("{secret}{:04x}", index), &scramble);
+        let i = index - g16::N_VERIFIER_PUBLIC_INPUTS - g16::N_VERIFIER_FQS;
+        signed_assertions.2[i] = corrupt_sig;
+    }   
+}
+
+pub fn validate_assertions(
+    vk: &VerifyingKey,
+    signed_asserts: WotsSignatures,
+    inpubkeys: WotsPublicKeys,
+) -> Option<(usize, Script)> {
+    chunk::api::validate_assertions(vk, signed_asserts, inpubkeys)
+}   
+
+pub fn generate_bitcommitments(
+    wots_pk: &WotsPublicKeys, 
+) -> Vec<(u32,Script)> {
+    let mut pubkeys: HashMap<u32, chunk::wots::WOTSPubKey> = HashMap::new();
+    for i in 0..wots_pk.0.len() {
+        pubkeys.insert(i as u32, chunk::wots::WOTSPubKey::P256(wots_pk.0[i]));
+    }
+    let len = pubkeys.len();
+    for i in 0..wots_pk.1.len() {
+        pubkeys.insert((len + i) as u32, chunk::wots::WOTSPubKey::P256(wots_pk.1[i]));
+    }
+    let len = pubkeys.len();
+    for i in 0..wots_pk.2.len() {
+        pubkeys.insert((len + i) as u32, chunk::wots::WOTSPubKey::P160(wots_pk.2[i]));
+    }
+    chunk::compile::compile(
+        chunk::compile::Vkey {
+            q2: ark_bn254::G2Affine::identity(),
+            q3: ark_bn254::G2Affine::identity(),
+            p3vk: vec![],
+            p1q1: ark_bn254::Fq12::ONE,
+            vky0: ark_bn254::G1Affine::identity(),
+        },
+        &pubkeys,
+        true,
+    )
+}
+
+pub fn generate_wots_keys_from_secrets(secret: &str) -> (WotsPublicKeys, WotsSecretKeys) {
+    (
+        chunk::api::mock_pubkeys(secret),
+        secret.as_bytes().to_vec(),
+    )
+}
+
+pub fn load_assert_tapscripts_from_file(start_index: usize, end_index: usize, file_prefix: &str) -> Vec<Script> {
+    let mut taps = vec![];
+    for index in start_index..(end_index+1) {
+        let read = chunk::test_utils::read_scripts_from_file(&format!("chunker_data/{file_prefix}_{index}.json"));
+        let read_scr = read.get(&(index as u32)).unwrap();
+        assert_eq!(read_scr.len(), 1);
+        let tap_node = read_scr[0].clone();
+        taps.push(tap_node);
+    }
+    taps
 }
 
 pub fn load_all_signed_assertions_from_file(
@@ -238,112 +369,7 @@ pub fn load_signed_assertions_from_file(
     }
 }
 
-pub fn gene_assertions(
-    proof: Proof,
-    public_inputs: PublicInputs,
-    vk: &VerifyingKey,
-) -> Assertions {
-    chunk::api::generate_assertions(proof, public_inputs.to_vec(), vk)
-}
-
-pub fn sign_assertions(
-    wots_sk: &WotsSecretKeys,
-    asserttions: Assertions,
-) -> WotsSignatures {
-    let (ps, fs, hs) = (asserttions.0, asserttions.1, asserttions.2);
-    let secret = String::from_utf8(wots_sk.clone()).unwrap();
-
-    let mut psig: Vec<wots256::Signature> = vec![];
-    for i in 0..ps.len() {
-        let psi = wots256::get_signature(&format!("{secret}{:04x}", i), &ps[i]);
-        psig.push(psi);
-    }
-    let psig: [wots256::Signature; g16::N_VERIFIER_PUBLIC_INPUTS] = psig.try_into().unwrap();
-
-    let mut fsig: Vec<wots256::Signature> = vec![];
-    for i in 0..fs.len() {
-        let fsi = wots256::get_signature(&format!("{secret}{:04x}", g16::N_VERIFIER_PUBLIC_INPUTS + i), &fs[i]);
-        fsig.push(fsi);
-    }
-    let fsig: [wots256::Signature; g16::N_VERIFIER_FQS] = fsig.try_into().unwrap();
-
-    let mut hsig: Vec<wots160::Signature> = vec![];
-    for i in 0..hs.len() {
-        let hsi =
-            wots160::get_signature(&format!("{secret}{:04x}", g16::N_VERIFIER_PUBLIC_INPUTS + fs.len() + i), &hs[i]);
-        hsig.push(hsi);
-    }
-    let hsig: [wots160::Signature; g16::N_VERIFIER_HASHES] = hsig.try_into().unwrap();
-
-    (psig, fsig, hsig)
-}
-
-pub fn generate_bitcommitments(
-    wots_pk: &WotsPublicKeys, 
-) -> Vec<(u32,Script)> {
-    let mut pubkeys: HashMap<u32, chunk::wots::WOTSPubKey> = HashMap::new();
-    for i in 0..wots_pk.0.len() {
-        pubkeys.insert(i as u32, chunk::wots::WOTSPubKey::P256(wots_pk.0[i]));
-    }
-    let len = pubkeys.len();
-    for i in 0..wots_pk.1.len() {
-        pubkeys.insert((len + i) as u32, chunk::wots::WOTSPubKey::P256(wots_pk.1[i]));
-    }
-    let len = pubkeys.len();
-    for i in 0..wots_pk.2.len() {
-        pubkeys.insert((len + i) as u32, chunk::wots::WOTSPubKey::P160(wots_pk.2[i]));
-    }
-    chunk::compile::compile(
-        chunk::compile::Vkey {
-            q2: ark_bn254::G2Affine::identity(),
-            q3: ark_bn254::G2Affine::identity(),
-            p3vk: vec![],
-            p1q1: ark_bn254::Fq12::ONE,
-            vky0: ark_bn254::G1Affine::identity(),
-        },
-        &pubkeys,
-        true,
-    )
-}
-
-pub fn generate_assert_tapscripts(
-    vk: &VerifyingKey, 
-    wots_pk: WotsPublicKeys, 
-    write_to_file: bool,
-    file_prefix: &str,
-) -> Vec<Script> {
-    let ops_scripts = chunk::api::api_compile(vk);
-    let taps = chunk::api::generate_tapscripts(wots_pk, &ops_scripts);
-    if write_to_file {
-        let mut script_cache = HashMap::new();
-        for i in 0..taps.len() {
-            script_cache.insert(i as u32, vec![taps[i].clone()]);
-        }
-        chunk::test_utils::write_scripts_to_separate_files(script_cache, file_prefix);
-    }
-    taps
-}   
-
-pub fn load_assert_tapscripts_from_file(start_index: usize, end_index: usize, file_prefix: &str) -> Vec<Script> {
-    let mut taps = vec![];
-    for index in start_index..(end_index+1) {
-        let read = chunk::test_utils::read_scripts_from_file(&format!("chunker_data/{file_prefix}_{index}.json"));
-        let read_scr = read.get(&(index as u32)).unwrap();
-        assert_eq!(read_scr.len(), 1);
-        let tap_node = read_scr[0].clone();
-        taps.push(tap_node);
-    }
-    taps
-}
-
-pub fn generate_wots_keys_from_secrets(secret: &str) -> (WotsPublicKeys, WotsSecretKeys) {
-    (
-        chunk::api::mock_pubkeys(secret),
-        secret.as_bytes().to_vec(),
-    )
-}
-
-pub fn read_proof_from_file(filename: &str) -> (VerifyingKey, Proof, PublicInputs) {
+pub fn load_proof_from_file(filename: &str) -> (VerifyingKey, Proof, PublicInputs) {
     use ark_serialize::CanonicalDeserialize;
     use ark_serialize::Compress;
     use ark_serialize::Validate;
@@ -389,27 +415,28 @@ fn serialize_proof(vk: VerifyingKey, proof: Proof, pubin: PublicInputs) -> HashM
     res_map
 }
 
-const TEST_SECRET: &str = "a138982ce17ac813d505a5b40b665d404e9528e7";
+pub const TEST_SECRET: &str = "a138982ce17ac813d505a5b40b665d404e9528e7";
 
 #[test] 
 pub fn test_gene_taps() {
-    let (vk, _, _) = read_proof_from_file("chunker_data/dummy_proof.json");
+    let (vk, _, _) = load_proof_from_file("chunker_data/dummy_proof.json");
     let (wots_pk, _) = generate_wots_keys_from_secrets(TEST_SECRET);
     generate_assert_tapscripts(&vk, wots_pk, true, "tapscript");
 }
 
 #[test]
 pub fn test_gene_sigs() {
-    let (vk, proof, pubin) = read_proof_from_file("chunker_data/dummy_proof.json");
+    let (vk, proof, pubin) = load_proof_from_file("chunker_data/dummy_proof.json");
     let (_, wots_sk) = generate_wots_keys_from_secrets(TEST_SECRET);
     generate_signed_assertions(proof, pubin, &wots_sk, &vk, true, "signed_assertion");
 }
 
 #[test]
 pub fn test_validate_assertions() {
-    let (vk, _, _) = read_proof_from_file("chunker_data/dummy_proof.json");
+    let (vk, _, _) = load_proof_from_file("chunker_data/dummy_proof.json");
     let (wots_pk, _) = generate_wots_keys_from_secrets(TEST_SECRET);
     let signed_assertions = load_all_signed_assertions_from_file("signed_assertion");
     validate_assertions(&vk, signed_assertions, wots_pk);
 }
+
 

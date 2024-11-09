@@ -18,6 +18,7 @@ use crate::bridge::{
 
 #[tokio::test]
 async fn test_disprove_chain_success() {
+    let empty_script = vec![];
     let (
         client,
         _,
@@ -38,8 +39,7 @@ async fn test_disprove_chain_success() {
         _,
         _,
         _,
-        statement,
-    ) = setup_test().await;
+    ) = setup_test(&empty_script).await;
 
     // verify funding inputs
     let mut funding_inputs: Vec<(&Address, Amount)> = vec![];
@@ -58,7 +58,6 @@ async fn test_disprove_chain_success() {
         &operator_context,
         &kick_off_2_funding_utxo_address,
         kick_off_2_input_amount,
-        &statement,
     )
     .await;
 

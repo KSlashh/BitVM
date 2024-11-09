@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use bitcoin::{Address, Amount, OutPoint};
 use bitvm::bridge::{
-    connectors::connector::TaprootConnector,
+    connectors::{connector::TaprootConnector, connector_c::ConnectorC},
     graphs::base::{FEE_AMOUNT, HUGE_FEE_AMOUNT, INITIAL_AMOUNT},
     scripts::generate_pay_to_pubkey_script_address,
     transactions::{
@@ -20,6 +20,7 @@ use crate::bridge::{
 
 #[tokio::test]
 async fn test_take_2_success() {
+    let empty_script = vec![];
     let (
         client,
         _,
@@ -30,7 +31,7 @@ async fn test_take_2_success() {
         _,
         _,
         connector_b,
-        _,
+        mut connector_c,
         connector_z,
         _,
         _,
@@ -40,8 +41,8 @@ async fn test_take_2_success() {
         _,
         depositor_evm_address,
         _,
-        statement,
-    ) = setup_test().await;
+    ) = setup_test(&empty_script).await;
+    connector_c.gen_taproot_address();
 
     // verify funding inputs
     let mut funding_inputs: Vec<(&Address, Amount)> = vec![];
@@ -74,7 +75,7 @@ async fn test_take_2_success() {
         &operator_context,
         &assert_funding_address,
         assert_input_amount,
-        &statement
+        connector_c.clone(),
     )
     .await;
 
@@ -114,6 +115,7 @@ async fn test_take_2_success() {
 
     let mut take_2 = Take2Transaction::new(
         &operator_context,
+        connector_c,
         take_2_input_0,
         take_2_input_1,
         take_2_input_2,

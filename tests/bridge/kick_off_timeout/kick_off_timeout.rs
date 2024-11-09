@@ -13,6 +13,7 @@ use super::super::{helper::generate_stub_outpoint, setup::setup_test};
 
 #[tokio::test]
 async fn test_kick_off_timeout_tx() {
+    let empty_script = vec![];
     let (
         client,
         _,
@@ -33,8 +34,7 @@ async fn test_kick_off_timeout_tx() {
         _,
         _,
         _,
-        _,
-    ) = setup_test().await;
+    ) = setup_test(&empty_script).await;
 
     let input_value0 = Amount::from_sat(ONE_HUNDRED * 2 / 100);
     let outpoint_0 = generate_stub_outpoint(

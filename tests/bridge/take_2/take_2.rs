@@ -9,10 +9,14 @@ use bitvm::bridge::{
     },
 };
 
+use bitvm::bridge::groth16::load_assert_tapscripts_from_file;
+use bitvm::groth16::g16;
+
 use super::super::{helper::generate_stub_outpoint, setup::setup_test};
 
 #[tokio::test]
 async fn test_take_2_tx() {
+    let tap_scripts = vec![];
     let (
         client,
         _,
@@ -23,7 +27,7 @@ async fn test_take_2_tx() {
         _,
         _,
         _,
-        connector_c,
+        mut connector_c,
         _,
         connector_0,
         _,
@@ -33,8 +37,8 @@ async fn test_take_2_tx() {
         connector_5,
         _,
         _,
-        _,
-    ) = setup_test().await;
+    ) = setup_test(&tap_scripts).await;
+    connector_c.gen_taproot_address();
 
     let input_value0 = Amount::from_sat(INITIAL_AMOUNT + HUGE_FEE_AMOUNT);
     let funding_utxo_address0 = connector_0.generate_taproot_address();
@@ -58,6 +62,7 @@ async fn test_take_2_tx() {
 
     let mut take_2_tx = Take2Transaction::new(
         &operator_context,
+        connector_c,
         Input {
             outpoint: funding_outpoint0,
             amount: input_value0,

@@ -15,8 +15,9 @@ use super::super::setup::setup_test;
 
 #[tokio::test]
 async fn test_kick_off_1_tx() {
-    let (client, _, _, operator_context, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =
-        setup_test().await;
+    let empty_script = vec![];
+    let (client, _, _, operator_context, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =
+        setup_test(&empty_script).await;
 
     let input_amount = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT);
     let funding_address = generate_pay_to_pubkey_script_address(

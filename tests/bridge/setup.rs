@@ -1,27 +1,26 @@
 use bitcoin::{Network, PublicKey};
-
-use bitvm::bridge::{
-    client::client::BitVMClient,
-    connectors::{
+use bitvm::{bridge::{
+    client::client::BitVMClient, connectors::{
         connector_0::Connector0, connector_1::Connector1, connector_2::Connector2,
-        connector_3::Connector3, connector_4::Connector4, connector_5::Connector5,
+        connector_3::Connector3, connector_4::{self, Connector4}, connector_5::Connector5,
         connector_a::ConnectorA, connector_b::ConnectorB, connector_c::ConnectorC,
         connector_z::ConnectorZ,
-    },
-    constants::DestinationNetwork,
-    contexts::{
+    }, constants::DestinationNetwork, contexts::{
         base::generate_keys_from_secret, depositor::DepositorContext, operator::OperatorContext,
         verifier::VerifierContext, withdrawer::WithdrawerContext,
-    },
-    graphs::base::{
-        DEPOSITOR_EVM_ADDRESS, DEPOSITOR_SECRET, OPERATOR_SECRET, VERIFIER_0_SECRET,
-        VERIFIER_1_SECRET, WITHDRAWER_EVM_ADDRESS, WITHDRAWER_SECRET, OPERATOR_STATEMENT
-    },
+    }, graphs::base::{
+        DEPOSITOR_EVM_ADDRESS, DEPOSITOR_SECRET, OPERATOR_SECRET, OPERATOR_STATEMENT, VERIFIER_0_SECRET, VERIFIER_1_SECRET, WITHDRAWER_EVM_ADDRESS, WITHDRAWER_SECRET
+    }
+}, groth16::g16, treepp::*};
+use bitvm::bridge::groth16::{
+    Proof, WotsSignatures, VerifyingKey, PublicInputs, Assertions, TEST_SECRET, WotsPublicKeys, WotsSecretKeys,
+    load_all_signed_assertions_from_file, load_assert_tapscripts_from_file, load_proof_from_file, 
+    corrupt_signed_assertions, generate_wots_keys_from_secrets,
 };
 
-pub async fn setup_test() -> (
-    BitVMClient,
-    BitVMClient,
+pub async fn setup_test<'a>(tap_scripts: &'a Vec<Script>) -> (
+    BitVMClient<'a>,
+    BitVMClient<'a>,
     DepositorContext,
     OperatorContext,
     VerifierContext,
@@ -29,7 +28,7 @@ pub async fn setup_test() -> (
     WithdrawerContext,
     ConnectorA,
     ConnectorB,
-    ConnectorC,
+    ConnectorC<'a>,
     ConnectorZ,
     Connector0,
     Connector1,
@@ -39,7 +38,6 @@ pub async fn setup_test() -> (
     Connector5,
     String,
     String,
-    [u8; 20]
 ) {
     let source_network = Network::Testnet;
     let destination_network = DestinationNetwork::EthereumSepolia;
@@ -90,12 +88,7 @@ pub async fn setup_test() -> (
         &operator_context.operator_taproot_public_key,
         &operator_context.n_of_n_taproot_public_key,
     );
-    let connector_b = ConnectorB::new(source_network, &operator_context.n_of_n_taproot_public_key, &operator_context.operator_commitment_pubkey);
-    let connector_c = ConnectorC::new(
-        source_network,
-        &operator_context.operator_taproot_public_key,
-        &operator_context.operator_commitment_pubkey,
-    );
+    let connector_b = ConnectorB::new(source_network, &operator_context.n_of_n_taproot_public_key);
     let connector_z = ConnectorZ::new(
         source_network,
         DEPOSITOR_EVM_ADDRESS,
@@ -107,7 +100,6 @@ pub async fn setup_test() -> (
         source_network,
         &operator_context.operator_taproot_public_key,
         &operator_context.n_of_n_taproot_public_key,
-        &operator_context.operator_commitment_pubkey,
     );
     let connector_2 = Connector2::new(
         source_network,
@@ -117,6 +109,8 @@ pub async fn setup_test() -> (
     let connector_3 = Connector3::new(source_network, &operator_context.operator_public_key);
     let connector_4 = Connector4::new(source_network, &operator_context.operator_public_key);
     let connector_5 = Connector5::new(source_network, &operator_context.n_of_n_taproot_public_key);
+
+    let connector_c = ConnectorC::new(source_network, &operator_context.operator_taproot_public_key, &tap_scripts);
 
     return (
         client_0,
@@ -138,6 +132,26 @@ pub async fn setup_test() -> (
         connector_5,
         DEPOSITOR_EVM_ADDRESS.to_string(),
         WITHDRAWER_EVM_ADDRESS.to_string(),
-        OPERATOR_STATEMENT
     );
+}
+
+pub fn get_groth16_proof() -> (VerifyingKey, Proof, PublicInputs) {
+    load_proof_from_file("chunker_data/dummy_proof.json")
+}
+
+pub fn get_tapscripts() -> Vec<Script> {
+    load_assert_tapscripts_from_file(0, g16::N_TAPLEAVES, "tapscript")
+}
+
+pub fn get_signed_assertions() -> WotsSignatures {
+    load_all_signed_assertions_from_file("signed_assertion")
+}   
+
+pub fn corrupt_assertions(signed_assertions: &mut WotsSignatures, index: usize) {
+    let (_, wots_sk) = get_wots_keys();
+    corrupt_signed_assertions(&wots_sk, signed_assertions, index);
+}   
+
+pub fn get_wots_keys() -> (WotsPublicKeys, WotsSecretKeys) {
+    generate_wots_keys_from_secrets(TEST_SECRET)
 }

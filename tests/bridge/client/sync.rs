@@ -10,6 +10,7 @@ use super::super::{helper::generate_stub_outpoint, setup::setup_test};
 
 #[tokio::test]
 async fn test_sync() {
+    let empty_scripts = vec![];
     let (
         mut client,
         _,
@@ -30,8 +31,7 @@ async fn test_sync() {
         _,
         depositor_evm_address,
         _,
-        statement,
-    ) = setup_test().await;
+    ) = setup_test(&empty_scripts).await;
 
     println!("Read from remote");
     client.sync().await;
@@ -67,7 +67,7 @@ async fn test_sync() {
                 .await,
                 amount,
             },
-            &statement,
+            &empty_scripts,
         )
         .await;
 

@@ -19,6 +19,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_should_be_able_to_submit_disprove_chain_tx_successfully() {
+        let empty_script = vec![];
         let (
             client,
             _,
@@ -39,8 +40,7 @@ mod tests {
             _,
             _,
             _,
-            _,
-        ) = setup_test().await;
+        ) = setup_test(&empty_script).await;
 
         let amount = Amount::from_sat(INITIAL_AMOUNT);
         let outpoint =
@@ -68,6 +68,7 @@ mod tests {
     #[tokio::test]
     async fn test_should_be_able_to_submit_disprove_chain_tx_with_verifier_added_to_output_successfully(
     ) {
+        let empty_script = vec![];
         let (
             client,
             _,
@@ -88,8 +89,7 @@ mod tests {
             _,
             _,
             _,
-            _,
-        ) = setup_test().await;
+        ) = setup_test(&empty_script).await;
 
         let amount = Amount::from_sat(INITIAL_AMOUNT);
         let outpoint =

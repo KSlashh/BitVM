@@ -20,6 +20,7 @@ use crate::bridge::{helper::generate_stub_outpoint, setup::setup_test};
 
 #[tokio::test]
 async fn test_peg_in_success() {
+    let empty_script = vec![];
     let (
         client,
         _,
@@ -40,8 +41,7 @@ async fn test_peg_in_success() {
         _,
         depositor_evm_address,
         _,
-        _,
-    ) = setup_test().await;
+    ) = setup_test(&empty_script).await;
 
     let input_amount_raw = INITIAL_AMOUNT + FEE_AMOUNT * 2;
     let deposit_input_amount = Amount::from_sat(input_amount_raw);
@@ -126,6 +126,7 @@ async fn test_peg_in_success() {
 
 #[tokio::test]
 async fn test_peg_in_time_lock_not_surpassed() {
+    let empty_script = vec![];
     let (
         client,
         _,
@@ -146,8 +147,7 @@ async fn test_peg_in_time_lock_not_surpassed() {
         _,
         depositor_evm_address,
         _,
-        _,
-    ) = setup_test().await;
+    ) = setup_test(&empty_script).await;
 
     let input_amount_raw = INITIAL_AMOUNT + FEE_AMOUNT * 2;
     let deposit_input_amount = Amount::from_sat(input_amount_raw);
@@ -202,6 +202,7 @@ async fn test_peg_in_time_lock_not_surpassed() {
 
 #[tokio::test]
 async fn test_peg_in_time_lock_surpassed() {
+    let empty_script = vec![];
     let (
         client,
         _,
@@ -222,8 +223,7 @@ async fn test_peg_in_time_lock_surpassed() {
         _,
         depositor_evm_address,
         _,
-        _,
-    ) = setup_test().await;
+    ) = setup_test(&empty_script).await;
 
     let input_amount_raw = INITIAL_AMOUNT + FEE_AMOUNT * 2;
     let deposit_input_amount = Amount::from_sat(input_amount_raw);

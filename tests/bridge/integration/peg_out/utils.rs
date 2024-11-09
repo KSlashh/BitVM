@@ -1,20 +1,18 @@
 use bitcoin::{Address, Amount, Transaction, Txid};
 use bitvm::bridge::{
-    client::client::BitVMClient,
-    contexts::{depositor::DepositorContext, operator::OperatorContext, verifier::VerifierContext},
-    transactions::{
+    client::client::BitVMClient, connectors::{connector_4, connector_c::ConnectorC}, contexts::{depositor::DepositorContext, operator::OperatorContext, verifier::VerifierContext}, transactions::{
         assert::AssertTransaction,
         base::{BaseTransaction, Input},
         kick_off_1::KickOff1Transaction,
         kick_off_2::KickOff2Transaction,
         peg_in_confirm::PegInConfirmTransaction,
-    },
+    }
 };
 
 use crate::bridge::helper::generate_stub_outpoint;
 
-pub async fn create_and_mine_kick_off_1_tx(
-    client: &BitVMClient,
+pub async fn create_and_mine_kick_off_1_tx<'a>(
+    client: &BitVMClient<'a>,
     operator_context: &OperatorContext,
     kick_off_1_funding_utxo_address: &Address,
     input_amount: Amount,
@@ -36,12 +34,11 @@ pub async fn create_and_mine_kick_off_1_tx(
     return (kick_off_1_tx, kick_off_1_txid);
 }
 
-pub async fn create_and_mine_kick_off_2_tx(
-    client: &BitVMClient,
+pub async fn create_and_mine_kick_off_2_tx<'a>(
+    client: &BitVMClient<'a>,
     operator_context: &OperatorContext,
     kick_off_2_funding_utxo_address: &Address,
     input_amount: Amount,
-    statement: &[u8],
 ) -> (Transaction, Txid) {
     let kick_off_2_funding_outpoint =
         generate_stub_outpoint(&client, kick_off_2_funding_utxo_address, input_amount).await;
@@ -49,7 +46,7 @@ pub async fn create_and_mine_kick_off_2_tx(
         outpoint: kick_off_2_funding_outpoint,
         amount: input_amount,
     };
-    let kick_off_2 = KickOff2Transaction::new(&operator_context, kick_off_2_input, statement);
+    let kick_off_2 = KickOff2Transaction::new(&operator_context, kick_off_2_input);
     let kick_off_2_tx = kick_off_2.finalize();
     let kick_off_2_txid = kick_off_2_tx.compute_txid();
 
@@ -61,12 +58,12 @@ pub async fn create_and_mine_kick_off_2_tx(
     return (kick_off_2_tx, kick_off_2_txid);
 }
 
-pub async fn create_and_mine_assert_tx(
-    client: &BitVMClient,
+pub async fn create_and_mine_assert_tx<'a>(
+    client: &BitVMClient<'a>,
     operator_context: &OperatorContext,
     assert_funding_utxo_address: &Address,
     input_amount: Amount,
-    statement: &[u8],
+    connector_c: ConnectorC<'a>,
 ) -> (Transaction, Txid) {
     // create assert tx
     let assert_funding_outpoint =
@@ -75,7 +72,7 @@ pub async fn create_and_mine_assert_tx(
         outpoint: assert_funding_outpoint,
         amount: input_amount,
     };
-    let assert = AssertTransaction::new(&operator_context, assert_input, statement);
+    let assert = AssertTransaction::new(&operator_context, assert_input, connector_c);
 
     let assert_tx = assert.finalize();
     let assert_txid = assert_tx.compute_txid();
@@ -87,8 +84,8 @@ pub async fn create_and_mine_assert_tx(
     return (assert_tx, assert_txid);
 }
 
-pub async fn create_and_mine_peg_in_confirm_tx(
-    client: &BitVMClient,
+pub async fn create_and_mine_peg_in_confirm_tx<'a>(
+    client: &BitVMClient<'a>,
     depositor_context: &DepositorContext,
     verifier_0_context: &VerifierContext,
     verifier_1_context: &VerifierContext,

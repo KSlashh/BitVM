@@ -23,6 +23,7 @@ use crate::bridge::{
 
 #[tokio::test]
 async fn test_take_1_success() {
+    let empty_script = vec![];
     let (
         client,
         _,
@@ -43,8 +44,7 @@ async fn test_take_1_success() {
         _,
         depositor_evm_address,
         _,
-        statement,
-    ) = setup_test().await;
+    ) = setup_test(&empty_script).await;
 
     // verify funding inputs
     let mut funding_inputs: Vec<(&Address, Amount)> = vec![];
@@ -92,7 +92,7 @@ async fn test_take_1_success() {
         },
         amount: kick_off_1_tx.output[vout as usize].value,
     };
-    let kick_off_2 = KickOff2Transaction::new(&operator_context, kick_off_2_input_0, &statement);
+    let kick_off_2 = KickOff2Transaction::new(&operator_context, kick_off_2_input_0);
     let kick_off_2_tx = kick_off_2.finalize();
     let kick_off_2_txid = kick_off_2_tx.compute_txid();
 

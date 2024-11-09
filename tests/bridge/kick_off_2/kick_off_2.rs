@@ -13,8 +13,9 @@ use super::super::{helper::generate_stub_outpoint, setup::setup_test};
 
 #[tokio::test]
 async fn test_kick_off_2_tx() {
-    let (client, _, _, operator_context, _, _, _, _, _, _, _, _, connector_1, _, _, _, _, _, _, statement) =
-        setup_test().await;
+    let empty_script = vec![];
+    let (client, _, _, operator_context, _, _, _, _, _, _, _, _, connector_1, _, _, _, _, _, _) =
+        setup_test(&empty_script).await;
 
     let input_value0 = Amount::from_sat(INITIAL_AMOUNT + HUGE_FEE_AMOUNT);
     let funding_utxo_address0 = connector_1.generate_taproot_address();
@@ -27,7 +28,6 @@ async fn test_kick_off_2_tx() {
             outpoint: funding_outpoint0,
             amount: input_value0,
         },
-        &statement,
     );
 
     let tx = kick_off_2_tx.finalize();

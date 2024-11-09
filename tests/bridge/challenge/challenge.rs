@@ -14,6 +14,7 @@ use super::super::{helper::generate_stub_outpoint, setup::setup_test};
 
 #[tokio::test]
 async fn test_challenge_tx() {
+    let empty_script = vec![];
     let (
         client,
         _,
@@ -34,8 +35,7 @@ async fn test_challenge_tx() {
         _,
         _,
         _,
-        _,
-    ) = setup_test().await;
+    ) = setup_test(&empty_script).await;
 
     // We re-use the depositor private key to imitate a third-party
     let crowdfunding_keypair = &depositor_context.depositor_keypair;

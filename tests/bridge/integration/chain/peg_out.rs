@@ -21,6 +21,7 @@ use crate::bridge::{
 
 #[tokio::test]
 async fn test_peg_out_for_chain() {
+    let empty_script = vec![];
     let (
         client,
         _,
@@ -41,8 +42,7 @@ async fn test_peg_out_for_chain() {
         _,
         _,
         _,
-        _,
-    ) = setup_test().await;
+    ) = setup_test(&empty_script).await;
     let mut adaptors = Chain::new();
     adaptors.init_ethereum(EthereumInitConfig {
         rpc_url: "http://127.0.0.1:8545".parse::<Url>().unwrap(),

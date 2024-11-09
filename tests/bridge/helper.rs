@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 pub const TX_WAIT_TIME: u64 = 45; // in seconds
 pub const ESPLORA_FUNDING_URL: &str = "https://faucet.mutinynet.com/";
 
-pub async fn generate_stub_outpoint(
-    client: &BitVMClient,
+pub async fn generate_stub_outpoint<'a>(
+    client: &BitVMClient<'a>,
     funding_utxo_address: &Address,
     input_value: Amount,
 ) -> OutPoint {
@@ -72,7 +72,7 @@ pub async fn fund_utxo(address: &Address, amount: Amount) -> Txid {
     result.txid
 }
 
-pub async fn verify_funding_inputs(client: &BitVMClient, funding_inputs: &Vec<(&Address, Amount)>) {
+pub async fn verify_funding_inputs<'a>(client: &BitVMClient<'a>, funding_inputs: &Vec<(&Address, Amount)>) {
     let mut inputs_to_fund: Vec<(&Address, Amount)> = vec![];
 
     for funding_input in funding_inputs {

@@ -1,18 +1,22 @@
 use bitcoin::{consensus::encode::serialize_hex, Amount};
 
 use bitvm::bridge::{
-    connectors::connector::TaprootConnector,
+    connectors::{connector::TaprootConnector, connector_4},
     graphs::base::ONE_HUNDRED,
     transactions::{
         assert::AssertTransaction,
         base::{BaseTransaction, Input},
     },
+    groth16::load_assert_tapscripts_from_file,
 };
+
+use bitvm::groth16::g16;
 
 use super::super::{helper::generate_stub_outpoint, setup::setup_test};
 
 #[tokio::test]
 async fn test_assert_tx() {
+    let tap_scripts = load_assert_tapscripts_from_file(0, g16::N_TAPLEAVES, "tapscript");
     let (
         client,
         _,
@@ -23,6 +27,7 @@ async fn test_assert_tx() {
         _,
         _,
         connector_b,
+        mut connector_c,
         _,
         _,
         _,
@@ -32,15 +37,14 @@ async fn test_assert_tx() {
         _,
         _,
         _,
-        _,
-        statement,
-    ) = setup_test().await;
+    ) = setup_test(&tap_scripts).await;
+    connector_c.gen_taproot_address();
 
     let amount = Amount::from_sat(ONE_HUNDRED * 2 / 100);
     let outpoint =
         generate_stub_outpoint(&client, &connector_b.generate_taproot_address(), amount).await;
 
-    let assert_tx = AssertTransaction::new(&operator_context, Input { outpoint, amount }, &statement);
+    let assert_tx = AssertTransaction::new(&operator_context, Input { outpoint, amount }, connector_c);
 
     let tx = assert_tx.finalize();
     // println!("Script Path Spend Transaction: {:?}\n", tx);

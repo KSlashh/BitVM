@@ -18,8 +18,9 @@ use crate::bridge::{
 
 #[tokio::test]
 async fn test_start_time_success() {
-    let (client, _, _, operator_context, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =
-        setup_test().await;
+    let empty_script = vec![];
+    let (client, _, _, operator_context, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =
+        setup_test(&empty_script).await;
 
     // verify funding inputs
     let mut funding_inputs: Vec<(&Address, Amount)> = vec![];
