@@ -135,8 +135,8 @@ pub fn generate_signed_assertions(
                 v.push(vec![d]);
             }
             s_map.insert(index, v);
-            index += 1;
             chunk::test_utils::write_map_to_file(&s_map, &format!("chunker_data/{file_prefix}_{index}.json")).expect("fail to write signed assertions");
+            index += 1;
         }
         for ss in sigs.1 {
             let mut s_map: HashMap<u32, Vec<Vec<u8>>> = HashMap::new();
@@ -146,8 +146,8 @@ pub fn generate_signed_assertions(
                 v.push(vec![d]);
             }
             s_map.insert(index, v);
-            index += 1;
             chunk::test_utils::write_map_to_file(&s_map, &format!("chunker_data/{file_prefix}_{index}.json")).expect("fail to write signed assertions");
+            index += 1;
         }
         for ss in sigs.2 {
             let mut s_map: HashMap<u32, Vec<Vec<u8>>> = HashMap::new();
@@ -157,8 +157,8 @@ pub fn generate_signed_assertions(
                 v.push(vec![d]);
             }
             s_map.insert(index, v);
-            index += 1;
             chunk::test_utils::write_map_to_file(&s_map, &format!("chunker_data/{file_prefix}_{index}.json")).expect("fail to write signed assertions");
+            index += 1;
         }
     }
     sigs
@@ -443,6 +443,7 @@ pub const TEST_SECRET: &str = "a138982ce17ac813d505a5b40b665d404e9528e7";
 
 #[test]
 pub fn test_compile_tapnodes() {
+    let _ = std::fs::create_dir("chunker_data/compile");
     let (vk, _, _) = load_proof_from_file("chunker_data/dummy_proof.json");
     let ops_scripts = chunk::api::api_compile(&vk);
     for i in 0..ops_scripts.len() {
@@ -467,6 +468,7 @@ pub fn test_gene_taps() {
         let ops_scripts: [Script; g16::N_TAPLEAVES] = op_scripts.try_into().unwrap(); 
         println!("done");
     
+        let _ = std::fs::create_dir("chunker_data/tapscripts");
         let (wots_pk, _) = generate_wots_keys_from_secrets(TEST_SECRET);
         let taps = chunk::api::generate_tapscripts(wots_pk, &ops_scripts);
         for i in 0..taps.len() {
@@ -490,6 +492,7 @@ pub fn test_gene_taps() {
 
 #[test]
 pub fn test_gene_sigs() {
+    let _ = std::fs::create_dir("chunker_data/signed_assertions");
     let (vk, proof, pubin) = load_proof_from_file("chunker_data/dummy_proof.json");
     let (_, wots_sk) = generate_wots_keys_from_secrets(TEST_SECRET);
     generate_signed_assertions(proof, pubin, &wots_sk, &vk, true, "signed_assertions/signed_assertion");

@@ -7,6 +7,7 @@ use bitvm::bridge::{
     },
     groth16::validate_assertions,
 };
+use bitvm::treepp::*;
 
 use crate::bridge::{
     helper::verify_funding_inputs, integration::peg_out::utils::create_and_mine_kick_off_2_tx,
@@ -17,6 +18,17 @@ use crate::bridge::setup::{corrupt_assertions, get_wots_keys, setup_test, get_ta
 
 #[tokio::test]
 async fn test_disprove_success() {
+    fn get_invalid_assertions() -> (usize, Script) {
+        let (vk, _, _) = get_groth16_proof();
+        let (wots_pk, _) = get_wots_keys();
+        let mut signed_assertions = get_signed_assertions();
+        let index = 10; // TODO: test wots256 & wots 160
+        corrupt_assertions(&mut signed_assertions, index);
+        let res = validate_assertions(&vk, signed_assertions, wots_pk);
+        assert!(res.is_some(), "unexpected validate assertions result");
+        res.unwrap()
+    }
+
     let tap_scripts = get_tapscripts();
     let (
         client,
@@ -39,25 +51,33 @@ async fn test_disprove_success() {
         _,
         _,
     ) = setup_test(&tap_scripts).await;
-    connector_c.gen_taproot_address();
-
-    // generate invalid assertions
-    let (vk, _, _) = get_groth16_proof();
-    let (wots_pk, _) = get_wots_keys();
-    let mut signed_assertions = get_signed_assertions();
-    let index = 10; // TODO: test wots256 & wots 160
-    corrupt_assertions(&mut signed_assertions, index);
-    let res = validate_assertions(&vk, signed_assertions, wots_pk);
-    assert!(res.is_some(), "unexpected validate assertions result");
-    let (leaf_index, hint_script) = res.unwrap();
 
     // verify funding inputs
     let mut funding_inputs: Vec<(&Address, Amount)> = vec![];
     let kick_off_2_input_amount = Amount::from_sat(INITIAL_AMOUNT + 3*HUGE_FEE_AMOUNT);
     let kick_off_2_funding_utxo_address = connector_1.generate_taproot_address();
     funding_inputs.push((&kick_off_2_funding_utxo_address, kick_off_2_input_amount));
-
     verify_funding_inputs(&client, &funding_inputs).await;
+
+    connector_c.gen_taproot_address();
+
+    // // generate invalid assertions
+    use std::thread;
+    const STACK_SIZE: usize = 32 * 1024 * 1024;
+    let t = thread::Builder::new()
+        .stack_size(STACK_SIZE)
+        .spawn(get_invalid_assertions)
+        .unwrap();
+    let (leaf_index, hint_script) = t.join().unwrap();
+    
+    // let (vk, _, _) = get_groth16_proof();
+    // let (wots_pk, _) = get_wots_keys();
+    // let mut signed_assertions = get_signed_assertions();
+    // let index = 10; // TODO: test wots256 & wots 160
+    // corrupt_assertions(&mut signed_assertions, index);
+    // let res = validate_assertions(&vk, signed_assertions, wots_pk);
+    // assert!(res.is_some(), "unexpected validate assertions result");
+    // let (leaf_index, hint_script) = res.unwrap();
 
     // kick-off 2
     let (kick_off_2_tx, kick_off_2_txid) = create_and_mine_kick_off_2_tx(

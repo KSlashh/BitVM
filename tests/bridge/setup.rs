@@ -140,7 +140,7 @@ pub fn get_groth16_proof() -> (VerifyingKey, Proof, PublicInputs) {
 }
 
 pub fn get_tapscripts() -> Vec<Script> {
-    load_assert_tapscripts_from_file(0, g16::N_TAPLEAVES, "tapscripts/tapscript")
+    load_assert_tapscripts_from_file(0, g16::N_TAPLEAVES - 1, "tapscripts/tapscript")
 }
 
 pub fn get_signed_assertions() -> WotsSignatures {

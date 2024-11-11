@@ -19,8 +19,8 @@ pub struct OperatorContext {
     pub n_of_n_public_key: PublicKey,
     pub n_of_n_taproot_public_key: XOnlyPublicKey,
 
-    pub operator_commitment_pubkey: WotsPublicKeys,
-    pub operator_commitment_seckey: WotsSecretKeys,
+    // pub operator_commitment_pubkey: WotsPublicKeys,
+    // pub operator_commitment_seckey: WotsSecretKeys,
 }
 
 impl BaseContext for OperatorContext {
@@ -40,7 +40,7 @@ impl OperatorContext {
         let (secp, keypair, public_key) = generate_keys_from_secret(network, operator_secret);
         let (n_of_n_public_key, n_of_n_taproot_public_key) =
             generate_n_of_n_public_key(n_of_n_public_keys);
-        let (operator_commitment_pubkey, operator_commitment_seckey) = generate_wots_keys_from_secrets(operator_secret);
+        // let (operator_commitment_pubkey, operator_commitment_seckey) = generate_wots_keys_from_secrets(operator_secret);
 
         OperatorContext {
             network,
@@ -54,8 +54,8 @@ impl OperatorContext {
             n_of_n_public_key,
             n_of_n_taproot_public_key,
 
-            operator_commitment_pubkey,
-            operator_commitment_seckey,
+            // operator_commitment_pubkey,
+            // operator_commitment_seckey,
         }
     }
 }

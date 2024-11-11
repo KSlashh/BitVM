@@ -194,7 +194,7 @@ pub struct PegOutGraph<'a> {
 
     operator_public_key: PublicKey,
     operator_taproot_public_key: XOnlyPublicKey,
-    operator_commitment_pubkey: WotsPublicKeys,
+    // operator_commitment_pubkey: WotsPublicKeys,
 
     withdrawer_public_key: Option<PublicKey>,
     withdrawer_taproot_public_key: Option<XOnlyPublicKey>,
@@ -436,7 +436,7 @@ impl<'a> PegOutGraph<'a> {
             connector_c,
             operator_public_key: context.operator_public_key,
             operator_taproot_public_key: context.operator_taproot_public_key,
-            operator_commitment_pubkey: context.operator_commitment_pubkey.clone(),
+            // operator_commitment_pubkey: context.operator_commitment_pubkey.clone(),
             withdrawer_public_key: None,
             withdrawer_taproot_public_key: None,
             withdrawer_evm_address: None,
@@ -703,7 +703,7 @@ impl<'a> PegOutGraph<'a> {
             connector_c,
             operator_public_key: self.operator_public_key,
             operator_taproot_public_key: self.operator_taproot_public_key,
-            operator_commitment_pubkey: self.operator_commitment_pubkey.clone(),
+            // operator_commitment_pubkey: self.operator_commitment_pubkey.clone(),
             withdrawer_public_key: None,
             withdrawer_taproot_public_key: None,
             withdrawer_evm_address: None,

@@ -53,7 +53,7 @@ impl<'a> ConnectorC<'a> {
 
     pub fn get_taproot_leaf_script(&self, leaf_index: u32) -> ScriptBuf {
         assert!(leaf_index < self.leaf_num as u32, "Invalid leaf index.");
-        if (leaf_index as usize != self.leaf_num) {
+        if (leaf_index as usize != self.leaf_num-1) {
             self.disprove_tap_scripts[leaf_index as usize].clone().compile()
         } else {
             script! {
