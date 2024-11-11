@@ -395,8 +395,8 @@ pub fn load_proof_from_file(filename: &str) -> (VerifyingKey, Proof, PublicInput
 
     let mut pubin= vec![];
     for i in 0..pubin_vec.len() {
-        let f = tmp_fr_deserialization(pubin_vec[i].clone());
-        pubin.push(f);
+            let f = tmp_fr_deserialization(pubin_vec[i].clone());
+            pubin.push(f);
     }
 
     (vk, proof, pubin.try_into().unwrap())
@@ -441,25 +441,65 @@ fn serialize_proof(vk: VerifyingKey, proof: Proof, pubin: PublicInputs) -> HashM
 
 pub const TEST_SECRET: &str = "a138982ce17ac813d505a5b40b665d404e9528e7";
 
+#[test]
+pub fn test_compile_tapnodes() {
+    let (vk, _, _) = load_proof_from_file("chunker_data/dummy_proof.json");
+    let ops_scripts = chunk::api::api_compile(&vk);
+    for i in 0..ops_scripts.len() {
+        let mut script_cache = HashMap::new();
+        script_cache.insert(i as u32, vec![ops_scripts[i].clone()]);
+        chunk::test_utils::write_scripts_to_file(script_cache, &format!("chunker_data/compile/tapnode_{i}.json"));
+    }
+}
+
 #[test] 
 pub fn test_gene_taps() {
-    let (vk, _, _) = load_proof_from_file("chunker_data/dummy_proof.json");
-    let (wots_pk, _) = generate_wots_keys_from_secrets(TEST_SECRET);
-    generate_assert_tapscripts(&vk, wots_pk, true, "tapscript");
+    fn run() {
+        println!("load scripts from file");
+        let mut op_scripts = vec![];
+        for index in 0..g16::N_TAPLEAVES {
+            let read = chunk::test_utils::read_scripts_from_file(&format!("chunker_data/compile/tapnode_{index}.json"));
+            let read_scr = read.get(&(index as u32)).unwrap();
+            assert_eq!(read_scr.len(), 1);
+            let tap_node = read_scr[0].clone();
+            op_scripts.push(tap_node);
+        }
+        let ops_scripts: [Script; g16::N_TAPLEAVES] = op_scripts.try_into().unwrap(); 
+        println!("done");
+    
+        let (wots_pk, _) = generate_wots_keys_from_secrets(TEST_SECRET);
+        let taps = chunk::api::generate_tapscripts(wots_pk, &ops_scripts);
+        for i in 0..taps.len() {
+            let mut script_cache = HashMap::new();
+            script_cache.insert(i as u32, vec![taps[i].clone()]);
+            chunk::test_utils::write_scripts_to_file(script_cache, &format!("chunker_data/tapscripts/tapscript_{i}.json"));
+        }
+    }
+
+    use std::thread;
+    const STACK_SIZE: usize = 4 * 1024 * 1024;
+
+    let t = thread::Builder::new()
+        .stack_size(STACK_SIZE)
+        .spawn(run)
+        .unwrap();
+
+    t.join().unwrap();
 }
+
 
 #[test]
 pub fn test_gene_sigs() {
     let (vk, proof, pubin) = load_proof_from_file("chunker_data/dummy_proof.json");
     let (_, wots_sk) = generate_wots_keys_from_secrets(TEST_SECRET);
-    generate_signed_assertions(proof, pubin, &wots_sk, &vk, true, "signed_assertion");
+    generate_signed_assertions(proof, pubin, &wots_sk, &vk, true, "signed_assertions/signed_assertion");
 }
 
 #[test]
 pub fn test_validate_assertions() {
     let (vk, _, _) = load_proof_from_file("chunker_data/dummy_proof.json");
     let (wots_pk, _) = generate_wots_keys_from_secrets(TEST_SECRET);
-    let signed_assertions = load_all_signed_assertions_from_file("signed_assertion");
+    let signed_assertions = load_all_signed_assertions_from_file("signed_assertions/signed_assertion");
     validate_assertions(&vk, signed_assertions, wots_pk);
 }
 

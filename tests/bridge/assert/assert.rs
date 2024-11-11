@@ -12,11 +12,11 @@ use bitvm::bridge::{
 
 use bitvm::groth16::g16;
 
-use super::super::{helper::generate_stub_outpoint, setup::setup_test};
+use super::super::{helper::generate_stub_outpoint, setup::{setup_test, get_tapscripts}};
 
 #[tokio::test]
 async fn test_assert_tx() {
-    let tap_scripts = load_assert_tapscripts_from_file(0, g16::N_TAPLEAVES, "tapscript");
+    let tap_scripts = get_tapscripts();
     let (
         client,
         _,
