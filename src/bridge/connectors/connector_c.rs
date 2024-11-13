@@ -64,7 +64,7 @@ impl<'a> ConnectorC<'a> {
     }
 
     pub fn push_leaf_unlock_witness(&self, witness: &mut Witness, _leaf_index: u32, hint_script: Script) {
-        witness.push([0x1]);
+        // witness.push([0x1]);
         let wit = groth16::hint_script_to_witness(hint_script);
         for w in wit {
             witness.push(w);

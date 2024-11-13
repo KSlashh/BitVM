@@ -4,8 +4,9 @@ mod tests {
     use aws_sdk_s3::config::http::HttpResponse;
     use bitcoin::{
         consensus::encode::serialize_hex, key::Keypair, Amount, Network, PrivateKey, PublicKey,
-        TxOut,
+        TxOut, Address,
     };
+    use bitvm::treepp::*;
 
     use bitvm::bridge::{
         connectors::{connector::TaprootConnector, connector_5}, contexts::withdrawer, graphs::base::{DUST_AMOUNT, FEE_AMOUNT, HUGE_FEE_AMOUNT, INITIAL_AMOUNT}, hash_chain, scripts::{generate_pay_to_pubkey_script, generate_pay_to_pubkey_script_address}, transactions::{
@@ -17,6 +18,7 @@ mod tests {
     use bitvm::groth16::g16;
 
     use crate::bridge::setup::{corrupt_assertions, get_wots_keys, setup_test, get_tapscripts, get_signed_assertions, get_groth16_proof};
+    use crate::bridge::helper::verify_funding_inputs;
 
     use super::super::super::helper::generate_stub_outpoint;
 
@@ -24,6 +26,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_should_be_able_to_submit_disprove_tx_successfully() {
+        fn get_invalid_assertions() -> (usize, Script) {
+            let (vk, _, _) = get_groth16_proof();
+            let (wots_pk, _) = get_wots_keys();
+            let mut signed_assertions = get_signed_assertions();
+            let index = 1; // TODO: test all
+            corrupt_assertions(&mut signed_assertions, index);
+            let res = validate_assertions(&vk, signed_assertions, wots_pk);
+            assert!(res.is_some(), "unexpected validate assertions result");
+            res.unwrap()
+        }
+
         let tap_scripts = get_tapscripts();
         let (
             client,
@@ -46,29 +59,33 @@ mod tests {
             _,
             _,
         ) = setup_test(&tap_scripts).await;
+
         connector_c.gen_taproot_address();
+        let amount_0 = Amount::from_sat(DUST_AMOUNT);
+        let amount_1 = Amount::from_sat(INITIAL_AMOUNT + HUGE_FEE_AMOUNT);
+        let connector_5_addr = connector_5.generate_taproot_address();
+        let connector_c_addr = connector_c.generate_taproot_address();
+        let mut funding_inputs: Vec<(&Address, Amount)> = vec![];
+        funding_inputs.push((&connector_5_addr, amount_0));
+        funding_inputs.push((&connector_c_addr, amount_1));
+        verify_funding_inputs(&client, &funding_inputs).await;
 
         // generate invalid assertions
-        let (vk, _, _) = get_groth16_proof();
-        let (wots_pk, _) = get_wots_keys();
-        let mut signed_assertions = get_signed_assertions();
-        let index = 10; // TODO: test wots256 & wots 160
-        corrupt_assertions(&mut signed_assertions, index);
-        let res = validate_assertions(&vk, signed_assertions, wots_pk);
-        assert!(res.is_some(), "unexpected validate assertions result");
-        let (leaf_index, hint_script) = res.unwrap();
+        use std::thread;
+        const STACK_SIZE: usize = 32 * 1024 * 1024;
+        let t = thread::Builder::new()
+            .stack_size(STACK_SIZE)
+            .spawn(get_invalid_assertions)
+            .unwrap();
+        let (leaf_index, hint_script) = t.join().unwrap();
 
-        let amount_0 = Amount::from_sat(DUST_AMOUNT);
         let outpoint_0 =
-            generate_stub_outpoint(&client, &connector_5.generate_taproot_address(), amount_0)
+            generate_stub_outpoint(&client, &connector_5_addr, amount_0)
                 .await;
-
-        let amount_1 = Amount::from_sat(INITIAL_AMOUNT + HUGE_FEE_AMOUNT);
         let outpoint_1 =
-            generate_stub_outpoint(&client, &connector_c.generate_taproot_address(), amount_1)
+            generate_stub_outpoint(&client, &connector_c_addr, amount_1)
                 .await;
 
-        let script_index = 1;
         let mut disprove_tx = DisproveTransaction::new(
             &operator_context,
             connector_c,
