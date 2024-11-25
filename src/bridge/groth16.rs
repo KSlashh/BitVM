@@ -209,25 +209,58 @@ pub fn corrupt_signed_assertions(
     wots_sk: &WotsSecretKeys,
     signed_assertions: &mut WotsSignatures,
     index: usize,
-) { 
+) -> WotsSignature { 
     assert!(index < (g16::N_VERIFIER_PUBLIC_INPUTS + g16::N_VERIFIER_FQS + g16::N_VERIFIER_HASHES), "index exceed limit");
     let secret = String::from_utf8(wots_sk.clone()).unwrap();
     if index < g16::N_VERIFIER_PUBLIC_INPUTS {
-        let scramble: [u8; 32] = [0xfu8; 32];
+        let scramble: [u8; 32] = [0x1u8; 32];
         let corrupt_sig = wots256::get_signature(&format!("{secret}{:04x}", index), &scramble);
         let i = index;
+        let res = signed_assertions.0[i].clone();
         signed_assertions.0[i] = corrupt_sig;
+        WotsSignature::Sig256(res)
     } else if index < (g16::N_VERIFIER_PUBLIC_INPUTS + g16::N_VERIFIER_FQS) {
-        let scramble: [u8; 32] = [0xfu8; 32];
+        let scramble: [u8; 32] = [0x1u8; 32];
         let corrupt_sig = wots256::get_signature(&format!("{secret}{:04x}", index), &scramble);
         let i = index - g16::N_VERIFIER_PUBLIC_INPUTS;
+        let res = signed_assertions.1[i].clone();
         signed_assertions.1[i] = corrupt_sig;
+        WotsSignature::Sig256(res)
     } else {
-        let scramble: [u8; 20] = [0xfu8; 20];
+        let scramble: [u8; 20] = [0x1u8; 20];
         let corrupt_sig = wots160::get_signature(&format!("{secret}{:04x}", index), &scramble);
         let i = index - g16::N_VERIFIER_PUBLIC_INPUTS - g16::N_VERIFIER_FQS;
+        let res = signed_assertions.2[i].clone();
         signed_assertions.2[i] = corrupt_sig;
+        WotsSignature::Sig160(res)
     }   
+}
+
+pub fn recover_corrupt_assertions(
+    signed_assertions: &mut WotsSignatures,
+    index: usize,   
+    correct_sig: WotsSignature,
+) {
+    assert!(index < (g16::N_VERIFIER_PUBLIC_INPUTS + g16::N_VERIFIER_FQS + g16::N_VERIFIER_HASHES), "index exceed limit");
+    if index < g16::N_VERIFIER_PUBLIC_INPUTS {
+        let i = index;
+        signed_assertions.0[i] = match correct_sig { 
+            WotsSignature::Sig256(sig) => sig, 
+            WotsSignature::Sig160(sig) => panic!(), 
+        };
+    } else if index < (g16::N_VERIFIER_PUBLIC_INPUTS + g16::N_VERIFIER_FQS) {
+       let i = index - g16::N_VERIFIER_PUBLIC_INPUTS;
+        signed_assertions.1[i] = match correct_sig { 
+            WotsSignature::Sig256(sig) => sig, 
+            WotsSignature::Sig160(sig) => panic!(), 
+        };
+    } else {
+        let i = index - g16::N_VERIFIER_PUBLIC_INPUTS - g16::N_VERIFIER_FQS;
+        signed_assertions.2[i] = match correct_sig { 
+            WotsSignature::Sig256(sig) => panic!(), 
+            WotsSignature::Sig160(sig) => sig, 
+        };
+    }
 }
 
 pub fn validate_assertions(
@@ -489,7 +522,6 @@ pub fn test_gene_taps() {
     t.join().unwrap();
 }
 
-
 #[test]
 pub fn test_gene_sigs() {
     let _ = std::fs::create_dir("chunker_data/signed_assertions");
@@ -508,36 +540,63 @@ pub fn test_validate_assertions() {
 
 #[test]
 pub fn test_disprove_invalid_assertions() {
+    use std::fs::OpenOptions;
+    use std::io::{Write, BufReader, BufRead};
+    use regex::Regex;
+
     fn run() {
         let (vk, _, _) = load_proof_from_file("chunker_data/dummy_proof.json");
         let (wots_pk, wots_sk) = generate_wots_keys_from_secrets(TEST_SECRET);
         let mut signed_assertions = load_all_signed_assertions_from_file("signed_assertions/signed_assertion");
-        let mut failure = Vec::new();
-        let mut success_num = 0;
-        for i in 0..(g16::N_VERIFIER_PUBLIC_INPUTS + g16::N_VERIFIER_FQS + g16::N_VERIFIER_HASHES) {
-            println!("\ntest disprove assertion_{i}:");
-            corrupt_signed_assertions(&wots_sk, &mut signed_assertions, i);
+        
+        // continue previous test
+        let res_file_name = "chunker_data/disprove_test_res.txt";
+        let f = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(res_file_name)
+            .unwrap();
+        let lines: Vec<String> = BufReader::new(f).lines().collect::<Result<_, _>>().unwrap();
+        let start_index = if let Some(last_line) = lines.last() {
+            let re = Regex::new(r"assertion_(\d+):").unwrap();
+            if let Some(captures) = re.captures(last_line) {
+                if let Some(i_match) = captures.get(1) {
+                    if let Ok(i) = i_match.as_str().parse::<usize>() {
+                        i + 1
+                    } else { panic!() }
+                } else { panic!() }
+            } else { panic!() }
+        } else { 0 };
+        
+        let mut file = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(res_file_name)
+            .unwrap();
+        for i in start_index..(g16::N_VERIFIER_PUBLIC_INPUTS + g16::N_VERIFIER_FQS + g16::N_VERIFIER_HASHES) {
+            let correct_sig = corrupt_signed_assertions(&wots_sk, &mut signed_assertions, i);
             
             let res = validate_assertions(&vk, signed_assertions, wots_pk);
-
             assert!(res.is_some(), "unexpected validate assertions result");
             let (leaf_index, hint_script) = res.unwrap();
-            let lock_script = load_assert_tapscripts_from_file(leaf_index, leaf_index+1, "tapscripts/tapscript");
+
+            let lock_script = load_assert_tapscripts_from_file(leaf_index, leaf_index, "tapscripts/tapscript");
             let lock_script = lock_script[0].clone();
+
             let scr = script!(
                 {hint_script}
                 {lock_script}
             );
+            let scr_len = scr.len();
             let res = execute_script(scr);
-            let success = if res.success {"succcess"} else {"fail"} ;
-            if !res.success { failure.push(i) } else {success_num+=1};
-            println!("result: {success}");
+            let success = if res.success { "success" } else { "fail "};
+
+            let test_res = &format!("\nassertion_{i}: script-size: {:?}, leaf_index: {:?}, exec-res: {:?}", scr_len, leaf_index, success);
+            file.write_all(&test_res.as_bytes()).unwrap();
+
+            recover_corrupt_assertions(&mut signed_assertions, i, correct_sig);
         }
-        print!("\x1B[2J\x1B[1;1H");
-        println!("\n--------test_result---------");
-        println!("{success_num} ok, {:?} fail",failure.len());
-        dbg!(failure);
-        println!("----------------");
     }
 
     use std::thread;
@@ -549,4 +608,39 @@ pub fn test_disprove_invalid_assertions() {
     t.join().unwrap();
 }
 
+#[test]
+pub fn test_disprove_script_size() {
+    fn run() {
+        let (vk, _, _) = load_proof_from_file("chunker_data/dummy_proof.json");
+        let (wots_pk, wots_sk) = generate_wots_keys_from_secrets(TEST_SECRET);
+        let mut signed_assertions = load_all_signed_assertions_from_file("signed_assertions/signed_assertion");
+        let mut script_size = Vec::new();
+        for i in 0..(g16::N_VERIFIER_PUBLIC_INPUTS + g16::N_VERIFIER_FQS + g16::N_VERIFIER_HASHES) {
+            let correct_sig = corrupt_signed_assertions(&wots_sk, &mut signed_assertions, i);
 
+            let res = validate_assertions(&vk, signed_assertions, wots_pk);
+            assert!(res.is_some(), "unexpected validate assertions result");
+            let (leaf_index, hint_script) = res.unwrap();
+
+            let lock_script = load_assert_tapscripts_from_file(leaf_index, leaf_index+1, "tapscripts/tapscript");
+
+            script_size.push(hint_script.len() + lock_script.len());
+
+            recover_corrupt_assertions(&mut signed_assertions, i, correct_sig);
+        }
+        print!("\x1B[2J\x1B[1;1H");
+        println!("\n--------test_result---------");
+        for i in 0..script_size.len() {
+            println!("leaf {i} size: {:?}",script_size[i]);
+        }
+        println!("----------------");
+    }
+
+    use std::thread;
+    const STACK_SIZE: usize = 32 * 1024 * 1024;
+    let t = thread::Builder::new()
+        .stack_size(STACK_SIZE)
+        .spawn(run)
+        .unwrap();
+    t.join().unwrap();
+}

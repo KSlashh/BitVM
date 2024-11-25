@@ -1,11 +1,13 @@
 #[cfg(test)]
+#[allow(unused_variables)]
 mod tests {
 
     use aws_sdk_s3::config::http::HttpResponse;
     use bitcoin::{
         consensus::encode::serialize_hex, key::Keypair, Amount, Network, PrivateKey, PublicKey,
-        TxOut, Address,
+        TxOut, Address, OutPoint,
     };
+    use bitvm::bridge::client::chain::ethereum::IBridge::Outpoint;
     use bitvm::treepp::*;
 
     use bitvm::bridge::{
@@ -30,7 +32,7 @@ mod tests {
             let (vk, _, _) = get_groth16_proof();
             let (wots_pk, _) = get_wots_keys();
             let mut signed_assertions = get_signed_assertions();
-            let index = 1; // TODO: test all
+            let index = 10; // TODO: test all
             corrupt_assertions(&mut signed_assertions, index);
             let res = validate_assertions(&vk, signed_assertions, wots_pk);
             assert!(res.is_some(), "unexpected validate assertions result");
@@ -77,7 +79,10 @@ mod tests {
             .stack_size(STACK_SIZE)
             .spawn(get_invalid_assertions)
             .unwrap();
-        let (leaf_index, hint_script) = t.join().unwrap();
+        let (leaf_index, hint_script) =  match t.join() {
+            Ok(v) => v, 
+            Err(e) => panic!("error get_invalid_assertions: {e:?}"),
+        };
 
         let outpoint_0 =
             generate_stub_outpoint(&client, &connector_5_addr, amount_0)
@@ -116,6 +121,9 @@ mod tests {
 
         let tx = disprove_tx.finalize();
         // println!("Script Path Spend Transaction: {:?}\n", tx);
+        println!("connector_c_witness_size: {:?}", tx.input[1].witness.size());
+        println!("total_size: {:?}", tx.total_size());
+        println!("weight: {:?}", tx.weight());
         let result = client.esplora.broadcast(&tx).await;
         println!("\nTxid: {:?}", tx.compute_txid());
         println!("Broadcast result: {:?}\n", result);
@@ -124,8 +132,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_disprove_should_revert_with_valid_commitment()
-    {
+    async fn test_disprove_should_revert_with_valid_commitment() {
         let tap_scripts = get_tapscripts();
         let (
             client,
