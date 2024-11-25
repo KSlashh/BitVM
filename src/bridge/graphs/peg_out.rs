@@ -1,19 +1,16 @@
 use bitcoin::{
-    hex::{Case::Upper, DisplayHex},
-    key::Keypair, Witness,
+    hex::{Case::Upper, DisplayHex}, key::Keypair,
     Amount, Network, OutPoint, PublicKey, ScriptBuf, Txid, XOnlyPublicKey,
 };
-use crate::{bridge::{connectors::{connector, connector_c::{self, ConnectorC}}, contexts::operator}, treepp::*};
+use crate::{bridge::connectors::connector_c::ConnectorC, treepp::*};
 use esplora_client::{AsyncClient, Error, TxStatus};
 use musig2::SecNonce;
 use num_traits::ToPrimitive;
-use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
     fmt::{Display, Formatter, Result as FmtResult},
 };
-use crate::bridge::{groth16::WotsPublicKeys, transactions::disprove};
 
 use super::{
     super::{
@@ -163,6 +160,7 @@ impl Display for PegOutOperatorStatus {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Clone)]
 pub struct PegOutGraph<'a> {
     version: String,

@@ -11,7 +11,7 @@ mod tests {
     use bitvm::treepp::*;
 
     use bitvm::bridge::{
-        connectors::{connector::TaprootConnector, connector_5}, contexts::withdrawer, graphs::base::{DUST_AMOUNT, FEE_AMOUNT, HUGE_FEE_AMOUNT, INITIAL_AMOUNT}, hash_chain, scripts::{generate_pay_to_pubkey_script, generate_pay_to_pubkey_script_address}, transactions::{
+        connectors::{connector::TaprootConnector, connector_5}, contexts::withdrawer, graphs::base::{DUST_AMOUNT, FEE_AMOUNT, HUGE_FEE_AMOUNT, INITIAL_AMOUNT}, scripts::{generate_pay_to_pubkey_script, generate_pay_to_pubkey_script_address}, transactions::{
             base::{BaseTransaction, Input},
             disprove::DisproveTransaction,
         },

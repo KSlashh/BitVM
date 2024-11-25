@@ -1,19 +1,20 @@
-use crate::treepp::{script, Script};
+use crate::treepp::script;
 use bitcoin_script_stack::stack::{StackTracker, StackVariable};
 
-use super::u4_add::{u4_add_no_table_internal, u4_push_modulo_table, u4_push_quotient_table};
+use super::u4_add::{u4_add_no_table_internal, u4_push_modulo_table_5, u4_push_quotient_table_5};
 
 pub fn u4_push_quotient_table_stack(stack: &mut StackTracker) -> StackVariable {
-    stack.var(65, u4_push_quotient_table(), "quotient_table")
+    stack.var(80, u4_push_quotient_table_5(), "quotient_table")
 }
 
 pub fn u4_push_modulo_table_stack(stack: &mut StackTracker) -> StackVariable {
-    stack.var(65, u4_push_modulo_table(), "modulo_table")
+    stack.var(80, u4_push_modulo_table_5(), "modulo_table")
 }
 
 pub fn u4_push_modulo_for_blake(stack: &mut StackTracker) -> StackVariable {
     stack.custom(
         script! {
+            OP_15
             OP_14
             OP_13
             OP_12
@@ -67,7 +68,7 @@ pub fn u4_push_modulo_for_blake(stack: &mut StackTracker) -> StackVariable {
         0,
         "",
     );
-    stack.define(47, "modulo")
+    stack.define(48, "modulo")
 }
 
 pub fn u4_push_quotient_for_blake(stack: &mut StackTracker) -> StackVariable {
@@ -76,7 +77,7 @@ pub fn u4_push_quotient_for_blake(stack: &mut StackTracker) -> StackVariable {
             OP_2
             OP_DUP
             OP_2DUP
-            OP_2DUP
+            OP_3DUP
             OP_3DUP
             OP_3DUP
             OP_3DUP
@@ -100,7 +101,7 @@ pub fn u4_push_quotient_for_blake(stack: &mut StackTracker) -> StackVariable {
         0,
         "",
     );
-    stack.define(47, "quotient")
+    stack.define(48, "quotient")
 }
 
 pub fn u4_arrange_nibbles_stack(
@@ -180,13 +181,14 @@ pub fn u4_add_no_table_stack(stack: &mut StackTracker, nibble_count: u32, number
 pub fn u4_add_stack(
     stack: &mut StackTracker,
     nibble_count: u32,
-    number_count: u32,
     to_copy: Vec<StackVariable>,
     to_move: Vec<&mut StackVariable>,
     constants: Vec<u32>,
     quotient_table: StackVariable,
     modulo_table: StackVariable,
 ) {
+    let number_count = to_copy.len() + to_move.len() + constants.len();
+    let number_count = number_count as u32;
     u4_arrange_nibbles_stack(nibble_count, stack, to_copy, to_move, constants);
     if !modulo_table.is_null() && !quotient_table.is_null() {
         u4_add_internal_stack(

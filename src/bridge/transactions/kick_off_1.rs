@@ -16,8 +16,6 @@ use super::{
     base::*,
     pre_signed::*,
 };
-use crate::bridge::commitment::WPublicKey;
-use crate::bridge::groth16::WotsPublicKeys;
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct KickOff1Transaction {

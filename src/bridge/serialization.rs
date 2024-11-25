@@ -1,9 +1,12 @@
 // TODO: serialization & deserialization
+#[allow(unused_variables)]
 pub fn serialize<T>(t: &T) -> String { String::new() }
+#[allow(unused_variables)]
 pub fn deserialize<'a, T>(data: &'a str) -> T
 {
     None.unwrap()
 }
+#[allow(unused_variables)]
 pub fn try_deserialize<'a, T>(data: &'a str) -> Result<T, String>
 {
     Err("TODO: serialization & deserialization".to_string())

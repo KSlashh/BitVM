@@ -1,10 +1,4 @@
-use bitcoin::{
-    key::Secp256k1, Witness,
-    taproot::{TaprootBuilder, TaprootSpendInfo},
-    Address, Network, ScriptBuf, TxIn, XOnlyPublicKey,
-};
-use serde::{Deserialize, Serialize};
-use crate::{bridge::graphs::base::CALC_ROUND, treepp::script};
+#[allow(unused_imports)]
 use super::{
     super::{
         constants::NUM_BLOCKS_PER_3_DAYS, scripts::*, transactions::base::Input,
@@ -12,7 +6,12 @@ use super::{
     },
     connector::*,
 };
-use crate::bridge::groth16::WotsPublicKeys;
+use bitcoin::{
+    key::Secp256k1, Witness,
+    taproot::{TaprootBuilder, TaprootSpendInfo},
+    Address, Network, ScriptBuf, TxIn, XOnlyPublicKey,
+};
+use crate::treepp::script;
 
 #[derive(Clone)]
 pub struct ConnectorB {

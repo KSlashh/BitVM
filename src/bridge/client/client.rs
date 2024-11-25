@@ -7,7 +7,7 @@ use std::{
     path::Path,
 };
 
-use bitcoin::{absolute::Height, Address, Amount, Network, OutPoint, PublicKey, ScriptBuf, Txid, Witness};
+use bitcoin::{absolute::Height, Address, Amount, Network, OutPoint, PublicKey, ScriptBuf, Txid};
 use esplora_client::{AsyncClient, Builder, Utxo};
 
 use crate::bridge::{constants::DestinationNetwork, contexts::base::generate_n_of_n_public_key};
@@ -1063,6 +1063,7 @@ impl<'a> BitVMClient<'a> {
         );
     }
 
+    #[allow(non_snake_case)]
     fn get_private_data(file_path: &String) -> BitVMClientPrivateData {
         match Self::read_local_private_file(file_path) {
             Some(data) => try_deserialize::<BitVMClientPrivateData>(&data)

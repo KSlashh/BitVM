@@ -5,4 +5,3 @@ pub mod g16;
 #[cfg(test)]
 mod test;
 pub mod verifier;
-pub mod chunk;

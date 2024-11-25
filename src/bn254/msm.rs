@@ -1,11 +1,9 @@
-use std::cmp::min;
-
 use super::utils::Hint;
 use crate::bn254::fp254impl::Fp254Impl;
 use crate::bn254::utils::fr_push_not_montgomery;
 use crate::bn254::{curves::G1Affine, curves::G1Projective, utils::fr_push};
 use crate::treepp::*;
-use ark_ec::{AdditiveGroup, AffineRepr, CurveGroup, PrimeGroup};
+use ark_ec::{AdditiveGroup, AffineRepr, CurveGroup};
 use ark_ff::{BigInteger, Field, PrimeField};
 
 pub fn affine_double_line_coeff(
@@ -235,44 +233,53 @@ pub fn hinted_msm_with_constant_bases_affine(
     for i in 0..len {
         let mut c = bases[i];
         if scalars[i] != ark_bn254::Fr::ONE {
-            let (hinted_script, hint) = G1Affine::hinted_scalar_mul_by_constant_g1(scalars[i], &mut c, inner_coeffs[i].0.clone(), inner_coeffs[i].1.clone(), inner_coeffs[i].2.clone());
+            let (hinted_script, hint) = G1Affine::hinted_scalar_mul_by_constant_g1(
+                scalars[i],
+                &mut c,
+                inner_coeffs[i].0.clone(),
+                inner_coeffs[i].1.clone(),
+                inner_coeffs[i].2.clone(),
+            );
+            println!("scalar mul {}: {}", i, hinted_script.len());
             hinted_scripts.push(hinted_script);
             hints.extend(hint);
-        } 
+        }
+
         // check coeffs before using
         if i > 0 {
-            let (hinted_script, hint) = G1Affine::hinted_check_add(p, c, outer_coeffs[i - 1].0, outer_coeffs[i - 1].1);
+            let (hinted_script, hint) =
+                G1Affine::hinted_check_add(p, c, outer_coeffs[i - 1].0, outer_coeffs[i - 1].1);
             hinted_scripts.push(hinted_script);
             hints.extend(hint);
             p = (p + c).into_affine();
         }
     }
 
-        let mut hinted_scripts_iter = hinted_scripts.into_iter();
-        let mut script_lines = Vec::new();
-    
-        // 1. init the sum = base[0] * scalars[0];
-        // script_lines.push(G1Affine::push_not_montgomery((bases[0] * scalars[0]).into_affine()));
-        for i in 0..len {
-            // 2. scalar mul
-            if scalars[i] != ark_bn254::Fr::ONE {
-                script_lines.push(fr_push_not_montgomery(scalars[i]));
-                script_lines.push(hinted_scripts_iter.next().unwrap());
-            } else {
-                script_lines.push(G1Affine::push_not_montgomery(bases[i]));
-            }
-            // 3. sum the base
-            if i > 0 {
-                script_lines.push(hinted_scripts_iter.next().unwrap());
-            }
-        }
-    
-        let mut script = script! {};
-        for script_line in script_lines {
-            script = script.push_script(script_line.compile());
-        }
+    let mut hinted_scripts_iter = hinted_scripts.into_iter();
+    let mut script_lines = Vec::new();
 
-        (script, hints)
+    // 1. init the sum = base[0] * scalars[0];
+    // script_lines.push(G1Affine::push_not_montgomery((bases[0] * scalars[0]).into_affine()));
+    for i in 0..len {
+        // 2. scalar mul
+        if scalars[i] != ark_bn254::Fr::ONE {
+            script_lines.push(fr_push_not_montgomery(scalars[i]));
+            script_lines.push(hinted_scripts_iter.next().unwrap());
+        } else {
+            script_lines.push(G1Affine::push_not_montgomery(bases[i]));
+        }
+        // 3. sum the base
+        if i > 0 {
+            script_lines.push(hinted_scripts_iter.next().unwrap());
+        }
+    }
+
+    let mut script = script! {};
+    for script_line in script_lines {
+        script = script.push_script(script_line.compile());
+    }
+
+    (script, hints)
     // into_affine involving extreem expensive field inversion, X/Z^2 and Y/Z^3, fortunately there's no need to do into_affine any more here
 }
 
@@ -370,7 +377,7 @@ mod test {
     use super::*;
     use crate::bn254::utils::g1_affine_push_not_montgomery;
     use crate::bn254::{curves::G1Affine, utils::g1_affine_push};
-    use crate::{execute_script, execute_script_without_stack_limit};
+    use crate::execute_script_without_stack_limit;
     use ark_ec::{CurveGroup, VariableBaseMSM};
 
     use ark_std::{end_timer, start_timer, test_rng, UniformRand};
@@ -604,21 +611,5 @@ mod test {
         let exec_result = execute_script_without_stack_limit(script);
         end_timer!(start);
         assert!(exec_result.success);
-    }
-
-    #[test]
-    fn test_demo() {
-        use crate::bn254::fp254impl::Fp254Impl;
-
-        // let script = script! {
-        //     { crate::bn254::fr::Fr::push_dec("7") }
-        //     { crate::bn254::fr::Fr::decode_montgomery() }
-        //     { crate::bn254::fr::Fr::convert_to_le_bits() }
-        //     // { crate::bn254::fr::Fr::convert_to_le_bits_toaltstack() }
-        // };
-        // let exec_result = execute_script_without_stack_limit(script);
-        // println!("{:?}", exec_result.final_stack);
-        // let a = ark_ff::BigInt::<4>::from([3_u32, 5_u32, 7_u32, 9_u32]);
-        // println!("{:?}", a.to_bits_le());
     }
 }

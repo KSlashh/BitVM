@@ -1,11 +1,8 @@
-use crate::{bridge::graphs::base::CALC_ROUND, treepp::script};
+use crate::treepp::script;
 use bitcoin::{
     key::Secp256k1, Witness, taproot::{TaprootBuilder, TaprootSpendInfo}, Address, Network, ScriptBuf, TxIn, XOnlyPublicKey
 };
 use serde::{Deserialize, Serialize};
-use crate::bridge::commitment::WPublicKey;
-use crate::bridge::hash_chain;
-use crate::bridge::groth16::WotsPublicKeys;
 
 use super::{
     super::{
@@ -49,7 +46,6 @@ impl Connector1 {
     }
 
     fn generate_taproot_leaf_0_script(&self) -> ScriptBuf {
-        let round = CALC_ROUND;
         script! {
             // timelock
             { self.num_blocks_timelock_0 }

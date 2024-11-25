@@ -7,6 +7,4 @@ pub mod scripts;
 pub mod serialization;
 pub mod transactions;
 pub mod utils;
-pub mod commitment;
-pub mod hash_chain;
 pub mod groth16;

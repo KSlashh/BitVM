@@ -1,17 +1,12 @@
-use crate::{bridge::{graphs::base::CALC_ROUND, groth16}, treepp::*};
+use crate::{bridge::groth16, treepp::*};
 use bitcoin::{
-    hashes::{ripemd160, Hash},
     key::Secp256k1, Witness,
     taproot::{TaprootBuilder, TaprootSpendInfo},
     Address, Network, ScriptBuf, TxIn, XOnlyPublicKey,
 };
 use num_traits::ToPrimitive;
-use serde::{Deserialize, Serialize};
 
 use super::{super::transactions::base::Input, connector::*};
-use crate::bridge::commitment::WPublicKey;
-use crate::bridge::hash_chain;
-use crate::bridge::scripts::generate_pay_to_pubkey_taproot_script;
 
 // Specialized for assert leaves currently.
 pub type LockScript = fn(index: u32) -> ScriptBuf;
@@ -53,7 +48,7 @@ impl<'a> ConnectorC<'a> {
 
     pub fn get_taproot_leaf_script(&self, leaf_index: u32) -> ScriptBuf {
         assert!(leaf_index < self.leaf_num as u32, "Invalid leaf index.");
-        if (leaf_index as usize != self.leaf_num-1) {
+        if leaf_index as usize != self.leaf_num-1 {
             self.disprove_tap_scripts[leaf_index as usize].clone().compile()
         } else {
             script! {
@@ -99,6 +94,7 @@ impl<'a> TaprootConnector for ConnectorC<'a> {
             .expect("Unable to finalize assert transaction connector c taproot")
     }
 
+    #[allow(non_snake_case)]
     fn generate_taproot_address(&self) -> Address {
         match self.taproot_address.clone() {
             Some(addr) => addr,

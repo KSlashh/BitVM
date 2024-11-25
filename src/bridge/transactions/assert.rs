@@ -1,11 +1,10 @@
 use bitcoin::{
-    absolute, consensus, Amount, Network, PublicKey, ScriptBuf, TapSighashType, Transaction, TxOut,
+    absolute, Amount, Network, PublicKey, ScriptBuf, Transaction, TxOut,
     XOnlyPublicKey,
 };
-use musig2::{secp256k1::schnorr::Signature, PartialSignature, PubNonce, SecNonce};
-use serde::{Deserialize, Serialize};
+use musig2::{secp256k1::schnorr::Signature, PartialSignature, PubNonce};
 use std::collections::HashMap;
-use crate::bridge::{commitment::WPublicKey, graphs::base::HUGE_FEE_AMOUNT};
+use crate::bridge::graphs::base::HUGE_FEE_AMOUNT;
 
 use super::{
     super::{
@@ -13,8 +12,8 @@ use super::{
             connector::*, connector_4::Connector4, connector_5::Connector5,
             connector_b::ConnectorB, connector_c::ConnectorC,
         },
-        contexts::{base::BaseContext, operator::OperatorContext, verifier::VerifierContext},
-        graphs::base::{DUST_AMOUNT, FEE_AMOUNT},
+        contexts::operator::OperatorContext,
+        graphs::base::DUST_AMOUNT,
     },
     base::*,
     pre_signed::*,
@@ -22,6 +21,7 @@ use super::{
 };
 use super::signing::push_taproot_leaf_script_and_control_block_to_witness;
 
+#[allow(dead_code)]
 #[derive(Clone)]
 pub struct AssertTransaction<'a> {
     tx: Transaction,
@@ -90,7 +90,7 @@ impl<'a> AssertTransaction<'a> {
     pub fn new_for_validation(
         network: Network,
         operator_public_key: &PublicKey,
-        operator_taproot_public_key: &XOnlyPublicKey,
+        _operator_taproot_public_key: &XOnlyPublicKey,
         n_of_n_taproot_public_key: &XOnlyPublicKey,
         connector_c: ConnectorC<'a>,
         input_0: Input,

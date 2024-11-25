@@ -1,8 +1,7 @@
 use bitcoin::{
-    absolute, consensus, Amount, Network, PublicKey, ScriptBuf, TapSighashType, Transaction, TxOut,
+    absolute, Amount, Network, PublicKey, ScriptBuf, Transaction, TxOut,
     XOnlyPublicKey,
 };
-use serde::{Deserialize, Serialize};
 
 use super::{
     super::{
@@ -15,7 +14,6 @@ use super::{
     base::*,
     pre_signed::*,
 };
-use crate::bridge::commitment::WPublicKey;
 use super::signing::push_taproot_leaf_script_and_control_block_to_witness;
 
 #[derive(Clone)]

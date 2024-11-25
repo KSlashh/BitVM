@@ -30,6 +30,7 @@ pub fn kickoff_bitcom_lock(
     generate_bitcommitments(wots_pk)
 }
 
+#[allow(unused_variables)]
 pub fn kickoff_bitcom_witness(
     proof: Proof,
     public_inputs: PublicInputs,
@@ -48,6 +49,7 @@ pub fn assert_bitcom_lock(
     generate_bitcommitments(wots_pk)
 }
 
+#[allow(unused_variables)]
 pub fn assert_bitcom_witness(
     proof: Proof,
     public_inputs: PublicInputs,
@@ -246,18 +248,18 @@ pub fn recover_corrupt_assertions(
         let i = index;
         signed_assertions.0[i] = match correct_sig { 
             WotsSignature::Sig256(sig) => sig, 
-            WotsSignature::Sig160(sig) => panic!(), 
+            WotsSignature::Sig160(_sig) => panic!(), 
         };
     } else if index < (g16::N_VERIFIER_PUBLIC_INPUTS + g16::N_VERIFIER_FQS) {
        let i = index - g16::N_VERIFIER_PUBLIC_INPUTS;
         signed_assertions.1[i] = match correct_sig { 
             WotsSignature::Sig256(sig) => sig, 
-            WotsSignature::Sig160(sig) => panic!(), 
+            WotsSignature::Sig160(_sig) => panic!(), 
         };
     } else {
         let i = index - g16::N_VERIFIER_PUBLIC_INPUTS - g16::N_VERIFIER_FQS;
         signed_assertions.2[i] = match correct_sig { 
-            WotsSignature::Sig256(sig) => panic!(), 
+            WotsSignature::Sig256(_sig) => panic!(), 
             WotsSignature::Sig160(sig) => sig, 
         };
     }
@@ -435,6 +437,7 @@ pub fn load_proof_from_file(filename: &str) -> (VerifyingKey, Proof, PublicInput
     (vk, proof, pubin.try_into().unwrap())
 }
 
+#[allow(dead_code)]
 fn serialize_proof(vk: VerifyingKey, proof: Proof, pubin: PublicInputs) -> HashMap<u32, Vec<Vec<u8>>> {
     fn tmp_fr_serialization(f: Fr) -> Vec<u8> {
         use ark_ff::PrimeField;

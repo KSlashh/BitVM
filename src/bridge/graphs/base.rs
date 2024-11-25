@@ -30,7 +30,6 @@ pub const DEPOSITOR_EVM_ADDRESS: &str = "0xDDdDddDdDdddDDddDDddDDDDdDdDDdDDdDDDD
 pub const WITHDRAWER_EVM_ADDRESS: &str = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
 
 pub const OPERATOR_STATEMENT: [u8; 20] = [0xf; 20];
-pub const CALC_ROUND: u32 = 0x3;
 
 pub trait BaseGraph {
     fn network(&self) -> Network;

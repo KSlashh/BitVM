@@ -1,6 +1,6 @@
 use bitcoin::{Address, Amount, OutPoint};
 use bitvm::bridge::{
-    client::client, connectors::{connector::TaprootConnector, connector_4}, graphs::base::{FEE_AMOUNT, HUGE_FEE_AMOUNT, INITIAL_AMOUNT}, hash_chain, scripts::generate_pay_to_pubkey_script_address, transactions::{
+    client::client, connectors::{connector::TaprootConnector, connector_4}, graphs::base::{FEE_AMOUNT, HUGE_FEE_AMOUNT, INITIAL_AMOUNT}, scripts::generate_pay_to_pubkey_script_address, transactions::{
         assert::AssertTransaction,
         base::{BaseTransaction, Input},
         disprove::DisproveTransaction,

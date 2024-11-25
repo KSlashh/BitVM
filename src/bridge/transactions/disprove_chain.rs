@@ -1,11 +1,9 @@
 use bitcoin::{
-    absolute, consensus, Amount, Network, PublicKey, ScriptBuf, TapSighashType, Transaction, TxOut,
+    absolute, Amount, Network, PublicKey, ScriptBuf, TapSighashType, Transaction, TxOut,
     XOnlyPublicKey,
 };
 use musig2::{secp256k1::schnorr::Signature, PartialSignature, PubNonce, SecNonce};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::bridge::groth16::WotsPublicKeys;
 
 use super::{
     super::{
@@ -19,6 +17,7 @@ use super::{
     pre_signed_musig2::*,
 };
 
+#[allow(dead_code)]
 #[derive(Clone)]
 pub struct DisproveChainTransaction {
     tx: Transaction,

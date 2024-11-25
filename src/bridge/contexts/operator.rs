@@ -5,7 +5,6 @@ use bitcoin::{
 };
 
 use super::base::{generate_keys_from_secret, generate_n_of_n_public_key, BaseContext};
-use crate::bridge::groth16::{WotsPublicKeys, WotsSecretKeys, generate_wots_keys_from_secrets};
 
 pub struct OperatorContext {
     pub network: Network,

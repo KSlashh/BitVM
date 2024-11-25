@@ -1,11 +1,9 @@
 use bitcoin::{
-    absolute, consensus, Amount, EcdsaSighashType, Network, PublicKey, ScriptBuf, TapSighashType,
+    absolute, Amount, EcdsaSighashType, Network, PublicKey, ScriptBuf, TapSighashType,
     Transaction, TxOut, XOnlyPublicKey,
 };
 use musig2::{secp256k1::schnorr::Signature, PartialSignature, PubNonce, SecNonce};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::bridge::commitment::WPublicKey;
 
 use super::{
     super::{

@@ -910,15 +910,6 @@ mod test {
         }
     }
 
-    fn rand_bools<const SIZE: usize>(seed: u64) -> [bool; SIZE] {
-        let mut bools = [true; SIZE];
-        let mut prng: ChaCha20Rng = ChaCha20Rng::seed_from_u64(seed);
-        for i in 0..SIZE {
-            bools[i] = prng.gen_bool(0.5);
-        }
-        bools
-    }
-
     #[test]
     fn test_hinted_mul() {
         let mut prng: ChaCha20Rng = ChaCha20Rng::seed_from_u64(0);

@@ -2,12 +2,12 @@ use std::collections::HashMap;
 use std::ops::Neg;
 
 use crate::chunk::compile::{compile, get_tapscript_link_ids, Vkey};
-use crate::chunk::config::{assign_link_ids, keygen, NUM_PUBS, NUM_U160, NUM_U256};
+use crate::chunk::config::{NUM_PUBS, NUM_U160, NUM_U256};
 use crate::chunk::evaluate::{evaluate, extract_values_from_hints, EvalIns};
 use crate::chunk::taps::{Sig, SigData};
 use crate::chunk::wots::WOTSPubKey;
 use crate::groth16::g16::{
-    N_VERIFIER_FQS, Assertions, PublicKeys, Signatures, N_TAPLEAVES, N_VERIFIER_HASHES,
+    N_VERIFIER_FQS, Assertions, PublicKeys, Signatures, N_VERIFIER_HASHES,
 };
 use crate::groth16::offchain_checker::compute_c_wi;
 use crate::signatures::wots::{wots160, wots256};
@@ -171,7 +171,7 @@ pub fn generate_assertions(
         ks: msm_scalar.clone(),
     };
 
-    let (aux, fault) = evaluate(
+    let (aux, _fault) = evaluate(
         &mut sig,
         &HashMap::new(),
         Some(eval_ins),

@@ -1,9 +1,8 @@
 use bitcoin::{
-    absolute, consensus, Amount, Network, PublicKey, ScriptBuf, TapSighashType, Transaction, TxOut,
+    absolute, Amount, Network, PublicKey, ScriptBuf, TapSighashType, Transaction, TxOut,
     XOnlyPublicKey,
 };
 use musig2::{secp256k1::schnorr::Signature, PartialSignature, PubNonce, SecNonce};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use super::{
@@ -17,8 +16,8 @@ use super::{
     pre_signed::*,
     pre_signed_musig2::*,
 };
-use crate::bridge::commitment::WPublicKey;
 
+#[allow(dead_code)]
 #[derive(Clone)]
 pub struct KickOffTimeoutTransaction {
     tx: Transaction,

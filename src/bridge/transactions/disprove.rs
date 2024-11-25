@@ -1,17 +1,15 @@
 use bitcoin::{
-    absolute, consensus, Amount, Network, PublicKey, ScriptBuf, TapSighashType, Transaction, TxOut,
-    XOnlyPublicKey, Witness,
+    absolute, Amount, Network, PublicKey, ScriptBuf, TapSighashType, Transaction, TxOut,
+    XOnlyPublicKey,
 };
 use musig2::{secp256k1::schnorr::Signature, PartialSignature, PubNonce, SecNonce};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::bridge::{commitment::WPublicKey, connectors::connector, graphs::base::HUGE_FEE_AMOUNT};
+use crate::bridge::graphs::base::HUGE_FEE_AMOUNT;
 use crate::treepp::*;
 use super::{
     super::{
         connectors::{connector::*, connector_5::Connector5, connector_c::ConnectorC},
         contexts::{base::BaseContext, operator::OperatorContext, verifier::VerifierContext},
-        graphs::base::FEE_AMOUNT,
         scripts::*,
     },
     base::*,
@@ -20,6 +18,7 @@ use super::{
     signing::push_taproot_leaf_script_and_control_block_to_witness,
 };
 
+#[allow(dead_code)]
 #[derive(Clone)]
 pub struct DisproveTransaction<'a> {
     tx: Transaction,
@@ -87,7 +86,7 @@ impl<'a> DisproveTransaction<'a> {
 
     pub fn new_for_validation(
         network: Network,
-        operator_taproot_public_key: &XOnlyPublicKey,
+        _operator_taproot_public_key: &XOnlyPublicKey,
         n_of_n_taproot_public_key: &XOnlyPublicKey,
         connector_c: ConnectorC<'a>,
         input_0: Input,

@@ -292,7 +292,6 @@ impl<const N_BITS: u32, const LIMB_SIZE: u32> BigIntImpl<N_BITS, LIMB_SIZE> {
 mod test {
     use crate::bigint::{BigIntImpl, U254};
     use crate::run;
-    use crate::treepp::execute_script;
     use bitcoin_script::script;
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha20Rng;

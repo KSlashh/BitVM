@@ -1,12 +1,10 @@
 use bitcoin::{
-    absolute, consensus, Amount, EcdsaSighashType, Network, PublicKey, ScriptBuf, TapSighashType,
+    absolute, Amount, EcdsaSighashType, Network, PublicKey, ScriptBuf, TapSighashType,
     Transaction, TxOut, XOnlyPublicKey,
 };
 use musig2::{secp256k1::schnorr::Signature, PartialSignature, PubNonce, SecNonce};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::bridge::{commitment::WPublicKey, connectors::connector_c, graphs::base::{CALC_ROUND, HUGE_FEE_AMOUNT}};
-use crate::treepp::*;
+use crate::bridge::graphs::base::HUGE_FEE_AMOUNT;
 use super::{
     super::{
         connectors::{
@@ -14,9 +12,8 @@ use super::{
             connector_5::Connector5, connector_c::ConnectorC,
         },
         contexts::{base::BaseContext, operator::OperatorContext, verifier::VerifierContext},
-        graphs::base::FEE_AMOUNT,
         scripts::*,
-    }, base::*, disprove, pre_signed::*, pre_signed_musig2::*
+    }, base::*, pre_signed::*, pre_signed_musig2::*
 };
 
 #[derive(Clone)]
@@ -97,7 +94,7 @@ impl<'a> Take2Transaction<'a> {
     pub fn new_for_validation(
         network: Network,
         operator_public_key: &PublicKey,
-        operator_taproot_public_key: &XOnlyPublicKey,
+        _operator_taproot_public_key: &XOnlyPublicKey,
         n_of_n_taproot_public_key: &XOnlyPublicKey,
         connector_c: ConnectorC<'a>,
         input_0: Input,
