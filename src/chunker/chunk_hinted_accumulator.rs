@@ -48,7 +48,6 @@ pub fn verify_accumulator(
 mod test {
     use super::*;
     use crate::bn254::ell_coeffs::G2Prepared;
-    use crate::bn254::fp254impl::Fp254Impl;
     
     use crate::chunker::assigner::*;
     use crate::chunker::chunk_accumulator::*;
@@ -141,6 +140,7 @@ mod test {
         (g1a, g1p)
     }
 
+    #[allow(unused_variables)]
     pub fn generate_f_arg(
         public_inputs: &Vec<<Bn254 as ark_Pairing>::ScalarField>,
         proof: &Proof<Bn254>,
@@ -237,6 +237,7 @@ mod test {
         hint
     }
 
+    #[allow(dead_code, unused_variables)]
     fn test_g1_points() {
         let mut assigner = DummyAssinger {};
 
@@ -284,6 +285,7 @@ mod test {
         }
     }
 
+    #[allow(unused_variables)]
     #[test]
     fn test_chunk_accumulator() {
         let mut assigner = DummyAssinger {};

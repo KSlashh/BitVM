@@ -1,6 +1,6 @@
 use bitcoin::{Address, Amount, Transaction, Txid};
 use bitvm::bridge::{
-    client::client::BitVMClient, connectors::{connector_4, connector_c::ConnectorC}, contexts::{depositor::DepositorContext, operator::OperatorContext, verifier::VerifierContext}, transactions::{
+    client::client::BitVMClient, connectors::connector_c::ConnectorC, contexts::{depositor::DepositorContext, operator::OperatorContext, verifier::VerifierContext}, transactions::{
         assert::AssertTransaction,
         base::{BaseTransaction, Input},
         kick_off_1::KickOff1Transaction,

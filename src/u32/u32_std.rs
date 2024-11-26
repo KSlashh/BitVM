@@ -1,10 +1,5 @@
 #![allow(dead_code)]
-
-use bitcoin::opcodes::all::OP_ROLL;
-
-use crate::bigint::bits::{limb_to_be_bits, limb_to_le_bits};
 use crate::pseudo::{push_to_stack, OP_256MUL, OP_4DUP};
-
 use crate::treepp::{script, Script};
 
 /// Pushes a value as u32 element onto the stack

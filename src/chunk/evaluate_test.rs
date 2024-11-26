@@ -3,7 +3,7 @@
 mod test {
     use std::{collections::HashMap, io, ops::Neg};
 
-    use crate::chunk::{config::{assign_link_ids, NUM_PUBS, NUM_U160, NUM_U256}, evaluate::*, hint_models::HintOut, primitves::{extern_fq_to_nibbles, extern_fr_to_nibbles}, taps::Sig};
+    use crate::chunk::{evaluate::*, taps::Sig};
     use ark_ec::{AffineRepr, CurveGroup};
     use ark_ff::Field;
 
@@ -12,7 +12,7 @@ mod test {
             compile::{compile, Vkey},
             config::{get_type_for_link_id, keygen},
             test_utils::{
-                read_pubkey_from_file, read_scripts_from_file, write_map_to_file, write_pubkey_to_file, write_scripts_to_file, write_scripts_to_separate_files
+                read_pubkey_from_file, read_scripts_from_file, write_pubkey_to_file, write_scripts_to_file, write_scripts_to_separate_files
             },
         },
         groth16::offchain_checker::compute_c_wi,
@@ -157,6 +157,7 @@ mod test {
         }
     }
 
+    #[allow(unused_variables)]
     fn generate_mock_proof() -> (GrothProof, GrothVK) {
         use ark_bn254::Bn254;
         use ark_crypto_primitives::snark::{CircuitSpecificSetupSNARK, SNARK};
@@ -392,6 +393,7 @@ mod test {
         }
     }
 
+    #[allow(unused_variables)]
     #[test]
     fn test_operator_generates_assertion() {
         let gp_f = "chunker_data/groth_proof.bin";
@@ -433,6 +435,7 @@ mod test {
         // }
     }
 
+    #[allow(unused_variables, unused_mut)]
     #[test]
     fn test_challenger_executes_disprove() {
         let chunker_data_path = "chunker_data";

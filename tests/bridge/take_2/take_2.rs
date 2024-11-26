@@ -1,16 +1,13 @@
-use bitcoin::{consensus::encode::serialize_hex, Amount};
+use bitcoin::Amount;
 
 use bitvm::bridge::{
     connectors::connector::{P2wshConnector, TaprootConnector},
-    graphs::base::{DUST_AMOUNT, FEE_AMOUNT, HUGE_FEE_AMOUNT, INITIAL_AMOUNT, ONE_HUNDRED},
+    graphs::base::{DUST_AMOUNT, HUGE_FEE_AMOUNT, INITIAL_AMOUNT},
     transactions::{
         base::{BaseTransaction, Input},
         take_2::Take2Transaction,
     },
 };
-
-use bitvm::bridge::groth16::load_assert_tapscripts_from_file;
-use bitvm::groth16::g16;
 
 use super::super::{helper::generate_stub_outpoint, setup::setup_test};
 

@@ -142,12 +142,12 @@ pub fn chunk_fq12_multiplication<T: BCAssigner>(
 
 #[cfg(test)]
 mod test {
-    use super::{chunk_fq12_multiplication, fq12_mul_wrapper};
+    use super::fq12_mul_wrapper;
     use crate::{
         chunker::{
             assigner::DummyAssinger,
-            elements::{DataType::Fq12Data, DataType::Fq6Data, ElementTrait, Fq12Type, Fq6Type},
-            segment::{Segment},
+            elements::{DataType::Fq12Data, ElementTrait, Fq12Type},
+            segment::Segment,
         }, execute_script_with_inputs,
     };
     use ark_ff::UniformRand;
@@ -155,6 +155,7 @@ mod test {
     use rand_chacha::ChaCha20Rng;
     use std::ops::Mul;
 
+    #[allow(unused_variables)]
     #[test]
     fn test_fq12_wrapper() {
         let mut assigner = DummyAssinger {};

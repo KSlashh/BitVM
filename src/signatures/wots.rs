@@ -105,6 +105,7 @@ macro_rules! impl_wots {
                     (hash.to_byte_array(), message_digit)
                 }
 
+                #[allow(dead_code)]
                 /// Compute the signature for the i-th digit of the message
                 fn sign_digit(secret: &str, digit_index: u32, message_digit: u8) -> Script {
                     let (hash, digit) = get_digit_signature(secret, digit_index, message_digit);
@@ -338,6 +339,7 @@ mod tests {
         msg_bytes
     }
 
+    #[allow(unused_variables)]
     #[test]
     fn test_wots256() {
         let secret = "a01b23c45d67e89f";

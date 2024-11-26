@@ -48,6 +48,7 @@ pub(super) fn bytes_to_u32s(len: u32, bits_per_item: u32, bytes: &Vec<u8>) -> Ve
     res
 }
 
+#[allow(dead_code)]
 pub(super) fn get_type_name<T>() -> String {
     let full_type_name = std::any::type_name::<T>();
     let res = full_type_name.split("::").last().unwrap_or(full_type_name);

@@ -1,7 +1,7 @@
 use bitcoin::Amount;
 
 use bitvm::bridge::{
-    connectors::{connector::TaprootConnector, connector_c::ConnectorC},
+    connectors::connector::TaprootConnector,
     graphs::base::ONE_HUNDRED,
     serialization::{deserialize, serialize},
     transactions::{assert::AssertTransaction, base::Input},
@@ -43,7 +43,7 @@ async fn test_assert_tx_serialization() {
 
     let json = serialize(&assert_tx);
     assert!(json.len() > 0);
-    let deserialized_assert_tx = deserialize::<AssertTransaction>(&json);
+    let _deserialized_assert_tx = deserialize::<AssertTransaction>(&json);
     // TODO: serialization & deserialization
     // assert!(assert_tx == deserialized_assert_tx);
 }

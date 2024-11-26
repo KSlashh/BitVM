@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 use crate::bigint::U254;
 use crate::bn254::utils::{
     fq12_push_not_montgomery, fq2_push_not_montgomery, fq_push_not_montgomery,
@@ -36,6 +37,7 @@ pub enum SigData {
     Sig160(wots160::Signature),
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct Sig {
     pub(crate) msk: Option<&'static str>,
@@ -1033,7 +1035,7 @@ pub(crate) fn tap_point_ops(ate: i8) -> Script {
 
         // Altstack: [dbl_le, R, add_le, hash_out]
         // Stack: [t]
-        for i in 0..13 {
+        for _i in 0..13 {
             {Fq::fromaltstack()}
         }
 

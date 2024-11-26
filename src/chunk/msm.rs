@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-
 use crate::bn254::utils::fq_push_not_montgomery;
 use crate::chunk::primitves::{
     extern_hash_fps, extern_fq_to_nibbles, extern_fr_to_nibbles, unpack_limbs_to_nibbles
@@ -13,7 +12,6 @@ use crate::{
 use ark_bn254::G1Affine;
 use ark_ec::{AffineRepr, CurveGroup};
 use ark_ff::{AdditiveGroup, BigInteger, Field, PrimeField};
-use bitcoin::opcodes::all::OP_ENDIF;
 use num_traits::One;
 
 use super::hint_models::HintInHashP;
@@ -259,6 +257,7 @@ impl HintOutMSM {
     }
 }
 
+#[allow(unused_variables)]
 fn hinted_affine_add_line_g1(
     tx: ark_bn254::Fq,
     qx: ark_bn254::Fq,
@@ -310,6 +309,7 @@ fn hinted_affine_add_line_g1(
     (script, hints)
 }
 
+#[allow(unused_variables)]
 fn hinted_affine_double_line_g1(
     tx: ark_bn254::Fq,
     c3: ark_bn254::Fq,
@@ -353,6 +353,7 @@ fn hinted_affine_double_line_g1(
     (script, hints)
 }
 
+#[allow(unused_variables)]
 fn hinted_check_line_through_point_g1(
     x: ark_bn254::Fq,
     c3: ark_bn254::Fq,
@@ -417,6 +418,7 @@ fn get_byte_mul_g1(
     return precomputed_q;
 }
 
+#[allow(unused_assignments)]
 pub(crate) fn hint_msm(
     sig: &mut Sig,
     sec_out: Link,
@@ -574,6 +576,7 @@ pub(crate) fn bitcom_msm(
     // stack: []
 }
 
+#[allow(dead_code, unused_variables)]
 pub fn try_msm(qs: Vec<ark_bn254::G1Affine>, scalars: Vec<ark_bn254::Fr>) {
     // constants
     let num_bits: usize = 256;
@@ -823,12 +826,10 @@ mod test {
     use super::*;
     use ark_bn254::{Bn254, G1Affine};
     use ark_ff::UniformRand;
-    use bitcoin::opcodes::{all::OP_EQUALVERIFY, OP_TRUE};
     use rand::SeedableRng;
     use rand_chacha::ChaCha20Rng;
 
-    use super::HintInMSM;
-
+    #[allow(unused_mut, unused_variables)]
     #[test]
     fn test_try_msm() {
         let mut prng = ChaCha20Rng::seed_from_u64(2);
@@ -1010,7 +1011,7 @@ mod test {
     }
 
 
-
+    #[allow(unused_variables)]
     #[test]
     fn test_tap_hash_p() {
         // compile time
@@ -1104,7 +1105,6 @@ mod test {
         use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
         use ark_std::test_rng;
         use rand::{RngCore, SeedableRng};
-        use super::*;
 
         #[derive(Clone)]
         pub struct DummyCircuit {

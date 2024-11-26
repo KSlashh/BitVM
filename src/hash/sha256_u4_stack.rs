@@ -1,8 +1,8 @@
+#![allow(unused_imports)]
 use crate::u4::{
     u4_add::{u4_add_carry_nested, u4_add_nested},
     u4_add_stack::*,
     u4_logic_stack::*,
-    u4_rot_stack::*,
     u4_shift_stack::*,
     u4_std::*,
 };
@@ -294,6 +294,7 @@ pub fn u4_add_nibble_stack(
     }
 }
 
+#[allow(unused_mut)]
 pub fn sha256_stack(
     stack: &mut StackTracker,
     num_bytes: u32,

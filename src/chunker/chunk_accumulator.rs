@@ -4,7 +4,7 @@ use super::chunk_evaluate_line::*;
 use super::chunk_fq12_multiplication::*;
 use super::elements::DataType::Fq12Data;
 use super::elements::*;
-use super::elements::{Fq12Type, FqType};
+use super::elements::Fq12Type;
 use super::segment::*;
 
 use crate::bn254::ell_coeffs::EllCoeff;
@@ -362,6 +362,7 @@ mod test {
     use rand::SeedableRng;
     use rand_chacha::ChaCha20Rng;
 
+    #[allow(unused_variables)]
     #[test]
     fn test_make_chunk_square() {
         let mut prng = ChaCha20Rng::seed_from_u64(0);

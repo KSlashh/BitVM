@@ -333,6 +333,7 @@ mod test {
     }
 
     // Step 4: Challenger finds fault given signatures
+    #[allow(unused_variables)]
     #[test]
     fn test_fn_disprove_invalid_assertions() {
         let (_, mock_vk) = mock::compile_circuit();

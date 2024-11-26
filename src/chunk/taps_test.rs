@@ -1,17 +1,17 @@
 
+#![allow(non_snake_case, unused_variables)]
 #[cfg(test)]
 mod test {
     use std::collections::HashMap;
 
     use crate::chunk::api::nib_to_byte_array;
     use crate::chunk::hint_models::*;
-    use crate::chunk::msm::{bitcom_hash_p, hint_hash_p, tap_hash_p};
     use crate::chunk::taps::*;
     use crate::chunk::primitves::extern_hash_fps;
     use crate::chunk::taps_mul::*;
     use crate::chunk::wots::{wots_p160_get_pub_key, wots_p256_get_pub_key, WOTSPubKey};
     use crate::signatures::wots::wots160;
-    use ark_ff::{AdditiveGroup, Field};
+    use ark_ff::Field;
     use ark_std::UniformRand;
     use rand::SeedableRng;
     use rand_chacha::ChaCha20Rng;

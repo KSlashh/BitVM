@@ -1,8 +1,8 @@
-use bitcoin::{consensus::encode::serialize_hex, Amount};
+use bitcoin::Amount;
 
 use bitvm::bridge::{
     connectors::connector::TaprootConnector,
-    graphs::base::{HUGE_FEE_AMOUNT, INITIAL_AMOUNT, ONE_HUNDRED},
+    graphs::base::{HUGE_FEE_AMOUNT, INITIAL_AMOUNT},
     transactions::{
         base::{BaseTransaction, Input},
         kick_off_2::KickOff2Transaction,

@@ -1,4 +1,4 @@
-#[allow(non_snake_case)]
+#[allow(non_snake_case, dead_code)]
 #[cfg(test)]
 mod test {
     use crate::bn254::curves::G1Affine;
@@ -2223,6 +2223,7 @@ mod test {
         (c, wi)
     }
 
+    #[allow(unused_variables)]
     #[test]
     fn test_fflonk_verifier() {
         let (c0_x, c0_y, c0_z, c1_x, c1_y, c1_z, inp_1, inp_2) = (

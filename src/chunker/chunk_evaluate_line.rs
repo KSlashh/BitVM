@@ -1,10 +1,8 @@
 use super::elements::{
-    DataType::Fq12Data, DataType::Fq2Data, DataType::FqData,DataType::Fq6Data, ElementTrait, Fq12Type, Fq2Type,
-    FqType,Fq6Type
+    DataType::Fq12Data, DataType::Fq2Data, DataType::Fq6Data, ElementTrait, Fq12Type, Fq2Type, Fq6Type
 };
 use super::{assigner::BCAssigner, segment::Segment};
 use crate::bn254::{ell_coeffs::EllCoeff, fp254impl::Fp254Impl, fq::Fq, fq2::Fq2,fq12::Fq12};
-use crate::bn254::curves::{G1Affine, G2Affine};
 use crate::treepp::*;
 use ark_ff::{AdditiveGroup, Field};
 
@@ -129,10 +127,11 @@ mod test {
 
     use ark_ff::Field;
     use ark_std::UniformRand;
-    use bitcoin::{hashes::{sha256::Hash as Sha256, Hash},};    
+    use bitcoin::hashes::{sha256::Hash as Sha256, Hash};    
     use rand::SeedableRng;
     use rand_chacha::ChaCha20Rng;
 
+    #[allow(unused_variables)]
     #[test]
     fn test_ell() {
         let mut prng = ChaCha20Rng::seed_from_u64(0);

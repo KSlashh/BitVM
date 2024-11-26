@@ -1,14 +1,12 @@
 use ark_bn254::g2::G2Affine;
-use ark_bn254::{Fq12, G1Affine};
-use ark_ff::{BigInteger, Field, PrimeField};
-use bitcoin::opcodes::OP_TRUE;
+use ark_bn254::G1Affine;
+use ark_ff::{Field, PrimeField};
 use bitcoin_script::script;
-use num_bigint::BigUint;
 use std::collections::HashMap;
 
 use crate::chunk::compile::ATE_LOOP_COUNT;
 use crate::chunk::config::miller_config_gen;
-use crate::chunk::msm::{bitcom_hash_p, bitcom_msm, hint_hash_p, hint_msm, tap_hash_p, tap_msm, HintInMSM, HintOutMSM};
+use crate::chunk::msm::{bitcom_hash_p, bitcom_msm, hint_hash_p, hint_msm, tap_hash_p, tap_msm, HintInMSM};
 use crate::chunk::primitves::extern_hash_fps;
 use crate::chunk::{taps, taps_mul};
 use crate::chunk::taps::*;
@@ -16,15 +14,14 @@ use crate::chunk::hint_models::*;
 
 use crate::chunk::taps_mul::*;
 use crate::execute_script;
-use crate::signatures::wots::{wots160, wots256};
 
 use super::config::{
     assign_link_ids, groth16_config_gen, msm_config_gen, post_miller_config_gen, pre_miller_config_gen, NUM_PUBS, NUM_U160, NUM_U256, PUB_ID
 };
 use super::hint_models::HintOut;
-use super::primitves::{extern_fq_to_nibbles, extern_fr_to_nibbles, extern_nibbles_to_limbs};
+use super::primitves::{extern_fq_to_nibbles, extern_fr_to_nibbles};
 use super::taps::{tap_hash_c, tap_initT4};
-use super::taps::{Sig};
+use super::taps::Sig;
 use super::wots::WOTSPubKey;
 use crate::treepp::*;
 
@@ -1181,7 +1178,7 @@ fn evaluate_groth16_params_from_sig(
                  nibs.extend_from_slice(&sig_msg.map(|(_sig, digit)| digit));
             },
             SigData::Sig256(sig_msg) => {
-                nibs.extend_from_slice(&sig_msg.map(|(sig, digit)| digit));
+                nibs.extend_from_slice(&sig_msg.map(|(_sig, digit)| digit));
             }
         };
         id_to_witness.insert(gparams[i].link_id.clone(), nibs.to_vec());
@@ -1790,6 +1787,7 @@ pub(crate) struct EvalIns {
     pub(crate) ks: Vec<ark_bn254::Fr>,
 }
 
+#[allow(unused_assignments)]
 pub(crate) fn evaluate(
     sig: &mut Sig,
     pub_scripts_per_link_id: &HashMap<u32, WOTSPubKey>,
@@ -1891,6 +1889,7 @@ pub(crate) fn evaluate(
     (aux_out_per_link, None)
 }
 
+#[allow(unused_variables)]
  pub(crate) fn extract_values_from_hints(aux_out_per_link: HashMap<String, HintOut>) -> HashMap<u32, [u8; 64]> {
     let (link_name_to_id, facc, tacc) = assign_link_ids(NUM_PUBS, NUM_U256, NUM_U160);
     let mut nibbles_per_index: HashMap<u32, [u8;64]> = HashMap::new();
@@ -1937,8 +1936,10 @@ pub(crate) fn evaluate(
 mod test {
     use ark_ff::UniformRand;
     use ark_std::test_rng;
-
+    use crate::signatures::wots::{wots160, wots256};
     use super::*;
+
+    #[allow(unused_variables)]
     #[test]
     fn evaluate_groth16_params_from_sig_test() {
 

@@ -2,18 +2,18 @@ use bitcoin::{Network, PublicKey};
 use bitvm::{bridge::{
     client::client::BitVMClient, connectors::{
         connector_0::Connector0, connector_1::Connector1, connector_2::Connector2,
-        connector_3::Connector3, connector_4::{self, Connector4}, connector_5::Connector5,
+        connector_3::Connector3, connector_4::Connector4, connector_5::Connector5,
         connector_a::ConnectorA, connector_b::ConnectorB, connector_c::ConnectorC,
         connector_z::ConnectorZ,
     }, constants::DestinationNetwork, contexts::{
         base::generate_keys_from_secret, depositor::DepositorContext, operator::OperatorContext,
         verifier::VerifierContext, withdrawer::WithdrawerContext,
     }, graphs::base::{
-        DEPOSITOR_EVM_ADDRESS, DEPOSITOR_SECRET, OPERATOR_SECRET, OPERATOR_STATEMENT, VERIFIER_0_SECRET, VERIFIER_1_SECRET, WITHDRAWER_EVM_ADDRESS, WITHDRAWER_SECRET
+        DEPOSITOR_EVM_ADDRESS, DEPOSITOR_SECRET, OPERATOR_SECRET, VERIFIER_0_SECRET, VERIFIER_1_SECRET, WITHDRAWER_EVM_ADDRESS, WITHDRAWER_SECRET
     }
 }, groth16::g16, treepp::*};
 use bitvm::bridge::groth16::{
-    Proof, WotsSignatures, VerifyingKey, PublicInputs, Assertions, TEST_SECRET, WotsPublicKeys, WotsSecretKeys,
+    Proof, WotsSignatures, VerifyingKey, PublicInputs, TEST_SECRET, WotsPublicKeys, WotsSecretKeys,
     load_all_signed_assertions_from_file, load_assert_tapscripts_from_file, load_proof_from_file, 
     corrupt_signed_assertions, generate_wots_keys_from_secrets,
 };

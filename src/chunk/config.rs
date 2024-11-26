@@ -1,8 +1,6 @@
+#![allow(non_snake_case)]
 use std::collections::HashMap;
-
 use ark_ec::bn::BnConfig;
-
-
 use super::wots::{wots_p256_get_pub_key, wots_p160_get_pub_key, WOTSPubKey};
 
 pub const ATE_LOOP_COUNT: &'static [i8] = ark_bn254::Config::ATE_LOOP_COUNT;
@@ -438,6 +436,7 @@ pub(crate) fn miller_config_gen() -> Vec<Vec<ScriptItem>> {
         table
     }
 
+    #[allow(unused_variables)]
     fn run() -> Vec<Vec<ScriptItem>> {
         // Array specifying the type of table to generate
 
@@ -705,6 +704,7 @@ fn assign_ids_to_msm_params(cpub_ids: &mut usize, cp256: &mut usize, cp160: &mut
     name_to_id
 }
 
+#[allow(dead_code)]
 pub(crate) fn get_type_for_link_id(index: u32) -> Option<bool> {
     let (lid, _, _) = assign_link_ids(NUM_PUBS, NUM_U256, NUM_U160);
     let res = lid.iter().find(|(_, v)| v.0 == index);
@@ -714,6 +714,8 @@ pub(crate) fn get_type_for_link_id(index: u32) -> Option<bool> {
         Some(res.unwrap().1 .1)
     }
 }
+
+#[allow(unused_variables)]
 pub(crate) fn assign_link_ids(pub_ids: usize, p256: usize, p160: usize) -> (HashMap<String, (u32, bool)>, String, String) {
     let mut all_ids: HashMap<String, (u32, bool)> = HashMap::new();
     let c_pub_ids = &mut 0usize;
@@ -761,8 +763,6 @@ pub fn keygen(msk: &str) -> HashMap<u32, WOTSPubKey> {
 #[cfg(test)]
 mod test {
     use crate::chunk::config::PUB_ID;
-
-    use super::{assign_link_ids, NUM_PUBS, NUM_U160, NUM_U256};
 
     #[test]
     fn test_assign_link_ids() {

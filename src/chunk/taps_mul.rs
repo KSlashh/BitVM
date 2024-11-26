@@ -905,6 +905,7 @@ pub(crate) struct HintInDenseMulByHash0 {
     pub(crate) bhash: HashBytes,
 }
 
+#[allow(non_upper_case_globals)]
 pub(crate) fn tap_dense_dense_mul0_by_hash() -> Script {
     let (hinted_mul, _) =
         Fq12::hinted_mul_first(12, ark_bn254::Fq12::one(), 0, ark_bn254::Fq12::one());
@@ -1054,6 +1055,7 @@ pub(crate) fn hints_dense_dense_mul0_by_hash(
     )
 }
 
+#[allow(non_upper_case_globals)]
 pub(crate) fn tap_dense_dense_mul1_by_hash() -> Script {
     const check_id: u8 = 1;
 

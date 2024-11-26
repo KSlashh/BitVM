@@ -15,6 +15,7 @@ use crate::{
 
 /// With constant bases, this function generate all msm-related segments
 /// and return the result additionally.
+#[allow(unused_variables)]
 pub fn chunk_hinted_msm_with_constant_bases_affine<T: BCAssigner>(
     assigner: &mut T,
     bases: &[ark_bn254::G1Affine],
@@ -107,6 +108,7 @@ mod tests {
 
     use super::chunk_hinted_msm_with_constant_bases_affine;
 
+    #[allow(unused_variables)]
     #[test]
     fn test_hinted_msm_with_constant_bases_affine_script() {
         let k = 2;

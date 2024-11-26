@@ -5,10 +5,9 @@ use std::error::Error;
 use std::fs::File;
 use std::io::BufReader;
 use std::io::Write;
-
 use super::wots::WOTSPubKey;
 
-
+#[allow(dead_code)]
 pub(crate) fn serialize_pubkey(pubkey: WOTSPubKey) -> Vec<Vec<u8>> {
     match pubkey {
         WOTSPubKey::P160(p) => {
@@ -31,6 +30,7 @@ pub(crate) fn serialize_pubkey(pubkey: WOTSPubKey) -> Vec<Vec<u8>> {
 // hardcoded values shouldn't be used, 
 // but will make do for now, until wots::PublicKey support SerDe trait
 // besides this entire module is for testing purpose only
+#[allow(dead_code)]
 pub(crate) fn deserialize_pubkey(ser: Vec<Vec<u8>>) -> Option<WOTSPubKey> {
     if ser.len() == 67 {
         let mut ps: [[u8;20]; 67] = [[0u8;20];67];
@@ -50,6 +50,7 @@ pub(crate) fn deserialize_pubkey(ser: Vec<Vec<u8>>) -> Option<WOTSPubKey> {
     None
 }
 
+#[allow(dead_code)]
 pub(crate) fn write_pubkey_to_file(
     map: &HashMap<u32, WOTSPubKey>,
     filename: &str,
@@ -63,6 +64,7 @@ pub(crate) fn write_pubkey_to_file(
     write_map_to_file(&serializable_map, filename)
 }
 
+#[allow(dead_code)]
 pub(crate) fn read_pubkey_from_file(filename: &str) -> Result<HashMap<u32, WOTSPubKey>, Box<dyn Error>> {
     let serialized_map = read_map_from_file(filename)?;
     let mut map = HashMap::new();
@@ -104,6 +106,7 @@ pub fn write_scripts_to_file(sig_cache: HashMap<u32, Vec<Script>>, file: &str) {
     write_map_to_file(&buf, file).unwrap();
 }
 
+#[allow(unused_must_use)]
 pub fn write_scripts_to_separate_files(sig_cache: HashMap<u32, Vec<Script>>, file: &str) {
     let mut buf: HashMap<u32, Vec<Vec<u8>>> = HashMap::new();
     std::fs::create_dir("chunker_data");
@@ -136,18 +139,13 @@ pub fn read_scripts_from_file(file: &str) -> HashMap<u32, Vec<Script>> {
 
 #[cfg(test)]
 mod test {
-    use std::{collections::HashMap, io, ops::Neg};
+    use std::collections::HashMap;
 
-    use ark_ec::{AffineRepr, CurveGroup};
     use bitcoin_script::script;
 
-    use crate::{
-        chunk::{
+    use crate::chunk::{
             config::keygen,
-            taps::{bitcom_precompute_Py, tap_precompute_Py},
-        },
-        groth16::offchain_checker::compute_c_wi,
-    };
+            taps::{bitcom_precompute_Py, tap_precompute_Py},};
 
     use super::{read_scripts_from_file, write_scripts_to_file};
 

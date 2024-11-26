@@ -1,30 +1,22 @@
 #[cfg(test)]
 #[allow(unused_variables)]
 mod tests {
-
-    use aws_sdk_s3::config::http::HttpResponse;
-    use bitcoin::{
-        consensus::encode::serialize_hex, key::Keypair, Amount, Network, PrivateKey, PublicKey,
-        TxOut, Address, OutPoint,
-    };
-    use bitvm::bridge::client::chain::ethereum::IBridge::Outpoint;
+    use bitcoin::{Amount, Address};
     use bitvm::treepp::*;
 
     use bitvm::bridge::{
-        connectors::{connector::TaprootConnector, connector_5}, contexts::withdrawer, graphs::base::{DUST_AMOUNT, FEE_AMOUNT, HUGE_FEE_AMOUNT, INITIAL_AMOUNT}, scripts::{generate_pay_to_pubkey_script, generate_pay_to_pubkey_script_address}, transactions::{
+        connectors::connector::TaprootConnector, graphs::base::{DUST_AMOUNT, HUGE_FEE_AMOUNT, INITIAL_AMOUNT}, scripts::generate_pay_to_pubkey_script_address, transactions::{
             base::{BaseTransaction, Input},
             disprove::DisproveTransaction,
         },
         groth16::validate_assertions,
     };
-    use bitvm::groth16::g16;
 
     use crate::bridge::setup::{corrupt_assertions, get_wots_keys, setup_test, get_tapscripts, get_signed_assertions, get_groth16_proof};
     use crate::bridge::helper::verify_funding_inputs;
 
     use super::super::super::helper::generate_stub_outpoint;
 
-    use esplora_client::Error;
 
     #[tokio::test]
     async fn test_should_be_able_to_submit_disprove_tx_successfully() {

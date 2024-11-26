@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use bitcoin_script::script;
 
-use crate::chunk::primitves::{pack_nibbles_to_limbs};
+use crate::chunk::primitves::pack_nibbles_to_limbs;
 use crate::treepp::Script;
 
 // use crate::signatures::{winternitz, winternitz_compact, winternitz_compact_hash, winternitz_hash};
@@ -63,7 +63,7 @@ pub(crate) fn wots_compact_checksig_verify_with_pubkey(pub_key: &WOTSPubKey) -> 
 }
 
 
-
+#[allow(dead_code)]
 fn wots_checksig_verify_with_pubkey(pub_key: &WOTSPubKey) -> Script {
     match pub_key {
         WOTSPubKey::P160(pb) => {
@@ -146,6 +146,7 @@ pub fn generate_assertion_script_public_keys(apk: &AssertPublicKeys) -> Vec<Scri
     spks
 }
 
+#[allow(unused_variables)]
 pub fn generate_assertion_spending_key_lengths(apk: &AssertPublicKeys) -> Vec<usize> {
     let mut spks = Vec::new();
     for (_, &public_key) in &apk.p256 {
@@ -178,6 +179,7 @@ pub fn generate_assertion_spending_key_lengths(apk: &AssertPublicKeys) -> Vec<us
 
 #[cfg(test)]
 mod test {
+    #![allow(dead_code, unused_mut, unused_variables)]
 
     use ark_ff::{BigInteger, PrimeField, UniformRand};
     use ark_std::test_rng;
@@ -205,7 +207,7 @@ mod test {
         // println!("f {:?}", f);
         // println!("r {:?}", r);
     }
-
+    
     fn from_wots_signature<F: ark_ff::PrimeField>(
         signature: wots256::Signature,
         public_key: wots256::PublicKey,

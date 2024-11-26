@@ -1,3 +1,4 @@
+#![allow(unused_assignments)]
 use ark_bn254::g2::G2Affine;
 use ark_ec::bn::BnConfig;
 use std::collections::HashMap;
@@ -468,12 +469,11 @@ pub(crate) fn compile(
 
 #[cfg(test)]
 mod test {
+    #![allow(unused_variables, unused_mut)]
     use ark_ff::UniformRand;
     use rand::SeedableRng;
     use rand_chacha::ChaCha20Rng;
-
-    use crate::chunk::{config::keygen, test_utils::read_scripts_from_file};
-
+    use crate::chunk::config::keygen;
     use super::*;
 
     #[test]

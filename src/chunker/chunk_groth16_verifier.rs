@@ -1,5 +1,4 @@
 use crate::bn254::ell_coeffs::G2Prepared;
-use crate::bn254::msm::hinted_msm_with_constant_bases_affine;
 use crate::chunker::chunk_g1_points::g1_points;
 use crate::chunker::chunk_msm::chunk_hinted_msm_with_constant_bases_affine;
 use crate::chunker::chunk_non_fixed_point::chunk_q4;
@@ -20,6 +19,7 @@ use super::segment::Segment;
 /// This function outputs a vector segment, which is equivalent to the plain groth16 verifier.
 /// Each segment will generate script and witness for each branch of disprove transaction.
 /// Bitcommitments are collected into assinger.
+#[allow(dead_code, unused_variables)]
 fn groth16_verify_to_segments<T: BCAssigner>(
     assigner: &mut T,
     public_inputs: &Vec<<Bn254 as ark_Pairing>::ScalarField>,

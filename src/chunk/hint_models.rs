@@ -1,3 +1,4 @@
+#![allow(non_snake_case, dead_code)]
 use crate::chunk::primitves::extern_hash_nibbles;
 use ark_bn254::{G1Affine, G2Affine};
 use super::msm::HintOutMSM;

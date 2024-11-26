@@ -1,9 +1,8 @@
-use super::elements::DataType::{FqData,Fq2Data, G1PointData};
-use super::elements::{FqType, Fq2Type,G1PointType};
+use super::elements::DataType::{Fq2Data, G1PointData};
+use super::elements::{Fq2Type,G1PointType};
 
 use crate::bn254::fp254impl::Fp254Impl;
 use crate::bn254::fq::Fq;
-use crate::bn254::fq2::Fq2;
 use crate::chunker::assigner::*;
 use crate::chunker::elements::ElementTrait;
 use crate::chunker::segment::Segment;
@@ -94,6 +93,7 @@ mod test {
     use ark_ec::{CurveGroup, VariableBaseMSM};
     use ark_std::{end_timer, start_timer, test_rng,UniformRand};
 
+    #[allow(unused_variables)]
     #[test]
     fn test_make_p() {
         let k = 2;

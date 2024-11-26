@@ -77,6 +77,7 @@ pub struct ExecuteInfo {
 }
 
 impl fmt::Display for ExecuteInfo {
+    #[allow(non_snake_case)]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.success {
             writeln!(f, "Script execution successful.")?;
@@ -215,7 +216,7 @@ pub fn dry_run_taproots(tx: &Transaction, prevouts: &[TxOut]) -> Result<(), Exec
     let taproot_indices = prevouts
         .iter()
         .enumerate()
-        .filter(|(idx, prevout)| prevout.script_pubkey.as_script().is_p2tr()) // only taproots
+        .filter(|(_idx, prevout)| prevout.script_pubkey.as_script().is_p2tr()) // only taproots
         .filter(|(idx, _)| tx.input[*idx].witness.tapscript().is_some()) // only script path spends
         .map(|(idx, _)| idx);
 

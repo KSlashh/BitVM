@@ -14,6 +14,7 @@ use crate::{
 
 /// This function do scalar multiplication in G1 curve group.
 /// Return all segements generated and the result of scalar multiplication.
+#[allow(unused_variables)]
 pub fn chunk_hinted_scalar_mul_by_constant<T: BCAssigner>(
     assigner: &mut T,
     prefix: &str,
@@ -176,12 +177,12 @@ mod tests {
         execute_script_with_inputs,
         treepp::*,
     };
-    use alloy::signers::k256::elliptic_curve::scalar;
     use ark_ec::{AffineRepr as _, CurveGroup};
     use ark_ff::UniformRand;
     use ark_std::test_rng;
     use std::ops::Mul;
 
+    #[allow(unused_mut)]
     #[test]
     fn test_stable_script() {
         let k = 0;

@@ -3,7 +3,7 @@ use crate::bn254::fp254impl::Fp254Impl;
 use crate::bn254::fq::Fq;
 use crate::bn254::fq12::Fq12;
 use crate::bn254::msm::{
-    hinted_msm_with_constant_bases, hinted_msm_with_constant_bases_affine, msm_with_constant_bases,
+    hinted_msm_with_constant_bases_affine,
     msm_with_constant_bases_affine,
 };
 use crate::bn254::pairing::Pairing;
