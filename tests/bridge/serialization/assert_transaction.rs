@@ -13,8 +13,7 @@ use super::super::{helper::generate_stub_outpoint, setup::setup_test};
 async fn test_assert_tx_serialization() {
     let empty_scripts = vec![];
     let (
-        client,
-        _,
+        rpc,
         _,
         operator_context,
         _,
@@ -37,7 +36,7 @@ async fn test_assert_tx_serialization() {
 
     let amount = Amount::from_sat(ONE_HUNDRED * 2 / 100);
     let outpoint =
-        generate_stub_outpoint(&client, &connector_b.generate_taproot_address(), amount).await;
+        generate_stub_outpoint(&rpc, &connector_b.generate_taproot_address(), amount);
 
     let assert_tx = AssertTransaction::new(&operator_context, Input { outpoint, amount }, connector_c);
 

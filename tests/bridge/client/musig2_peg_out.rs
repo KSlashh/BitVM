@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use bitcoin::{Address, Amount};
+use bitcoincore_rpc::Client;
 use bitvm::treepp::*;
 use bitvm::bridge::{
     client::client::BitVMClient,
@@ -12,8 +13,8 @@ use bitvm::bridge::{
 use tokio::time::sleep;
 
 use crate::bridge::{
-    helper::{generate_stub_outpoint, verify_funding_inputs, TX_WAIT_TIME},
-    setup::setup_test,
+    helper::{generate_stub_outpoint, TX_WAIT_TIME},
+    setup::{setup_test, new_client},
 };
 
 #[tokio::test]
@@ -126,8 +127,7 @@ async fn create_peg_out_graph<'a>(
     with_assert_tx: bool,
 ) -> (BitVMClient<'a>, BitVMClient<'a>, String, DepositorContext) {
     let (
-        mut depositor_operator_verifier_0_client,
-        mut verifier_1_client,
+        rpc,
         depositor_context,
         operator_context,
         _,
@@ -146,45 +146,36 @@ async fn create_peg_out_graph<'a>(
         depositor_evm_address,
         _,
     ) = setup_test(tap_scripts).await;
-
-    // verify funding inputs
-    let mut funding_inputs: Vec<(&Address, Amount)> = vec![];
+    let (mut depositor_operator_verifier_0_client, mut verifier_1_client) = new_client().await;
 
     let deposit_input_amount = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT);
     let deposit_funding_address = generate_pay_to_pubkey_script_address(
         depositor_context.network,
         &depositor_context.depositor_public_key,
     );
-    funding_inputs.push((&deposit_funding_address, deposit_input_amount));
 
     let kick_off_input_amount = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT);
     let kick_off_funding_utxo_address = generate_pay_to_pubkey_script_address(
         operator_context.network,
         &operator_context.operator_public_key,
     );
-    funding_inputs.push((&kick_off_funding_utxo_address, kick_off_input_amount));
 
     let challenge_input_amount = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT);
     let challenge_funding_utxo_address = generate_pay_to_pubkey_script_address(
         depositor_context.network,
         &depositor_context.depositor_public_key,
     );
-    if with_challenge_tx {
-        funding_inputs.push((&challenge_funding_utxo_address, challenge_input_amount));
-    }
-
-    verify_funding_inputs(&depositor_operator_verifier_0_client, &funding_inputs).await;
 
     let kick_off_outpoint = generate_stub_outpoint(
-        &depositor_operator_verifier_0_client,
+        &rpc,
         &kick_off_funding_utxo_address,
         kick_off_input_amount,
-    )
-    .await;
+    );
 
     eprintln!("Creating peg-in graph...");
     // create and complete peg-in graph
     let peg_in_graph_id = create_peg_in_graph(
+        &rpc,
         &mut depositor_operator_verifier_0_client,
         &mut verifier_1_client,
         deposit_funding_address,
@@ -255,11 +246,10 @@ async fn create_peg_out_graph<'a>(
 
     if with_challenge_tx {
         let challenge_funding_outpoint = generate_stub_outpoint(
-            &depositor_operator_verifier_0_client,
+            &rpc,
             &challenge_funding_utxo_address,
             challenge_input_amount,
-        )
-        .await;
+        );
         let challenge_crowdfunding_input = InputWithScript {
             outpoint: challenge_funding_outpoint,
             amount: challenge_input_amount,
@@ -297,6 +287,7 @@ async fn create_peg_out_graph<'a>(
 }
 
 async fn create_peg_in_graph<'a>(
+    rpc: &Client,
     client_0: &mut BitVMClient<'a>,
     client_1: &mut BitVMClient<'a>,
     deposit_funding_address: Address,
@@ -304,7 +295,7 @@ async fn create_peg_in_graph<'a>(
     depositor_evm_address: &String,
 ) -> String {
     let deposit_outpoint =
-        generate_stub_outpoint(client_0, &deposit_funding_address, deposit_amount).await;
+        generate_stub_outpoint(rpc, &deposit_funding_address, deposit_amount);
     let graph_id = client_0
         .create_peg_in_graph(
             Input {

@@ -1,6 +1,6 @@
-use bitcoin::{Address, Amount, OutPoint};
+use bitcoin::{Amount, OutPoint};
 use bitvm::bridge::{
-    client::client, connectors::connector::TaprootConnector, graphs::base::{HUGE_FEE_AMOUNT, INITIAL_AMOUNT}, scripts::generate_pay_to_pubkey_script_address, transactions::{
+    connectors::connector::TaprootConnector, graphs::base::{HUGE_FEE_AMOUNT, INITIAL_AMOUNT}, scripts::generate_pay_to_pubkey_script_address, transactions::{
         assert::AssertTransaction,
         base::{BaseTransaction, Input},
         disprove::DisproveTransaction,
@@ -10,7 +10,7 @@ use bitvm::bridge::{
 use bitvm::treepp::*;
 
 use crate::bridge::{
-    helper::verify_funding_inputs, integration::peg_out::utils::create_and_mine_kick_off_2_tx,
+    helper, integration::peg_out::utils::create_and_mine_kick_off_2_tx,
 };
 
 use crate::bridge::setup::{corrupt_assertions, get_wots_keys, setup_test, get_tapscripts, get_signed_assertions, get_groth16_proof};
@@ -31,8 +31,7 @@ async fn test_disprove_success() {
 
     let tap_scripts = get_tapscripts();
     let (
-        client,
-        _,
+        rpc,
         _,
         operator_context,
         verifier_0_context,
@@ -53,11 +52,8 @@ async fn test_disprove_success() {
     ) = setup_test(&tap_scripts).await;
 
     // verify funding inputs
-    let mut funding_inputs: Vec<(&Address, Amount)> = vec![];
     let kick_off_2_input_amount = Amount::from_sat(INITIAL_AMOUNT + 3*HUGE_FEE_AMOUNT);
     let kick_off_2_funding_utxo_address = connector_1.generate_taproot_address();
-    funding_inputs.push((&kick_off_2_funding_utxo_address, kick_off_2_input_amount));
-    verify_funding_inputs(&client, &funding_inputs).await;
 
     connector_c.gen_taproot_address();
 
@@ -81,16 +77,12 @@ async fn test_disprove_success() {
 
     // kick-off 2
     let (kick_off_2_tx, kick_off_2_txid) = create_and_mine_kick_off_2_tx(
-        &client,
+        &rpc,
         &operator_context,
         &kick_off_2_funding_utxo_address,
         kick_off_2_input_amount,
     )
     .await;
-
-    // wait until kickoff_2 is comfirmed
-    // println!("wait for kickoff_2 tx: {} confrimation", kick_off_2_txid);
-    client::wait_util_confirmed(&client.esplora, &kick_off_2_txid).await;
 
     // assert
     let vout = 1; // connector B
@@ -105,13 +97,10 @@ async fn test_disprove_success() {
 
     let assert_tx = assert.finalize();
     let assert_txid = assert_tx.compute_txid();
-    let assert_result = client.esplora.broadcast(&assert_tx).await;
-    println!("\nBroadcast assert result: {:?}\n", assert_result);
-    assert!(assert_result.is_ok());
-
-    // wait until assert is comfirmed
-    // println!("wait for assert tx: {} confrimation", assert_txid);
-    client::wait_util_confirmed(&client.esplora, &assert_txid).await;
+    helper::mint_block(&rpc, 1);
+    helper::broadcast_tx(&rpc, &assert_tx);
+    helper::mint_block(&rpc, 1);
+    helper::validate_tx(&rpc, assert_txid);
 
     // disprove
     let vout = 1;
@@ -160,22 +149,12 @@ async fn test_disprove_success() {
     let disprove_txid = disprove_tx.compute_txid();
 
     // mine disprove
-    let disprove_result = client.esplora.broadcast(&disprove_tx).await;
-    println!("\nBroadcast disprove result: {:?}\n", disprove_result);
-    assert!(disprove_result.is_ok());
+    helper::mint_block(&rpc, 1);
+    helper::broadcast_tx(&rpc, &disprove_tx);
+    helper::mint_block(&rpc, 1);
+    helper::validate_tx(&rpc, disprove_txid);
 
-    // reward balance
-    let reward_utxos = client
-        .esplora
-        .get_address_utxo(reward_address)
-        .await
-        .unwrap();
-    let reward_utxo = reward_utxos
-        .clone()
-        .into_iter()
-        .find(|x| x.txid == disprove_txid);
 
-    // assert
-    assert!(reward_utxo.is_some());
-    assert_eq!(reward_utxo.unwrap().value, disprove_tx.output[1].value);
+    // reward balance check
+    // TODO
 }

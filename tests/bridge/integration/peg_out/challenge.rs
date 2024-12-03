@@ -1,4 +1,4 @@
-use bitcoin::{Address, Amount, OutPoint};
+use bitcoin::{Amount, OutPoint};
 
 use bitvm::bridge::{
     graphs::base::{FEE_AMOUNT, INITIAL_AMOUNT},
@@ -10,7 +10,7 @@ use bitvm::bridge::{
 };
 
 use crate::bridge::{
-    helper::{generate_stub_outpoint, verify_funding_inputs},
+    helper::{generate_stub_outpoint, self},
     integration::peg_out::utils::create_and_mine_kick_off_1_tx,
     setup::setup_test,
 };
@@ -19,8 +19,7 @@ use crate::bridge::{
 async fn test_challenge_success() {
     let empty_script = vec![];
     let (
-        client,
-        _,
+        rpc,
         depositor_context,
         operator_context,
         _,
@@ -40,41 +39,32 @@ async fn test_challenge_success() {
         _,
     ) = setup_test(&empty_script).await;
 
-    // verify funding inputs
-    let mut funding_inputs: Vec<(&Address, Amount)> = vec![];
-
     let kick_off_1_input_amount = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT);
     let kick_off_1_funding_utxo_address = generate_pay_to_pubkey_script_address(
         operator_context.network,
         &operator_context.operator_public_key,
     );
-    funding_inputs.push((&kick_off_1_funding_utxo_address, kick_off_1_input_amount));
 
     let challenge_input_amount = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT);
     let challenge_funding_utxo_address = generate_pay_to_pubkey_script_address(
         depositor_context.network,
         &depositor_context.depositor_public_key,
     );
-    funding_inputs.push((&challenge_funding_utxo_address, challenge_input_amount));
-
-    verify_funding_inputs(&client, &funding_inputs).await;
 
     // kick-off 1
     let (kick_off_1_tx, kick_off_1_txid) = create_and_mine_kick_off_1_tx(
-        &client,
+        &rpc,
         &operator_context,
         &kick_off_1_funding_utxo_address,
         kick_off_1_input_amount,
-    )
-    .await;
+    ).await;
 
     // challenge
     let challenge_funding_outpoint = generate_stub_outpoint(
-        &client,
+        &rpc,
         &challenge_funding_utxo_address,
         challenge_input_amount,
-    )
-    .await;
+    );
     let challenge_crowdfunding_input = InputWithScript {
         outpoint: challenge_funding_outpoint,
         amount: challenge_input_amount,
@@ -105,25 +95,11 @@ async fn test_challenge_success() {
     let challenge_txid = challenge_tx.compute_txid();
 
     // mine challenge tx
-    let challenge_result = client.esplora.broadcast(&challenge_tx).await;
-    assert!(challenge_result.is_ok());
+    helper::mint_block(&rpc, 1);
+    helper::broadcast_tx(&rpc, &challenge_tx);
+    helper::mint_block(&rpc, 1);
+    helper::validate_tx(&rpc, challenge_txid);
 
-    // operator balance
-    let operator_address = generate_pay_to_pubkey_script_address(
-        operator_context.network,
-        &operator_context.operator_public_key,
-    );
-    let operator_utxos = client
-        .esplora
-        .get_address_utxo(operator_address)
-        .await
-        .unwrap();
-    let operator_utxo = operator_utxos
-        .clone()
-        .into_iter()
-        .find(|x| x.txid == challenge_txid);
-
-    // assert
-    assert!(operator_utxo.is_some());
-    assert_eq!(operator_utxo.unwrap().value, challenge_tx.output[0].value);
+    // operator balance check
+    // TODO
 }

@@ -1,98 +1,98 @@
-use bitcoin::{Address, Amount, OutPoint, Txid};
+extern crate bitcoin_origin;
+extern crate bitcoin_hashes_origin;
+extern crate bitcoin_hashes;
 
-use bitvm::bridge::client::client::BitVMClient;
-use esplora_client::Builder;
-use serde::{Deserialize, Serialize};
+// use hex;
+use tokio::time::{sleep, Duration};
+use core::str::FromStr;
+use bitcoin_hashes::Hash;
+use bitcoin_hashes_origin::hex::{FromHex, ToHex};
+use bitcoincore_rpc::{Client, Auth, RpcApi};
+use bitcoin::consensus::encode;
+// use bitcoincore_rpc_json as json;
+use bitcoin::{Address, Amount, OutPoint, Network, Transaction, Txid};
+use bitvm::treepp::*;
 
-pub const TX_WAIT_TIME: u64 = 45; // in seconds
-pub const ESPLORA_FUNDING_URL: &str = "https://faucet.mutinynet.com/";
+pub const TX_WAIT_TIME: u64 = 1; // in seconds
+pub const FAUCET_RPCWALLET: &str = "main";
+pub const RPCUSER: &str = "test";
+pub const RPCPASSWORD: &str = "test";
+pub const REGTEST_URL: &str = "http://127.0.0.1:18443";
 
-pub async fn generate_stub_outpoint<'a>(
-    client: &BitVMClient<'a>,
+pub fn dead_address() -> Address {
+    Address::p2sh(&script!{OP_RETURN}.compile(), Network::Regtest).unwrap()
+} 
+
+pub async fn wait_tx() {
+    sleep(Duration::from_secs(TX_WAIT_TIME)).await;
+} 
+
+pub fn tx_wrapper(tx: &Transaction) -> String {
+    encode::serialize_hex(tx)
+}
+
+pub fn address_wrapper(address: &Address) -> bitcoin_origin::Address {
+    bitcoin_origin::Address::from_str(&address.to_string()).unwrap()
+}
+
+pub fn amount_wrapper(amount: Amount) -> bitcoin_origin::Amount {
+    bitcoin_origin::Amount::from_sat(amount.to_sat())
+}
+
+pub fn txid_wrapper(txid: Txid) -> bitcoin_origin::Txid {
+    let hash_hex = txid.to_hex();
+    bitcoin_origin::Txid::from_hash(bitcoin_hashes_origin::sha256d::Hash::from_hex(&hash_hex).unwrap())
+}
+
+pub fn txid_unwrapper(txid: bitcoin_origin::Txid) -> Txid {
+    let mut hash_bytes = hex::decode(txid.to_hex()).unwrap();
+    hash_bytes.reverse();
+    Txid::from_slice(hash_bytes.as_slice()).unwrap()
+}
+
+pub async fn new_rpc_client() -> Client {
+    let rpc = Client::new(REGTEST_URL, Auth::UserPass(RPCUSER.to_string(), RPCPASSWORD.to_string())).unwrap();
+    // rpc.load_wallet(FAUCET_RPCWALLET);
+    rpc
+}
+
+pub fn broadcast_tx(rpc: &Client, tx: &Transaction) {
+    rpc.send_raw_transaction(tx_wrapper(tx)).expect("fail to broadcast_tx");
+}
+
+pub fn mint_block(rpc: &Client, block_num: u64) {
+    rpc.generate_to_address(block_num, &address_wrapper(&dead_address())).expect("fail to mint block");
+}
+
+pub fn validate_tx(rpc: &Client, txid: Txid) {
+    let res = rpc.get_tx_out(&txid_wrapper(txid), 0, None).expect("fail to get tx_info");
+    assert!(res.unwrap().confirmations > 0, "invalid tx: no enough comfirmation");
+}
+
+pub fn generate_stub_outpoint(
+    rpc: &Client,
     funding_utxo_address: &Address,
     input_value: Amount,
 ) -> OutPoint {
-    let funding_utxo = client
-        .get_initial_utxo(funding_utxo_address.clone(), input_value)
-        .await
-        .unwrap_or_else(|| {
-            panic!(
-                "Fund {:?} with {} sats at https://faucet.mutinynet.com/",
-                funding_utxo_address,
-                input_value.to_sat()
-            );
-        });
+    fund_utxo(rpc, funding_utxo_address, input_value)
+}
+
+pub fn fund_utxo(rpc: &Client, address: &Address, amount: Amount) -> OutPoint {
+    let txid = rpc.send_to_address(&address_wrapper(address), amount_wrapper(amount), None, None, None, None, None, None).unwrap();
+    let txinfo = rpc.get_transaction(&txid, None).unwrap();
     OutPoint {
-        txid: funding_utxo.txid,
-        vout: funding_utxo.vout,
+        txid: txid_unwrapper(txid),
+        vout: txinfo.details[0].vout,
     }
 }
 
-#[derive(Serialize, Deserialize)]
-struct FundResult {
-    txid: Txid,
-    address: String,
-}
+#[tokio::test]
+pub async fn main() {
+    let rpc = new_rpc_client().await;
 
-pub async fn fund_utxo(address: &Address, amount: Amount) -> Txid {
-    println!(
-        "Funding {:?} with {} sats at https://faucet.mutinynet.com/",
-        address,
-        amount.to_sat()
-    );
-    let esplora = Builder::new(ESPLORA_FUNDING_URL)
-        .build_async()
-        .expect("Could not build esplora client");
-    let payload = format!(
-        "{{\"sats\":{},\"address\":\"{}\"}}",
-        amount.to_sat(),
-        address
-    );
-    let resp = esplora
-        .client()
-        .post(format!("{}api/onchain", ESPLORA_FUNDING_URL))
-        .body(payload)
-        .header("CONTENT-TYPE", "application/json")
-        .send()
-        .await
-        .unwrap_or_else(|e| {
-            panic!("Could not fund {} due to {:?}", address, e);
-        });
-    if resp.status().is_client_error() || resp.status().is_server_error() {
-        panic!(
-            "Could not fund {} with respond code {:?}",
-            address,
-            resp.status()
-        );
-    }
+    let address = Address::from_str("bcrt1pemjrv7terwkk26n2m9nc8fm5pc43elnvrcq7leml3cnt2nayvhus9hjfpy").unwrap().assume_checked();
+    let amount = Amount::from_btc(1.0).unwrap();
 
-    let result = resp.json::<FundResult>().await.unwrap();
-    println!("Funded at: {}", result.txid);
-
-    result.txid
-}
-
-pub async fn verify_funding_inputs<'a>(client: &BitVMClient<'a>, funding_inputs: &Vec<(&Address, Amount)>) {
-    let mut inputs_to_fund: Vec<(&Address, Amount)> = vec![];
-
-    for funding_input in funding_inputs {
-        if client
-            .get_initial_utxo(funding_input.0.clone(), funding_input.1)
-            .await
-            .is_none()
-        {
-            inputs_to_fund.push((funding_input.0, funding_input.1));
-        }
-    }
-
-    for input_to_fund in inputs_to_fund.clone() {
-        println!(
-            "Fund {:?} with {} sats at https://faucet.mutinynet.com/",
-            input_to_fund.0,
-            input_to_fund.1.to_sat()
-        );
-    }
-    if inputs_to_fund.len() > 0 {
-        panic!("You need to fund {} addresses first.", inputs_to_fund.len());
-    }
+    let res = fund_utxo(&rpc, &address, amount);
+    dbg!(res);
 }

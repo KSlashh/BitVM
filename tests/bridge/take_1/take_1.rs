@@ -1,4 +1,4 @@
-use bitcoin::{consensus::encode::serialize_hex, Amount};
+use bitcoin::Amount;
 
 use bitvm::bridge::{
     connectors::connector::{P2wshConnector, TaprootConnector},
@@ -9,14 +9,13 @@ use bitvm::bridge::{
     },
 };
 
-use super::super::{helper::generate_stub_outpoint, setup::setup_test};
+use super::super::{helper::{generate_stub_outpoint, self}, setup::setup_test};
 
 #[tokio::test]
 async fn test_take_1_tx() {
     let empty_script = vec![];
     let (
-        client,
-        _,
+        rpc,
         _,
         operator_context,
         verifier_0_context,
@@ -39,23 +38,25 @@ async fn test_take_1_tx() {
     let input_value0 = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT);
     let funding_utxo_address0 = connector_0.generate_taproot_address();
     let funding_outpoint0 =
-        generate_stub_outpoint(&client, &funding_utxo_address0, input_value0).await;
+        generate_stub_outpoint(&rpc, &funding_utxo_address0, input_value0);
 
     let input_value1 = Amount::from_sat(DUST_AMOUNT);
     let funding_utxo_address1 = connector_a.generate_taproot_address();
     let funding_outpoint1 =
-        generate_stub_outpoint(&client, &funding_utxo_address1, input_value1).await;
+        generate_stub_outpoint(&rpc, &funding_utxo_address1, input_value1);
 
     let input_value2 = Amount::from_sat(DUST_AMOUNT);
     let funding_utxo_address2 = connector_3.generate_address();
     let funding_outpoint2 =
-        generate_stub_outpoint(&client, &funding_utxo_address2, input_value2).await;
+        generate_stub_outpoint(&rpc, &funding_utxo_address2, input_value2);
 
     let input_value3 = Amount::from_sat(ONE_HUNDRED * 2 / 100);
     let funding_utxo_address3 = connector_b.generate_taproot_address();
     let funding_outpoint3 =
-        generate_stub_outpoint(&client, &funding_utxo_address3, input_value3).await;
+        generate_stub_outpoint(&rpc, &funding_utxo_address3, input_value3);
 
+    helper::mint_block(&rpc, 1);
+    
     let mut take_1_tx = Take1Transaction::new(
         &operator_context,
         Input {
@@ -83,10 +84,10 @@ async fn test_take_1_tx() {
     take_1_tx.pre_sign(&verifier_1_context, &secret_nonces_1);
 
     let tx = take_1_tx.finalize();
-    println!("Script Path Spend Transaction: {:?}\n", tx);
-    let result = client.esplora.broadcast(&tx).await;
-    println!("Txid: {:?}", tx.compute_txid());
-    println!("Broadcast result: {:?}\n", result);
-    println!("Transaction hex: \n{}", serialize_hex(&tx));
-    assert!(result.is_ok());
+    helper::mint_block(&rpc, 1);
+    helper::broadcast_tx(&rpc, &tx);
+    helper::mint_block(&rpc, 1);
+    let txid = tx.compute_txid();
+    println!("Txid: {:?}", txid.clone());
+    helper::validate_tx(&rpc, txid);
 }

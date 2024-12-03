@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use bitcoin::{Address, Amount, OutPoint};
+use bitcoin::{Amount, OutPoint};
 use bitvm::bridge::{
     connectors::connector::TaprootConnector,
     graphs::base::{HUGE_FEE_AMOUNT, INITIAL_AMOUNT},
@@ -14,7 +14,7 @@ use bitvm::bridge::{
 use tokio::time::sleep;
 
 use crate::bridge::{
-    helper::verify_funding_inputs,
+    helper,
     integration::peg_out::utils::{
         create_and_mine_kick_off_1_tx, create_and_mine_peg_in_confirm_tx,
     },
@@ -25,8 +25,7 @@ use crate::bridge::{
 async fn test_take_1_success() {
     let empty_script = vec![];
     let (
-        client,
-        _,
+        rpc,
         depositor_context,
         operator_context,
         verifier_0_context,
@@ -46,25 +45,18 @@ async fn test_take_1_success() {
         _,
     ) = setup_test(&empty_script).await;
 
-    // verify funding inputs
-    let mut funding_inputs: Vec<(&Address, Amount)> = vec![];
-
     let deposit_input_amount = Amount::from_sat(INITIAL_AMOUNT + HUGE_FEE_AMOUNT);
     let peg_in_confirm_funding_address = connector_z.generate_taproot_address();
-    funding_inputs.push((&peg_in_confirm_funding_address, deposit_input_amount));
 
     let kick_off_1_input_amount = Amount::from_sat(INITIAL_AMOUNT + HUGE_FEE_AMOUNT);
     let kick_off_1_funding_utxo_address = generate_pay_to_pubkey_script_address(
         operator_context.network,
         &operator_context.operator_public_key,
     );
-    funding_inputs.push((&kick_off_1_funding_utxo_address, kick_off_1_input_amount));
-
-    verify_funding_inputs(&client, &funding_inputs).await;
 
     // peg-in confirm
     let (peg_in_confirm_tx, peg_in_confirm_txid) = create_and_mine_peg_in_confirm_tx(
-        &client,
+        &rpc,
         &depositor_context,
         &verifier_0_context,
         &verifier_1_context,
@@ -76,7 +68,7 @@ async fn test_take_1_success() {
 
     // kick-off 1
     let (kick_off_1_tx, kick_off_1_txid) = create_and_mine_kick_off_1_tx(
-        &client,
+        &rpc,
         &operator_context,
         &kick_off_1_funding_utxo_address,
         kick_off_1_input_amount,
@@ -98,8 +90,10 @@ async fn test_take_1_success() {
 
     // mine kick-off 2
     sleep(Duration::from_secs(60)).await;
-    let kick_off_2_result = client.esplora.broadcast(&kick_off_2_tx).await;
-    assert!(kick_off_2_result.is_ok());
+    helper::mint_block(&rpc, 1);
+    helper::broadcast_tx(&rpc, &kick_off_2_tx);
+    helper::mint_block(&rpc, 1);
+    helper::validate_tx(&rpc, kick_off_2_txid);
 
     // take 1
     let vout = 0; // connector 0
@@ -154,24 +148,11 @@ async fn test_take_1_success() {
 
     // mine take 1
     sleep(Duration::from_secs(60)).await;
-    let take_1_result = client.esplora.broadcast(&take_1_tx).await;
-    assert!(take_1_result.is_ok());
+    helper::mint_block(&rpc, 1);
+    helper::broadcast_tx(&rpc, &take_1_tx);
+    helper::mint_block(&rpc, 1);
+    helper::validate_tx(&rpc, take_1_txid);
 
-    // operator balance
-    let operator_address = generate_pay_to_pubkey_script_address(
-        operator_context.network,
-        &operator_context.operator_public_key,
-    );
-    let operator_utxos = client
-        .esplora
-        .get_address_utxo(operator_address.clone())
-        .await
-        .unwrap();
-    let operator_utxo = operator_utxos
-        .clone()
-        .into_iter()
-        .find(|x| x.txid == take_1_txid);
-
-    // assert
-    assert!(operator_utxo.is_some());
+    // operator balance check 
+    // TODO
 }

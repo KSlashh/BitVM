@@ -8,14 +8,13 @@ use bitvm::bridge::{
     },
 };
 
-use super::super::{helper::generate_stub_outpoint, setup::{setup_test, get_tapscripts}};
+use super::super::{helper::{generate_stub_outpoint, self}, setup::setup_test};
 
 #[tokio::test]
 async fn test_assert_tx() {
-    let tap_scripts = get_tapscripts();
+    let tap_scripts = vec![];
     let (
-        client,
-        _,
+        rpc,
         _,
         operator_context,
         _,
@@ -37,16 +36,14 @@ async fn test_assert_tx() {
     connector_c.gen_taproot_address();
 
     let amount = Amount::from_sat(ONE_HUNDRED * 2 / 100);
-    let outpoint =
-        generate_stub_outpoint(&client, &connector_b.generate_taproot_address(), amount).await;
+    let outpoint = generate_stub_outpoint(&rpc, &connector_b.generate_taproot_address(), amount);
 
     let assert_tx = AssertTransaction::new(&operator_context, Input { outpoint, amount }, connector_c);
-
     let tx = assert_tx.finalize();
-    // println!("Script Path Spend Transaction: {:?}\n", tx);
-    let result = client.esplora.broadcast(&tx).await;
-    println!("\nTxid: {:?}", tx.compute_txid());
-    println!("Broadcast result: {:?}\n", result);
-    // println!("Transaction hex: \n{}", serialize_hex(&tx));
-    assert!(result.is_ok());
+    helper::mint_block(&rpc, 1);
+    helper::broadcast_tx(&rpc, &tx);
+    helper::mint_block(&rpc, 1);
+    let txid = tx.compute_txid();
+    println!("Txid: {:?}", txid.clone());
+    helper::validate_tx(&rpc, txid);
 }

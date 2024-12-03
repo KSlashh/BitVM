@@ -12,7 +12,7 @@ use bitvm::bridge::{
     transactions::base::Input,
 };
 
-use crate::bridge::setup::setup_test;
+use crate::bridge::setup::{setup_test, new_client};
 
 #[tokio::test]
 // TODO: test merging signatures after Musig2 feature is ready
@@ -51,7 +51,6 @@ async fn test_merge_add_new_graph() {
 
 async fn setup_and_create_graphs<'a>(tap_scripts: &'a Vec<Script>) -> (BitVMClient<'a>, PegInGraph, PegOutGraph<'a>) {
     let (
-        mut client,
         _,
         depositor_context,
         operator_context,
@@ -71,6 +70,7 @@ async fn setup_and_create_graphs<'a>(tap_scripts: &'a Vec<Script>) -> (BitVMClie
         depositor_evm_address,
         _,
     ) = setup_test(tap_scripts).await;
+    let (mut client, _) = new_client().await;
 
     let amount = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT + 1);
     let peg_in_outpoint = OutPoint {

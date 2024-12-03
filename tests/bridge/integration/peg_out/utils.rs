@@ -1,6 +1,7 @@
 use bitcoin::{Address, Amount, Transaction, Txid};
+use bitcoincore_rpc::Client;
 use bitvm::bridge::{
-    client::client::BitVMClient, connectors::connector_c::ConnectorC, contexts::{depositor::DepositorContext, operator::OperatorContext, verifier::VerifierContext}, transactions::{
+    connectors::connector_c::ConnectorC, contexts::{depositor::DepositorContext, operator::OperatorContext, verifier::VerifierContext}, transactions::{
         assert::AssertTransaction,
         base::{BaseTransaction, Input},
         kick_off_1::KickOff1Transaction,
@@ -9,16 +10,16 @@ use bitvm::bridge::{
     }
 };
 
-use crate::bridge::helper::generate_stub_outpoint;
+use crate::bridge::helper::{generate_stub_outpoint, self};
 
 pub async fn create_and_mine_kick_off_1_tx<'a>(
-    client: &BitVMClient<'a>,
+    rpc: &Client,
     operator_context: &OperatorContext,
     kick_off_1_funding_utxo_address: &Address,
     input_amount: Amount,
 ) -> (Transaction, Txid) {
     let kick_off_1_funding_outpoint =
-        generate_stub_outpoint(&client, kick_off_1_funding_utxo_address, input_amount).await;
+        generate_stub_outpoint(&rpc, kick_off_1_funding_utxo_address, input_amount);
     let kick_off_1_input = Input {
         outpoint: kick_off_1_funding_outpoint,
         amount: input_amount,
@@ -28,20 +29,22 @@ pub async fn create_and_mine_kick_off_1_tx<'a>(
     let kick_off_1_txid = kick_off_1_tx.compute_txid();
 
     // mine kick-off 1 tx
-    let kick_off_1_result = client.esplora.broadcast(&kick_off_1_tx).await;
-    assert!(kick_off_1_result.is_ok());
+    helper::mint_block(&rpc, 1);
+    helper::broadcast_tx(&rpc, &kick_off_1_tx);
+    helper::mint_block(&rpc, 1);
+    helper::validate_tx(&rpc, kick_off_1_txid);
 
     return (kick_off_1_tx, kick_off_1_txid);
 }
 
 pub async fn create_and_mine_kick_off_2_tx<'a>(
-    client: &BitVMClient<'a>,
+    rpc: &Client,
     operator_context: &OperatorContext,
     kick_off_2_funding_utxo_address: &Address,
     input_amount: Amount,
 ) -> (Transaction, Txid) {
     let kick_off_2_funding_outpoint =
-        generate_stub_outpoint(&client, kick_off_2_funding_utxo_address, input_amount).await;
+        generate_stub_outpoint(&rpc, kick_off_2_funding_utxo_address, input_amount);
     let kick_off_2_input = Input {
         outpoint: kick_off_2_funding_outpoint,
         amount: input_amount,
@@ -51,15 +54,16 @@ pub async fn create_and_mine_kick_off_2_tx<'a>(
     let kick_off_2_txid = kick_off_2_tx.compute_txid();
 
     // mine kick-off 2 tx
-    let kick_off_2_result = client.esplora.broadcast(&kick_off_2_tx).await;
-    println!("\nBroadcast kick_off_2 result: {:?}\n", kick_off_2_result);
-    assert!(kick_off_2_result.is_ok());
+    helper::mint_block(&rpc, 1);
+    helper::broadcast_tx(&rpc, &kick_off_2_tx);
+    helper::mint_block(&rpc, 1);
+    helper::validate_tx(&rpc, kick_off_2_txid);
 
     return (kick_off_2_tx, kick_off_2_txid);
 }
 
 pub async fn create_and_mine_assert_tx<'a>(
-    client: &BitVMClient<'a>,
+    rpc: &Client,
     operator_context: &OperatorContext,
     assert_funding_utxo_address: &Address,
     input_amount: Amount,
@@ -67,7 +71,7 @@ pub async fn create_and_mine_assert_tx<'a>(
 ) -> (Transaction, Txid) {
     // create assert tx
     let assert_funding_outpoint =
-        generate_stub_outpoint(&client, assert_funding_utxo_address, input_amount).await;
+        generate_stub_outpoint(&rpc, assert_funding_utxo_address, input_amount);
     let assert_input = Input {
         outpoint: assert_funding_outpoint,
         amount: input_amount,
@@ -78,14 +82,16 @@ pub async fn create_and_mine_assert_tx<'a>(
     let assert_txid = assert_tx.compute_txid();
 
     // mine assert tx
-    let assert_result = client.esplora.broadcast(&assert_tx).await;
-    assert!(assert_result.is_ok());
+    helper::mint_block(&rpc, 1);
+    helper::broadcast_tx(&rpc, &assert_tx);
+    helper::mint_block(&rpc, 1);
+    helper::validate_tx(&rpc, assert_txid);
 
     return (assert_tx, assert_txid);
 }
 
 pub async fn create_and_mine_peg_in_confirm_tx<'a>(
-    client: &BitVMClient<'a>,
+    rpc: &Client,
     depositor_context: &DepositorContext,
     verifier_0_context: &VerifierContext,
     verifier_1_context: &VerifierContext,
@@ -94,7 +100,7 @@ pub async fn create_and_mine_peg_in_confirm_tx<'a>(
     input_amount: Amount,
 ) -> (Transaction, Txid) {
     let peg_in_confirm_funding_outpoint =
-        generate_stub_outpoint(client, &funding_address, input_amount).await;
+        generate_stub_outpoint(rpc, &funding_address, input_amount);
 
     let confirm_input = Input {
         outpoint: peg_in_confirm_funding_outpoint,
@@ -113,8 +119,10 @@ pub async fn create_and_mine_peg_in_confirm_tx<'a>(
     let peg_in_confirm_txid = peg_in_confirm_tx.compute_txid();
 
     // mine peg-in confirm
-    let confirm_result = client.esplora.broadcast(&peg_in_confirm_tx).await;
-    assert!(confirm_result.is_ok());
+    helper::mint_block(&rpc, 1);
+    helper::broadcast_tx(&rpc, &peg_in_confirm_tx);
+    helper::mint_block(&rpc, 1);
+    helper::validate_tx(&rpc, peg_in_confirm_txid);
 
     return (peg_in_confirm_tx, peg_in_confirm_txid);
 }

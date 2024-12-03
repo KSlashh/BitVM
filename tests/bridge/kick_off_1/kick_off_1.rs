@@ -1,4 +1,4 @@
-use bitcoin::{consensus::encode::serialize_hex, Amount};
+use bitcoin::Amount;
 
 use bitvm::bridge::{
     graphs::base::{FEE_AMOUNT, INITIAL_AMOUNT},
@@ -9,14 +9,14 @@ use bitvm::bridge::{
     },
 };
 
-use crate::bridge::helper::generate_stub_outpoint;
+use crate::bridge::helper::{generate_stub_outpoint, self};
 
 use super::super::setup::setup_test;
 
 #[tokio::test]
 async fn test_kick_off_1_tx() {
     let empty_script = vec![];
-    let (client, _, _, operator_context, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =
+    let (rpc, _, operator_context, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =
         setup_test(&empty_script).await;
 
     let input_amount = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT);
@@ -24,7 +24,7 @@ async fn test_kick_off_1_tx() {
         operator_context.network,
         &operator_context.operator_public_key,
     );
-    let funding_outpoint_0 = generate_stub_outpoint(&client, &funding_address, input_amount).await;
+    let funding_outpoint_0 = generate_stub_outpoint(&rpc, &funding_address, input_amount);
 
     let input = Input {
         outpoint: funding_outpoint_0,
@@ -34,10 +34,10 @@ async fn test_kick_off_1_tx() {
     let kick_off_1_tx = KickOff1Transaction::new(&operator_context, input);
 
     let tx = kick_off_1_tx.finalize();
-    println!("Script Path Spend Transaction: {:?}\n", tx);
-    let result = client.esplora.broadcast(&tx).await;
-    println!("Txid: {:?}", tx.compute_txid());
-    println!("Broadcast result: {:?}\n", result);
-    println!("Transaction hex: \n{}", serialize_hex(&tx));
-    assert!(result.is_ok());
+    helper::mint_block(&rpc, 1);
+    helper::broadcast_tx(&rpc, &tx);
+    helper::mint_block(&rpc, 1);
+    let txid = tx.compute_txid();
+    println!("Txid: {:?}", txid.clone());
+    helper::validate_tx(&rpc, txid);
 }

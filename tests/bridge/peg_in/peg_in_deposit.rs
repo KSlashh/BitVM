@@ -1,4 +1,4 @@
-use bitcoin::{consensus::encode::serialize_hex, Amount};
+use bitcoin::Amount;
 
 use bitvm::bridge::{
     graphs::base::{FEE_AMOUNT, INITIAL_AMOUNT},
@@ -9,14 +9,13 @@ use bitvm::bridge::{
     },
 };
 
-use super::super::{helper::generate_stub_outpoint, setup::setup_test};
+use super::super::{helper::{generate_stub_outpoint, self}, setup::setup_test};
 
 #[tokio::test]
 async fn test_peg_in_deposit_tx() {
     let empty_script = vec![];
     let (
-        client,
-        _,
+        rpc,
         depositor_context,
         _,
         _,
@@ -38,14 +37,13 @@ async fn test_peg_in_deposit_tx() {
 
     let amount = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT);
     let outpoint = generate_stub_outpoint(
-        &client,
+        &rpc,
         &generate_pay_to_pubkey_script_address(
             depositor_context.network,
             &depositor_context.depositor_public_key,
         ),
         amount,
-    )
-    .await;
+    );
 
     let peg_in_deposit_tx = PegInDepositTransaction::new(
         &depositor_context,
@@ -59,10 +57,10 @@ async fn test_peg_in_deposit_tx() {
     );
 
     let tx = peg_in_deposit_tx.finalize();
-    println!("Script Path Spend Transaction: {:?}\n", tx);
-    let result = client.esplora.broadcast(&tx).await;
-    println!("Txid: {:?}", tx.compute_txid());
-    println!("Broadcast result: {:?}\n", result);
-    println!("Transaction hex: \n{}", serialize_hex(&tx));
-    assert!(result.is_ok());
+    helper::mint_block(&rpc, 1);
+    helper::broadcast_tx(&rpc, &tx);
+    helper::mint_block(&rpc, 1);
+    let txid = tx.compute_txid();
+    println!("Txid: {:?}", txid.clone());
+    helper::validate_tx(&rpc, txid);
 }

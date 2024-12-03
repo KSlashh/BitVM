@@ -15,7 +15,7 @@ use bitvm::bridge::{
 use tokio::time::sleep;
 
 use crate::bridge::{
-    helper::{fund_utxo, generate_stub_outpoint},
+    helper::{fund_utxo, generate_stub_outpoint, self},
     setup::setup_test,
 };
 
@@ -23,8 +23,7 @@ use crate::bridge::{
 async fn test_peg_out_for_chain() {
     let empty_script = vec![];
     let (
-        client,
-        _,
+        rpc,
         _,
         operator_context,
         _,
@@ -68,15 +67,14 @@ async fn test_peg_out_for_chain() {
         operator_funding_utxo_address
     );
 
-    fund_utxo(&operator_funding_utxo_address, operator_input_amount).await;
+    fund_utxo(&rpc,  &operator_funding_utxo_address, operator_input_amount);
     sleep(Duration::from_secs(5)).await;
 
     let operator_funding_outpoint = generate_stub_outpoint(
-        &client,
+        &rpc,
         &operator_funding_utxo_address,
         operator_input_amount,
-    )
-    .await;
+    );
     println!(
         "operator_funding_utxo.txid: {:?}",
         operator_funding_outpoint.txid
@@ -95,11 +93,10 @@ async fn test_peg_out_for_chain() {
     );
 
     let peg_out_tx = peg_out.finalize();
-    let peg_out_tx_id = peg_out_tx.compute_txid();
-
-    // mine peg-out
-    let peg_out_result = client.esplora.broadcast(&peg_out_tx).await;
-    println!("Peg Out Tx result: {:?}", peg_out_result);
-    assert!(peg_out_result.is_ok());
-    println!("Peg Out Txid: {:?}", peg_out_tx_id);
+    helper::mint_block(&rpc, 1);
+    helper::broadcast_tx(&rpc, &peg_out_tx);
+    helper::mint_block(&rpc, 1);
+    let txid = peg_out_tx.compute_txid();
+    println!("Txid: {:?}", txid.clone());
+    helper::validate_tx(&rpc, txid);
 }

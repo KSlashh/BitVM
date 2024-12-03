@@ -2,7 +2,7 @@
 mod tests {
 
     use bitcoin::{
-        consensus::encode::serialize_hex, key::Keypair, Amount, PrivateKey, PublicKey, TxOut,
+        key::Keypair, Amount, PrivateKey, PublicKey, TxOut,
     };
 
     use bitvm::bridge::{
@@ -15,14 +15,13 @@ mod tests {
         },
     };
 
-    use super::super::super::{helper::generate_stub_outpoint, setup::setup_test};
+    use super::super::super::{helper::{generate_stub_outpoint, self}, setup::setup_test};
 
     #[tokio::test]
     async fn test_should_be_able_to_submit_disprove_chain_tx_successfully() {
         let empty_script = vec![];
         let (
-            client,
-            _,
+            rpc,
             _,
             operator_context,
             verifier_0_context,
@@ -44,7 +43,7 @@ mod tests {
 
         let amount = Amount::from_sat(INITIAL_AMOUNT);
         let outpoint =
-            generate_stub_outpoint(&client, &connector_b.generate_taproot_address(), amount).await;
+            generate_stub_outpoint(&rpc, &connector_b.generate_taproot_address(), amount);
 
         let mut disprove_chain_tx =
             DisproveChainTransaction::new(&operator_context, Input { outpoint, amount });
@@ -56,13 +55,12 @@ mod tests {
         disprove_chain_tx.pre_sign(&verifier_1_context, &secret_nonces_1);
 
         let tx = disprove_chain_tx.finalize();
-        println!("Script Path Spend Transaction: {:?}\n", tx);
-
-        let result = client.esplora.broadcast(&tx).await;
-        println!("Txid: {:?}", tx.compute_txid());
-        println!("Broadcast result: {:?}\n", result);
-        println!("Transaction hex: \n{}", serialize_hex(&tx));
-        assert!(result.is_ok());
+        helper::mint_block(&rpc, 1);
+        helper::broadcast_tx(&rpc, &tx);
+        helper::mint_block(&rpc, 1);
+        let txid = tx.compute_txid();
+        println!("Txid: {:?}", txid.clone());
+        helper::validate_tx(&rpc, txid);
     }
 
     #[tokio::test]
@@ -70,8 +68,7 @@ mod tests {
     ) {
         let empty_script = vec![];
         let (
-            client,
-            _,
+            rpc,
             _,
             operator_context,
             verifier_0_context,
@@ -93,7 +90,7 @@ mod tests {
 
         let amount = Amount::from_sat(INITIAL_AMOUNT);
         let outpoint =
-            generate_stub_outpoint(&client, &connector_b.generate_taproot_address(), amount).await;
+            generate_stub_outpoint(&rpc, &connector_b.generate_taproot_address(), amount);
 
         let mut disprove_chain_tx =
             DisproveChainTransaction::new(&operator_context, Input { outpoint, amount });
@@ -121,12 +118,11 @@ mod tests {
 
         tx.output.push(verifier_output);
 
-        println!("Script Path Spend Transaction: {:?}\n", tx);
-
-        let result = client.esplora.broadcast(&tx).await;
-        println!("Txid: {:?}", tx.compute_txid());
-        println!("Broadcast result: {:?}\n", result);
-        println!("Transaction hex: \n{}", serialize_hex(&tx));
-        assert!(result.is_ok());
+        helper::mint_block(&rpc, 1);
+        helper::broadcast_tx(&rpc, &tx);
+        helper::mint_block(&rpc, 1);
+        let txid = tx.compute_txid();
+        println!("Txid: {:?}", txid.clone());
+        helper::validate_tx(&rpc, txid);
     }
 }

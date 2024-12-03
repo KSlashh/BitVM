@@ -31,6 +31,7 @@ use super::{
 };
 
 const ESPLORA_URL: &str = "https://mutinynet.com/api";
+// const ESPLORA_URL: &str = "http://127.0.0.1:18443";
 const TEN_MINUTES: u64 = 10 * 60;
 
 pub type UtxoSet = HashMap<OutPoint, Height>;

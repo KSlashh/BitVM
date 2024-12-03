@@ -1,11 +1,12 @@
 use bitcoin::{Network, PublicKey};
 use bitvm::{bridge::{
-    client::client::BitVMClient, connectors::{
+    client::client::BitVMClient, constants::DestinationNetwork,
+    connectors::{
         connector_0::Connector0, connector_1::Connector1, connector_2::Connector2,
         connector_3::Connector3, connector_4::Connector4, connector_5::Connector5,
         connector_a::ConnectorA, connector_b::ConnectorB, connector_c::ConnectorC,
         connector_z::ConnectorZ,
-    }, constants::DestinationNetwork, contexts::{
+    }, contexts::{
         base::generate_keys_from_secret, depositor::DepositorContext, operator::OperatorContext,
         verifier::VerifierContext, withdrawer::WithdrawerContext,
     }, graphs::base::{
@@ -17,10 +18,49 @@ use bitvm::bridge::groth16::{
     load_all_signed_assertions_from_file, load_assert_tapscripts_from_file, load_proof_from_file, 
     corrupt_signed_assertions, generate_wots_keys_from_secrets,
 };
+use bitcoincore_rpc::Client;
+
+use super::helper;
+
+pub async fn new_client<'a>() -> (
+    BitVMClient<'a>,
+    BitVMClient<'a>,
+) {
+    let source_network = Network::Regtest;
+    let destination_network = DestinationNetwork::EthereumSepolia;
+    let (_, _, verifier_0_public_key) =
+        generate_keys_from_secret(source_network, VERIFIER_0_SECRET);
+    let (_, _, verifier_1_public_key) =
+        generate_keys_from_secret(source_network, VERIFIER_1_SECRET);
+    let mut n_of_n_public_keys: Vec<PublicKey> = Vec::new();
+    n_of_n_public_keys.push(verifier_0_public_key);
+    n_of_n_public_keys.push(verifier_1_public_key);
+    (
+        BitVMClient::new(
+            source_network,
+            destination_network,
+            &n_of_n_public_keys,
+            Some(DEPOSITOR_SECRET),
+            Some(OPERATOR_SECRET),
+            Some(VERIFIER_0_SECRET),
+            Some(WITHDRAWER_SECRET),
+        ).await,
+        BitVMClient::new(
+            source_network,
+            destination_network,
+            &n_of_n_public_keys,
+            Some(DEPOSITOR_SECRET),
+            Some(OPERATOR_SECRET),
+            Some(VERIFIER_1_SECRET),
+            Some(WITHDRAWER_SECRET),
+        ).await,
+    )
+}
 
 pub async fn setup_test<'a>(tap_scripts: &'a Vec<Script>) -> (
-    BitVMClient<'a>,
-    BitVMClient<'a>,
+    // BitVMClient<'a>,
+    // BitVMClient<'a>,
+    Client,
     DepositorContext,
     OperatorContext,
     VerifierContext,
@@ -39,8 +79,8 @@ pub async fn setup_test<'a>(tap_scripts: &'a Vec<Script>) -> (
     String,
     String,
 ) {
-    let source_network = Network::Testnet;
-    let destination_network = DestinationNetwork::EthereumSepolia;
+    let source_network = Network::Regtest;
+    // let destination_network = DestinationNetwork::EthereumSepolia;
 
     let (_, _, verifier_0_public_key) =
         generate_keys_from_secret(source_network, VERIFIER_0_SECRET);
@@ -61,27 +101,28 @@ pub async fn setup_test<'a>(tap_scripts: &'a Vec<Script>) -> (
     let withdrawer_context =
         WithdrawerContext::new(source_network, WITHDRAWER_SECRET, &n_of_n_public_keys);
 
-    let client_0 = BitVMClient::new(
-        source_network,
-        destination_network,
-        &n_of_n_public_keys,
-        Some(DEPOSITOR_SECRET),
-        Some(OPERATOR_SECRET),
-        Some(VERIFIER_0_SECRET),
-        Some(WITHDRAWER_SECRET),
-    )
-    .await;
+    let rpc = helper::new_rpc_client().await;
+    // let client_0 = BitVMClient::new(
+    //     source_network,
+    //     destination_network,
+    //     &n_of_n_public_keys,
+    //     Some(DEPOSITOR_SECRET),
+    //     Some(OPERATOR_SECRET),
+    //     Some(VERIFIER_0_SECRET),
+    //     Some(WITHDRAWER_SECRET),
+    // )
+    // .await;
 
-    let client_1 = BitVMClient::new(
-        source_network,
-        destination_network,
-        &n_of_n_public_keys,
-        Some(DEPOSITOR_SECRET),
-        Some(OPERATOR_SECRET),
-        Some(VERIFIER_1_SECRET),
-        Some(WITHDRAWER_SECRET),
-    )
-    .await;
+    // let client_1 = BitVMClient::new(
+    //     source_network,
+    //     destination_network,
+    //     &n_of_n_public_keys,
+    //     Some(DEPOSITOR_SECRET),
+    //     Some(OPERATOR_SECRET),
+    //     Some(VERIFIER_1_SECRET),
+    //     Some(WITHDRAWER_SECRET),
+    // )
+    // .await;
 
     let connector_a = ConnectorA::new(
         source_network,
@@ -113,8 +154,9 @@ pub async fn setup_test<'a>(tap_scripts: &'a Vec<Script>) -> (
     let connector_c = ConnectorC::new(source_network, &operator_context.operator_taproot_public_key, &tap_scripts);
 
     return (
-        client_0,
-        client_1,
+        // client_0,
+        // client_1,
+        rpc,
         depositor_context,
         operator_context,
         verifier_0_context,

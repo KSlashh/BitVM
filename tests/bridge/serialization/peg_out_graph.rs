@@ -17,8 +17,7 @@ use super::super::{helper::generate_stub_outpoint, setup::setup_test};
 async fn test_peg_out_graph_serialization() {
     let empty_scripts = vec![];
     let (
-        client,
-        _,
+        rpc,
         depositor_context,
         operator_context,
         _,
@@ -41,14 +40,13 @@ async fn test_peg_out_graph_serialization() {
     let amount = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT);
 
     let outpoint = generate_stub_outpoint(
-        &client,
+        &rpc,
         &generate_pay_to_pubkey_script_address(
             depositor_context.network,
             &depositor_context.depositor_public_key,
         ),
         amount,
-    )
-    .await;
+    );
 
     let peg_in_graph = PegInGraph::new(
         &depositor_context,
@@ -59,14 +57,13 @@ async fn test_peg_out_graph_serialization() {
     let kick_off_amount = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT); // Arbitrary amount
 
     let kick_off_outpoint = generate_stub_outpoint(
-        &client,
+        &rpc,
         &generate_pay_to_pubkey_script_address(
             operator_context.network,
             &operator_context.operator_public_key,
         ),
         kick_off_amount,
-    )
-    .await;
+    );
 
     let peg_out_graph = PegOutGraph::new(
         &operator_context,
