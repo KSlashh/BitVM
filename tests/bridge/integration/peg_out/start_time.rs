@@ -1,6 +1,3 @@
-use std::time::Duration;
-use tokio::time::sleep;
-
 use bitcoin::{Amount, OutPoint};
 use bitvm::bridge::{
     graphs::base::{FEE_AMOUNT, INITIAL_AMOUNT},
@@ -48,11 +45,9 @@ async fn test_start_time_success() {
         amount: kick_off_1_tx.output[vout as usize].value,
     };
     let start_time = StartTimeTransaction::new(&operator_context, start_time_input_0);
-
     let start_time_tx = start_time.finalize();
 
     // mine start time
-    sleep(Duration::from_secs(60)).await;
     helper::mint_block(&rpc, 1);
     helper::broadcast_tx(&rpc, &start_time_tx);
     helper::mint_block(&rpc, 1);

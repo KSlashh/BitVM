@@ -1,7 +1,7 @@
 use bitcoin::Amount;
 use bitvm::bridge::{
     connectors::connector::TaprootConnector,
-    graphs::base::ONE_HUNDRED,
+    graphs::base::{DUST_AMOUNT, INITIAL_AMOUNT, LARGE_FEE_AMOUNT},
     transactions::{
         assert::AssertTransaction,
         base::{BaseTransaction, Input},
@@ -35,7 +35,7 @@ async fn test_assert_tx() {
     ) = setup_test(&tap_scripts).await;
     connector_c.gen_taproot_address();
 
-    let amount = Amount::from_sat(ONE_HUNDRED * 2 / 100);
+    let amount = Amount::from_sat(INITIAL_AMOUNT + LARGE_FEE_AMOUNT + 2*DUST_AMOUNT);
     let outpoint = generate_stub_outpoint(&rpc, &connector_b.generate_taproot_address(), amount);
 
     let assert_tx = AssertTransaction::new(&operator_context, Input { outpoint, amount }, connector_c);

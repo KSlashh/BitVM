@@ -4,7 +4,7 @@ use bitcoin::{
 };
 use musig2::{secp256k1::schnorr::Signature, PartialSignature, PubNonce};
 use std::collections::HashMap;
-use crate::bridge::graphs::base::HUGE_FEE_AMOUNT;
+use crate::bridge::graphs::base::LARGE_FEE_AMOUNT;
 
 use super::{
     super::{
@@ -102,7 +102,7 @@ impl<'a> AssertTransaction<'a> {
         let input_0_leaf = 1;
         let _input_0 = connector_b.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
 
-        let total_output_amount = input_0.amount - Amount::from_sat(HUGE_FEE_AMOUNT);
+        let total_output_amount = input_0.amount - Amount::from_sat(LARGE_FEE_AMOUNT);
 
         let _output_0 = TxOut {
             value: Amount::from_sat(DUST_AMOUNT),

@@ -1,21 +1,16 @@
-use std::time::Duration;
-
-use alloy::{primitives::Address as EvmAddress, transports::http::reqwest::Url};
 use bitcoin::Amount;
 
 use bitvm::bridge::{
-    client::chain::{chain::Chain, ethereum::EthereumInitConfig},
-    graphs::base::{FEE_AMOUNT, INITIAL_AMOUNT},
+    graphs::base::{FEE_AMOUNT, INITIAL_AMOUNT, WITHDRAWER_EVM_ADDRESS},
     scripts::generate_pay_to_pubkey_script_address,
     transactions::{
         base::{BaseTransaction, Input},
         peg_out::PegOutTransaction,
     },
 };
-use tokio::time::sleep;
 
 use crate::bridge::{
-    helper::{fund_utxo, generate_stub_outpoint, self},
+    helper::{generate_stub_outpoint, self},
     setup::setup_test,
 };
 
@@ -42,18 +37,6 @@ async fn test_peg_out_for_chain() {
         _,
         _,
     ) = setup_test(&empty_script).await;
-    let mut adaptors = Chain::new();
-    adaptors.init_ethereum(EthereumInitConfig {
-        rpc_url: "http://127.0.0.1:8545".parse::<Url>().unwrap(),
-        bridge_address: "0x76d05F58D14c0838EC630C8140eDC5aB7CD159Dc"
-            .parse::<EvmAddress>()
-            .unwrap(),
-        bridge_creation_block: 20588300,
-    });
-    let events_result = adaptors.get_peg_out_init().await;
-    assert!(events_result.as_ref().is_ok_and(|x| x.len() > 0));
-
-    let peg_out_event = events_result.unwrap().pop().unwrap();
 
     let input_amount_raw = INITIAL_AMOUNT + FEE_AMOUNT;
     let operator_input_amount = Amount::from_sat(input_amount_raw);
@@ -62,22 +45,11 @@ async fn test_peg_out_for_chain() {
         operator_context.network,
         &operator_context.operator_public_key,
     );
-    println!(
-        "operator_funding_utxo_address: {:?}",
-        operator_funding_utxo_address
-    );
-
-    fund_utxo(&rpc,  &operator_funding_utxo_address, operator_input_amount);
-    sleep(Duration::from_secs(5)).await;
 
     let operator_funding_outpoint = generate_stub_outpoint(
         &rpc,
         &operator_funding_utxo_address,
         operator_input_amount,
-    );
-    println!(
-        "operator_funding_utxo.txid: {:?}",
-        operator_funding_outpoint.txid
     );
     let operator_input = Input {
         outpoint: operator_funding_outpoint,
@@ -87,8 +59,8 @@ async fn test_peg_out_for_chain() {
     let peg_out = PegOutTransaction::new(
         &operator_context,
         &withdrawer_context.withdrawer_public_key,
-        &peg_out_event.withdrawer_chain_address,
-        peg_out_event.timestamp,
+        WITHDRAWER_EVM_ADDRESS,
+        0,
         operator_input,
     );
 

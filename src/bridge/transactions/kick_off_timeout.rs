@@ -99,7 +99,7 @@ impl KickOffTimeoutTransaction {
         let reward_output_amount = total_output_amount - (total_output_amount * 95 / 100);
         let _output_1 = TxOut {
             value: reward_output_amount,
-            script_pubkey: ScriptBuf::default(),
+            script_pubkey: generate_burn_script_address(network).script_pubkey(),
         };
 
         KickOffTimeoutTransaction {

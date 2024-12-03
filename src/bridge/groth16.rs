@@ -553,7 +553,7 @@ pub fn test_disprove_invalid_assertions() {
         let mut signed_assertions = load_all_signed_assertions_from_file("signed_assertions/signed_assertion");
         
         // continue previous test
-        let res_file_name = "chunker_data/disprove_test_res.txt";
+        let res_file_name = "chunker_data/disprove_test_res_2.txt";
         let f = OpenOptions::new()
             .read(true)
             .write(true)

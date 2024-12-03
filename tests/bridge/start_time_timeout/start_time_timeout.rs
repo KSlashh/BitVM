@@ -36,12 +36,12 @@ async fn test_start_time_timeout_tx() {
     ) = setup_test(&empty_script).await;
 
     let input_value0 = Amount::from_sat(DUST_AMOUNT);
-    let funding_utxo_address0 = connector_1.generate_taproot_address();
+    let funding_utxo_address0 = connector_2.generate_taproot_address();
     let funding_outpoint0 =
         generate_stub_outpoint(&rpc, &funding_utxo_address0, input_value0);
 
     let input_value1 = Amount::from_sat(ONE_HUNDRED * 2 / 100);
-    let funding_utxo_address1 = connector_2.generate_taproot_address();
+    let funding_utxo_address1 = connector_1.generate_taproot_address();
     let funding_outpoint1 =
         generate_stub_outpoint(&rpc, &funding_utxo_address1, input_value1);
 

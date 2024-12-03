@@ -1,9 +1,7 @@
-use std::time::Duration;
-use tokio::time::sleep;
-
 use bitcoin::{Amount, OutPoint};
 use bitvm::bridge::{
-    graphs::base::{FEE_AMOUNT, INITIAL_AMOUNT},
+    connectors::connector::TaprootConnector,
+    graphs::base::{DUST_AMOUNT, FEE_AMOUNT, INITIAL_AMOUNT},
     scripts::generate_pay_to_pubkey_script_address,
     transactions::{
         base::{BaseTransaction, Input},
@@ -31,7 +29,7 @@ async fn test_disprove_chain_success() {
         _,
         _,
         _,
-        _,
+        connector_1,
         _,
         _,
         _,
@@ -41,11 +39,8 @@ async fn test_disprove_chain_success() {
     ) = setup_test(&empty_script).await;
 
     // verify funding inputs
-    let kick_off_2_input_amount = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT);
-    let kick_off_2_funding_utxo_address = generate_pay_to_pubkey_script_address(
-        operator_context.network,
-        &operator_context.operator_public_key,
-    );
+    let kick_off_2_input_amount = Amount::from_sat(INITIAL_AMOUNT + 2*FEE_AMOUNT + DUST_AMOUNT);
+    let kick_off_2_funding_utxo_address = connector_1.generate_taproot_address();
 
     // kick-off 2
     let (kick_off_2_tx, kick_off_2_txid) = create_and_mine_kick_off_2_tx(
@@ -85,7 +80,6 @@ async fn test_disprove_chain_success() {
     let disprove_chain_txid = disprove_chain_tx.compute_txid();
 
     // mine disprove chain
-    sleep(Duration::from_secs(60)).await;
     helper::mint_block(&rpc, 1);
     helper::broadcast_tx(&rpc, &disprove_chain_tx);
     helper::mint_block(&rpc, 1);

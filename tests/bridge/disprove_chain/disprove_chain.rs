@@ -2,12 +2,12 @@
 mod tests {
 
     use bitcoin::{
-        key::Keypair, Amount, PrivateKey, PublicKey, TxOut,
+        key::Keypair, Amount, PrivateKey, PublicKey,
     };
 
     use bitvm::bridge::{
         connectors::connector::TaprootConnector,
-        graphs::base::{FEE_AMOUNT, INITIAL_AMOUNT},
+        graphs::base::INITIAL_AMOUNT,
         scripts::generate_pay_to_pubkey_script,
         transactions::{
             base::{BaseTransaction, Input},
@@ -101,7 +101,6 @@ mod tests {
         disprove_chain_tx.pre_sign(&verifier_0_context, &secret_nonces_0);
         disprove_chain_tx.pre_sign(&verifier_1_context, &secret_nonces_1);
 
-        let mut tx = disprove_chain_tx.finalize();
 
         let secp = verifier_0_context.secp;
         let verifier_secret: &str =
@@ -109,15 +108,10 @@ mod tests {
         let verifier_keypair = Keypair::from_seckey_str(&secp, verifier_secret).unwrap();
         let verifier_private_key =
             PrivateKey::new(verifier_keypair.secret_key(), verifier_0_context.network);
-        let verifier_pubkey = PublicKey::from_private_key(&secp, &verifier_private_key);
+        let verifier_pubkey = PublicKey::from_private_key(&secp, &verifier_private_key); 
+        disprove_chain_tx.add_output(generate_pay_to_pubkey_script(&verifier_pubkey));
 
-        let verifier_output = TxOut {
-            value: (Amount::from_sat(INITIAL_AMOUNT) - Amount::from_sat(FEE_AMOUNT)) * 5 / 100,
-            script_pubkey: generate_pay_to_pubkey_script(&verifier_pubkey),
-        };
-
-        tx.output.push(verifier_output);
-
+        let tx = disprove_chain_tx.finalize();
         helper::mint_block(&rpc, 1);
         helper::broadcast_tx(&rpc, &tx);
         helper::mint_block(&rpc, 1);

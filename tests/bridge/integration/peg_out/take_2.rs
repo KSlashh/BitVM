@@ -1,15 +1,15 @@
-use std::time::Duration;
 
 use bitcoin::{Amount, OutPoint};
 use bitvm::bridge::{
     connectors::connector::TaprootConnector,
-    graphs::base::{HUGE_FEE_AMOUNT, INITIAL_AMOUNT},
+    graphs::base::{DUST_AMOUNT, FEE_AMOUNT, INITIAL_AMOUNT, LARGE_FEE_AMOUNT, ONE_HUNDRED},
     transactions::{
         base::{BaseTransaction, Input},
         take_2::Take2Transaction,
     },
 };
-use tokio::time::sleep;
+// use tokio::time::sleep;
+// use std::time::Duration;
 
 use crate::bridge::{
     helper,
@@ -43,10 +43,10 @@ async fn test_take_2_success() {
     connector_c.gen_taproot_address();
 
 
-    let deposit_input_amount = Amount::from_sat(INITIAL_AMOUNT + HUGE_FEE_AMOUNT);
+    let deposit_input_amount = Amount::from_sat(ONE_HUNDRED);
     let peg_in_confirm_funding_address = connector_z.generate_taproot_address();
 
-    let assert_input_amount = Amount::from_sat(INITIAL_AMOUNT + HUGE_FEE_AMOUNT);
+    let assert_input_amount = Amount::from_sat(INITIAL_AMOUNT + LARGE_FEE_AMOUNT + FEE_AMOUNT + 5*DUST_AMOUNT);
     let assert_funding_address = connector_b.generate_taproot_address();
 
     // peg-in confirm
@@ -124,7 +124,7 @@ async fn test_take_2_success() {
     let take_2_txid = take_2_tx.compute_txid();
 
     // mine take 2
-    sleep(Duration::from_secs(60)).await;
+    // sleep(Duration::from_secs(60)).await;
     helper::mint_block(&rpc, 1);
     helper::broadcast_tx(&rpc, &take_2_tx);
     helper::mint_block(&rpc, 1);
