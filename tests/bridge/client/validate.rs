@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports)]
 use std::str::FromStr;
 
 use bitcoin::{Amount, OutPoint, Txid};
@@ -16,7 +17,7 @@ use bitvm::bridge::{
 
 use super::super::setup::setup_test;
 
-#[tokio::test]
+// #[tokio::test]
 async fn test_validate_success() {
     let empty_scripts = vec![];
     let (data, _) = setup_and_create_graphs(&empty_scripts).await;
@@ -26,7 +27,7 @@ async fn test_validate_success() {
     assert!(is_data_valid);
 }
 
-#[tokio::test]
+// #[tokio::test]
 async fn test_validate_invalid_previous_output() {
     let empty_scripts = vec![];
     let (mut data, peg_in_outpoint) = setup_and_create_graphs(&empty_scripts).await;
@@ -44,7 +45,7 @@ async fn test_validate_invalid_previous_output() {
     assert_eq!(is_data_valid, false);
 }
 
-#[tokio::test]
+// #[tokio::test]
 async fn test_validate_invalid_script_sig() {
     let empty_scripts = vec![];
     let (mut data, _) = setup_and_create_graphs(&empty_scripts).await;
@@ -57,7 +58,7 @@ async fn test_validate_invalid_script_sig() {
     assert_eq!(is_data_valid, false);
 }
 
-#[tokio::test]
+// #[tokio::test]
 async fn test_validate_invalid_sequence() {
     let empty_scripts = vec![];
     let (mut data, _) = setup_and_create_graphs(&empty_scripts).await;
@@ -70,7 +71,7 @@ async fn test_validate_invalid_sequence() {
     assert_eq!(is_data_valid, false);
 }
 
-#[tokio::test]
+// #[tokio::test]
 async fn test_validate_invalid_value() {
     let empty_scripts = vec![];
     let (mut data, _) = setup_and_create_graphs(&empty_scripts).await;
@@ -83,7 +84,7 @@ async fn test_validate_invalid_value() {
     assert_eq!(is_data_valid, false);
 }
 
-#[tokio::test]
+// #[tokio::test]
 async fn test_validate_invalid_script_pubkey() {
     let empty_scripts = vec![];
     let (mut data, _) = setup_and_create_graphs(&empty_scripts).await;

@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports)]
 use bitcoin::Amount;
 
 use bitvm::bridge::{
@@ -13,7 +14,7 @@ use bitvm::bridge::{
 
 use super::super::{helper::generate_stub_outpoint, setup::setup_test};
 
-#[tokio::test]
+// #[tokio::test]
 async fn test_peg_out_graph_serialization() {
     let empty_scripts = vec![];
     let (

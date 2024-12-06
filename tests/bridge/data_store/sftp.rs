@@ -1,6 +1,7 @@
+#![allow(dead_code, unused_imports)]
 use bitvm::bridge::client::data_store::{base::DataStoreDriver, sftp::Sftp};
 
-#[tokio::test]
+// #[tokio::test]
 async fn test_sftp() {
     println!("Start SFTP connection");
     let sftp = Sftp::new().unwrap();

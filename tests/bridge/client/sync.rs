@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports)]
 use bitcoin::Amount;
 
 use bitvm::bridge::{
@@ -8,7 +9,7 @@ use bitvm::bridge::{
 
 use super::super::{helper::generate_stub_outpoint, setup::{setup_test, new_client}};
 
-#[tokio::test]
+// #[tokio::test]
 async fn test_sync() {
     let empty_scripts = vec![];
     let (

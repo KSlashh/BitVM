@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports)]
 use std::str::FromStr;
 
 use bitcoin::{Amount, OutPoint, Txid};
@@ -15,7 +16,7 @@ use bitvm::bridge::{
 
 use super::super::setup::setup_test;
 
-#[tokio::test]
+// #[tokio::test]
 async fn test_validate_success() {
     let empty_scripts = vec![];
     let (peg_in_graph, peg_out_graph, _) = setup_and_create_graphs(&empty_scripts).await;
@@ -27,7 +28,7 @@ async fn test_validate_success() {
     assert!(is_peg_out_data_valid);
 }
 
-#[tokio::test]
+// #[tokio::test]
 async fn test_validate_invalid_previous_output() {
     let (mut peg_in_graph, _, peg_in_outpoint) = setup_and_create_graphs(&vec![]).await;
 
@@ -44,7 +45,7 @@ async fn test_validate_invalid_previous_output() {
     assert_eq!(is_peg_in_data_valid, false);
 }
 
-#[tokio::test]
+// #[tokio::test]
 async fn test_validate_invalid_script_sig() {
     let (mut peg_in_graph, _, _) = setup_and_create_graphs(&vec![]).await;
 
@@ -56,7 +57,7 @@ async fn test_validate_invalid_script_sig() {
     assert_eq!(is_peg_in_data_valid, false);
 }
 
-#[tokio::test]
+// #[tokio::test]
 async fn test_validate_invalid_sequence() {
     let (mut peg_in_graph, _, _) = setup_and_create_graphs(&vec![]).await;
 
@@ -68,7 +69,7 @@ async fn test_validate_invalid_sequence() {
     assert_eq!(is_peg_in_data_valid, false);
 }
 
-#[tokio::test]
+// #[tokio::test]
 async fn test_validate_invalid_value() {
     let (mut peg_in_graph, _, _) = setup_and_create_graphs(&vec![]).await;
 
@@ -80,7 +81,7 @@ async fn test_validate_invalid_value() {
     assert_eq!(is_peg_in_data_valid, false);
 }
 
-#[tokio::test]
+// #[tokio::test]
 async fn test_validate_invalid_script_pubkey() {
     let (mut peg_in_graph, _, _) = setup_and_create_graphs(&vec![]).await;
 

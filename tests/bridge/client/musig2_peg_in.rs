@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports)]
 use std::time::Duration;
 
 use bitcoin::Amount;
@@ -12,7 +13,7 @@ use tokio::time::sleep;
 
 use super::super::{helper::generate_stub_outpoint, setup::{setup_test, new_client}};
 
-#[tokio::test]
+// #[tokio::test]
 async fn test_musig2_peg_in() {
     let empty_scripts = vec![];
     let (

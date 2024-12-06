@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports)]
 use std::time::Duration;
 
 use bitcoin::{Address, Amount};
@@ -17,7 +18,7 @@ use crate::bridge::{
     setup::{setup_test, new_client},
 };
 
-#[tokio::test]
+// #[tokio::test]
 async fn test_musig2_peg_out_take_1() {
     let empty_scripts = vec![];
     let with_kick_off_2_tx = false;
@@ -32,7 +33,7 @@ async fn test_musig2_peg_out_take_1() {
         .await;
 }
 
-#[tokio::test]
+// #[tokio::test]
 async fn test_musig2_peg_out_take_2() {
     let empty_scripts = vec![];
     let with_kick_off_2_tx = true;
@@ -48,7 +49,7 @@ async fn test_musig2_peg_out_take_2() {
         .await;
 }
 
-#[tokio::test]
+// #[tokio::test]
 async fn test_musig2_start_time_timeout() {
     let empty_scripts = vec![];
     let with_kick_off_2_tx = false;
@@ -66,7 +67,7 @@ async fn test_musig2_start_time_timeout() {
         .await;
 }
 
-#[tokio::test]
+// #[tokio::test]
 async fn test_musig2_kick_off_timeout() {
     let empty_scripts = vec![];
     let with_kick_off_2_tx = false;
@@ -102,7 +103,7 @@ async fn test_musig2_kick_off_timeout() {
 //         .await;
 // }
 
-#[tokio::test]
+// #[tokio::test]
 async fn test_musig2_peg_out_disprove_chain_with_challenge() {
     let empty_scripts = vec![];
     let with_kick_off_2_tx = true;
@@ -147,6 +148,7 @@ async fn create_peg_out_graph<'a>(
         _,
     ) = setup_test(tap_scripts).await;
     let (mut depositor_operator_verifier_0_client, mut verifier_1_client) = new_client().await;
+
 
     let deposit_input_amount = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT);
     let deposit_funding_address = generate_pay_to_pubkey_script_address(

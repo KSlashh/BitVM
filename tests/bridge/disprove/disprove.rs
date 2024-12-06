@@ -25,7 +25,7 @@ mod tests {
             let (vk, _, _) = get_groth16_proof();
             let (wots_pk, _) = get_wots_keys();
             let mut signed_assertions = get_signed_assertions();
-            let index = 1; // TODO: test all
+            let index = 1; 
             corrupt_assertions(&mut signed_assertions, index);
             let res = validate_assertions(&vk, signed_assertions, wots_pk);
             assert!(res.is_some(), "unexpected validate assertions result");
@@ -168,7 +168,7 @@ mod tests {
             .unwrap();
         t.join().unwrap();
     }
-    
+
     #[tokio::test]
     async fn test_all_disprove_tapnode() {
         let tap_scripts = get_tapscripts();
