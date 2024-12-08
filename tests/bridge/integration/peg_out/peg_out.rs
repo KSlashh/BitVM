@@ -9,13 +9,13 @@ use bitvm::bridge::{
     },
 };
 
-use crate::bridge::{helper::generate_stub_outpoint, setup::setup_test};
+use crate::bridge::{helper::{generate_stub_outpoint, self}, setup::setup_test};
 
 #[tokio::test]
 async fn test_peg_out_success() {
+    let empty_script = vec![];
     let (
-        client,
-        _,
+        rpc,
         _,
         operator_context,
         _,
@@ -33,8 +33,7 @@ async fn test_peg_out_success() {
         _,
         _,
         withdrawer_evm_address,
-        _,
-    ) = setup_test().await;
+    ) = setup_test(&empty_script).await;
     let timestamp = 1722328130u32;
 
     let input_amount_raw = INITIAL_AMOUNT + FEE_AMOUNT;
@@ -49,11 +48,10 @@ async fn test_peg_out_success() {
         operator_funding_utxo_address
     );
     let operator_funding_outpoint = generate_stub_outpoint(
-        &client,
+        &rpc,
         &operator_funding_utxo_address,
         operator_input_amount,
-    )
-    .await;
+    );
     println!(
         "operator_funding_utxo.txid: {:?}",
         operator_funding_outpoint.txid
@@ -75,8 +73,9 @@ async fn test_peg_out_success() {
     let peg_out_txid = peg_out_tx.compute_txid();
 
     // mine peg-out
-    let peg_out_result = client.esplora.broadcast(&peg_out_tx).await;
-    println!("Peg Out Tx result: {:?}", peg_out_result);
-    assert!(peg_out_result.is_ok());
+    helper::mint_block(&rpc, 1);
+    helper::broadcast_tx(&rpc, &peg_out_tx);
+    helper::mint_block(&rpc, 1);
+    helper::validate_tx(&rpc, peg_out_txid);
     println!("Peg Out Txid: {:?}", peg_out_txid);
 }

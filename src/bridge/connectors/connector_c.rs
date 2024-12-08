@@ -1,17 +1,12 @@
-use crate::{bridge::graphs::base::CALC_ROUND, treepp::script};
+use crate::{bridge::groth16, treepp::*};
 use bitcoin::{
-    hashes::{ripemd160, Hash},
     key::Secp256k1, Witness,
     taproot::{TaprootBuilder, TaprootSpendInfo},
     Address, Network, ScriptBuf, TxIn, XOnlyPublicKey,
 };
 use num_traits::ToPrimitive;
-use serde::{Deserialize, Serialize};
 
 use super::{super::transactions::base::Input, connector::*};
-use crate::bridge::commitment::WPublicKey;
-use crate::bridge::hash_chain;
-use crate::bridge::scripts::generate_pay_to_pubkey_taproot_script;
 
 // Specialized for assert leaves currently.
 pub type LockScript = fn(index: u32) -> ScriptBuf;
@@ -23,58 +18,73 @@ pub struct DisproveLeaf {
     pub unlock: UnlockWitness,
 }
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct ConnectorC {
+#[derive(Clone)]
+pub struct ConnectorC<'a> {
     pub network: Network,
     pub operator_taproot_public_key: XOnlyPublicKey,
-    pub operator_commitment_pubkey: WPublicKey,
+    pub disprove_tap_scripts: &'a Vec<Script>,
+    pub leaf_num: usize,
+    pub taproot_address: Option<Address>,
 }
 
-impl ConnectorC {
-    pub fn new(network: Network, operator_taproot_public_key: &XOnlyPublicKey, operator_commitment_pubkey: &WPublicKey,) -> Self {
+impl<'a> ConnectorC<'a> {
+    pub fn new(network: Network, operator_taproot_public_key: &XOnlyPublicKey, disprove_tap_scripts: &'a Vec<Script>) -> Self {
         ConnectorC {
             network,
             operator_taproot_public_key: operator_taproot_public_key.clone(),
-            operator_commitment_pubkey: operator_commitment_pubkey.clone(),
+            disprove_tap_scripts,
+            leaf_num: disprove_tap_scripts.len() + 1,
+            taproot_address: None,
         }
     }
 
-    pub fn generate_taproot_leaf_script(&self, leaf_index: u32) -> ScriptBuf {
-        assert!(leaf_index <= CALC_ROUND, "Invalid leaf index.");
-        if leaf_index == CALC_ROUND {
-            generate_pay_to_pubkey_taproot_script(&self.operator_taproot_public_key)
+    pub fn gen_taproot_address(&mut self) -> Address {
+        if Option::is_none(&self.taproot_address) {
+            let addr: Address = self.generate_taproot_address();
+            self.taproot_address = Some(addr);
+        }
+        self.taproot_address.clone().unwrap()
+    }
+
+    pub fn get_taproot_leaf_script(&self, leaf_index: u32) -> ScriptBuf {
+        assert!(leaf_index < self.leaf_num as u32, "Invalid leaf index.");
+        if leaf_index as usize != self.leaf_num-1 {
+            self.disprove_tap_scripts[leaf_index as usize].clone().compile()
         } else {
-        script! {
-                { hash_chain::chunk_script_lock(&self.operator_commitment_pubkey, leaf_index) }
-            }
-            .compile()
+            script! {
+                { self.operator_taproot_public_key }
+                OP_CHECKSIG
+            }.compile()
         }
     }
 
-    pub fn push_leaf_unlock_witness(&self, witness: &mut Witness, pre_commitment: &Witness, post_commitment: &Witness, leaf_index: u32) {
-        assert!(leaf_index < CALC_ROUND, "Invalid leaf index.");
-        witness.push([0x1]);
-        hash_chain::push_chunk_unlock_witness(witness, pre_commitment, post_commitment);
+    pub fn push_leaf_unlock_witness(&self, witness: &mut Witness, _leaf_index: u32, hint_script: Script) {
+        // witness.push([0x1]);
+        let wit = groth16::hint_script_to_witness(hint_script);
+        for w in wit {
+            witness.push(w);
+        }
     }
 }
 
-impl TaprootConnector for ConnectorC {
+impl<'a> TaprootConnector for ConnectorC<'a> {
     fn generate_taproot_leaf_script(&self, leaf_index: u32) -> ScriptBuf {
-        self.generate_taproot_leaf_script(leaf_index)
+        self.get_taproot_leaf_script(leaf_index)
     }
 
     fn generate_taproot_leaf_tx_in(&self, leaf_index: u32, input: &Input) -> TxIn {
         let index = leaf_index.to_usize().unwrap();
-        if index >= (CALC_ROUND+1) as usize {
+        if index >= self.leaf_num {
             panic!("Invalid leaf index.")
         }
         generate_default_tx_in(input)
     }
 
     fn generate_taproot_spend_info(&self) -> TaprootSpendInfo {
-        let mut lock_scripts = Vec::with_capacity(CALC_ROUND as usize);
-        for i in 0..(CALC_ROUND+1) {
-            lock_scripts.push(self.generate_taproot_leaf_script(i))
+        let script_num = self.leaf_num;
+        let mut lock_scripts = Vec::with_capacity(script_num);
+        for i in 0..script_num {
+            lock_scripts.push(self.generate_taproot_leaf_script(i as u32))
         }
         let script_weights = lock_scripts.iter().map(|script| (1, script.clone()));
 
@@ -84,11 +94,17 @@ impl TaprootConnector for ConnectorC {
             .expect("Unable to finalize assert transaction connector c taproot")
     }
 
+    #[allow(non_snake_case)]
     fn generate_taproot_address(&self) -> Address {
-        Address::p2tr_tweaked(
-            self.generate_taproot_spend_info().output_key(),
-            self.network,
-        )
+        match self.taproot_address.clone() {
+            Some(addr) => addr,
+            None => {
+                Address::p2tr_tweaked(
+                    self.generate_taproot_spend_info().output_key(),
+                    self.network,
+                )
+            },
+        }
     }
 }
 

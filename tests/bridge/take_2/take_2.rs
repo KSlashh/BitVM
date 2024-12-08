@@ -1,21 +1,21 @@
-use bitcoin::{consensus::encode::serialize_hex, Amount};
+use bitcoin::Amount;
 
 use bitvm::bridge::{
     connectors::connector::{P2wshConnector, TaprootConnector},
-    graphs::base::{DUST_AMOUNT, FEE_AMOUNT, HUGE_FEE_AMOUNT, INITIAL_AMOUNT, ONE_HUNDRED},
+    graphs::base::{DUST_AMOUNT, HUGE_FEE_AMOUNT, INITIAL_AMOUNT},
     transactions::{
         base::{BaseTransaction, Input},
         take_2::Take2Transaction,
     },
 };
 
-use super::super::{helper::generate_stub_outpoint, setup::setup_test};
+use super::super::{helper::{generate_stub_outpoint, self}, setup::setup_test};
 
 #[tokio::test]
 async fn test_take_2_tx() {
+    let tap_scripts = vec![];
     let (
-        client,
-        _,
+        rpc,
         _,
         operator_context,
         verifier_0_context,
@@ -23,7 +23,7 @@ async fn test_take_2_tx() {
         _,
         _,
         _,
-        connector_c,
+        mut connector_c,
         _,
         connector_0,
         _,
@@ -33,31 +33,32 @@ async fn test_take_2_tx() {
         connector_5,
         _,
         _,
-        _,
-    ) = setup_test().await;
+    ) = setup_test(&tap_scripts).await;
+    connector_c.gen_taproot_address();
 
     let input_value0 = Amount::from_sat(INITIAL_AMOUNT + HUGE_FEE_AMOUNT);
     let funding_utxo_address0 = connector_0.generate_taproot_address();
     let funding_outpoint0 =
-        generate_stub_outpoint(&client, &funding_utxo_address0, input_value0).await;
+        generate_stub_outpoint(&rpc, &funding_utxo_address0, input_value0);
 
     let input_value1 = Amount::from_sat(DUST_AMOUNT);
     let funding_utxo_address1 = connector_4.generate_address();
     let funding_outpoint1 =
-        generate_stub_outpoint(&client, &funding_utxo_address1, input_value1).await;
+        generate_stub_outpoint(&rpc, &funding_utxo_address1, input_value1);
 
     let input_value2 = Amount::from_sat(DUST_AMOUNT * 2);
     let funding_utxo_address2 = connector_5.generate_taproot_address();
     let funding_outpoint2 =
-        generate_stub_outpoint(&client, &funding_utxo_address2, input_value2).await;
+        generate_stub_outpoint(&rpc, &funding_utxo_address2, input_value2);
 
     let input_value3 = Amount::from_sat(DUST_AMOUNT * 3);
     let funding_utxo_address3 = connector_c.generate_taproot_address();
     let funding_outpoint3 =
-        generate_stub_outpoint(&client, &funding_utxo_address3, input_value3).await;
+        generate_stub_outpoint(&rpc, &funding_utxo_address3, input_value3);
 
     let mut take_2_tx = Take2Transaction::new(
         &operator_context,
+        connector_c,
         Input {
             outpoint: funding_outpoint0,
             amount: input_value0,
@@ -83,10 +84,10 @@ async fn test_take_2_tx() {
     take_2_tx.pre_sign(&verifier_1_context, &secret_nonces_1);
 
     let tx = take_2_tx.finalize();
-    // println!("Script Path Spend Transaction: {:?}\n", tx);
-    let result = client.esplora.broadcast(&tx).await;
-    println!("\nTxid: {:?}", tx.compute_txid());
-    println!("Broadcast result: {:?}\n", result);
-    // println!("Transaction hex: \n{}", serialize_hex(&tx));
-    assert!(result.is_ok());
+    helper::mint_block(&rpc, 1);
+    helper::broadcast_tx(&rpc, &tx);
+    helper::mint_block(&rpc, 1);
+    let txid = tx.compute_txid();
+    println!("Txid: {:?}", txid.clone());
+    helper::validate_tx(&rpc, txid);
 }

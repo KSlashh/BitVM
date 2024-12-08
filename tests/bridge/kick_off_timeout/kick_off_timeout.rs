@@ -1,4 +1,4 @@
-use bitcoin::{consensus::encode::serialize_hex, Amount};
+use bitcoin::Amount;
 
 use bitvm::bridge::{
     connectors::connector::TaprootConnector,
@@ -9,13 +9,13 @@ use bitvm::bridge::{
     },
 };
 
-use super::super::{helper::generate_stub_outpoint, setup::setup_test};
+use super::super::{helper::{generate_stub_outpoint, self}, setup::setup_test};
 
 #[tokio::test]
 async fn test_kick_off_timeout_tx() {
+    let empty_script = vec![];
     let (
-        client,
-        _,
+        rpc,
         _,
         operator_context,
         verifier_0_context,
@@ -33,16 +33,14 @@ async fn test_kick_off_timeout_tx() {
         _,
         _,
         _,
-        _,
-    ) = setup_test().await;
+    ) = setup_test(&empty_script).await;
 
     let input_value0 = Amount::from_sat(ONE_HUNDRED * 2 / 100);
     let outpoint_0 = generate_stub_outpoint(
-        &client,
+        &rpc,
         &connector_1.generate_taproot_address(),
         input_value0,
-    )
-    .await;
+    );
 
     let mut kick_off_timeout_tx = KickOffTimeoutTransaction::new(
         &operator_context,
@@ -59,10 +57,10 @@ async fn test_kick_off_timeout_tx() {
     kick_off_timeout_tx.pre_sign(&verifier_1_context, &secret_nonces_1);
 
     let tx = kick_off_timeout_tx.finalize();
-    println!("Script Path Spend Transaction: {:?}\n", tx);
-    let result = client.esplora.broadcast(&tx).await;
-    println!("Txid: {:?}", tx.compute_txid());
-    println!("Broadcast result: {:?}\n", result);
-    println!("Transaction hex: \n{}", serialize_hex(&tx));
-    assert!(result.is_ok());
+    helper::mint_block(&rpc, 1);
+    helper::broadcast_tx(&rpc, &tx);
+    helper::mint_block(&rpc, 1);
+    let txid = tx.compute_txid();
+    println!("Txid: {:?}", txid.clone());
+    helper::validate_tx(&rpc, txid);
 }

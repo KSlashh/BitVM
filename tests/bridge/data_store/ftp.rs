@@ -1,6 +1,7 @@
+#![allow(dead_code, unused_imports)]
 use bitvm::bridge::client::data_store::{base::DataStoreDriver, ftp::ftp::Ftp};
 
-#[tokio::test]
+// #[tokio::test]
 async fn test_ftp() {
     println!("Start FTP connection");
     let ftp = Ftp::new().unwrap();

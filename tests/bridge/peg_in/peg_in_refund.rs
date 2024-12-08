@@ -1,4 +1,4 @@
-use bitcoin::{consensus::encode::serialize_hex, Amount};
+use bitcoin::Amount;
 
 use bitvm::bridge::{
     connectors::connector::TaprootConnector,
@@ -9,13 +9,13 @@ use bitvm::bridge::{
     },
 };
 
-use super::super::{helper::generate_stub_outpoint, setup::setup_test};
+use super::super::{helper::{generate_stub_outpoint, self}, setup::setup_test};
 
 #[tokio::test]
 async fn test_peg_in_refund_tx() {
+    let empty_script = vec![];
     let (
-        client,
-        _,
+        rpc,
         depositor_context,
         _,
         _,
@@ -33,12 +33,11 @@ async fn test_peg_in_refund_tx() {
         _,
         depositor_evm_address,
         _,
-        _,
-    ) = setup_test().await;
+    ) = setup_test(&empty_script).await;
 
     let amount = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT);
     let outpoint =
-        generate_stub_outpoint(&client, &connector_z.generate_taproot_address(), amount).await;
+        generate_stub_outpoint(&rpc, &connector_z.generate_taproot_address(), amount);
 
     let peg_in_refund_tx = PegInRefundTransaction::new(
         &depositor_context,
@@ -47,10 +46,10 @@ async fn test_peg_in_refund_tx() {
     );
 
     let tx = peg_in_refund_tx.finalize();
-    println!("Script Path Spend Transaction: {:?}\n", tx);
-    let result = client.esplora.broadcast(&tx).await;
-    println!("Txid: {:?}", tx.compute_txid());
-    println!("Broadcast result: {:?}\n", result);
-    println!("Transaction hex: \n{}", serialize_hex(&tx));
-    assert!(result.is_ok());
+    helper::mint_block(&rpc, 1);
+    helper::broadcast_tx(&rpc, &tx);
+    helper::mint_block(&rpc, 1);
+    let txid = tx.compute_txid();
+    println!("Txid: {:?}", txid.clone());
+    helper::validate_tx(&rpc, txid);
 }

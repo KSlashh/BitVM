@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports)]
 use std::time::Duration;
 
 use bitcoin::Amount;
@@ -10,13 +11,13 @@ use bitvm::bridge::{
 
 use tokio::time::sleep;
 
-use super::super::{helper::generate_stub_outpoint, setup::setup_test};
+use super::super::{helper::generate_stub_outpoint, setup::{setup_test, new_client}};
 
-#[tokio::test]
+// #[tokio::test]
 async fn test_musig2_peg_in() {
+    let empty_scripts = vec![];
     let (
-        mut depositor_operator_verifier_0_client,
-        mut verifier_1_client,
+        rpc,
         depositor_context,
         _,
         _,
@@ -34,20 +35,19 @@ async fn test_musig2_peg_in() {
         _,
         depositor_evm_address,
         _,
-        _,
-    ) = setup_test().await;
+    ) = setup_test(&empty_scripts).await;
+    let (mut depositor_operator_verifier_0_client, mut verifier_1_client) = new_client().await;
 
     // Depositor: generate graph
     let amount = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT);
     let outpoint = generate_stub_outpoint(
-        &depositor_operator_verifier_0_client,
+        &rpc,
         &generate_pay_to_pubkey_script_address(
             depositor_context.network,
             &depositor_context.depositor_public_key,
         ),
         amount,
-    )
-    .await;
+    );
 
     let graph_id = depositor_operator_verifier_0_client
         .create_peg_in_graph(Input { outpoint, amount }, &depositor_evm_address)

@@ -6,8 +6,8 @@ use crate::bn254::fq::bigint_to_u32_limbs;
 use crate::bn254::fr::Fr;
 use crate::bn254::{fq12::Fq12, fq2::Fq2};
 use ark_ec::{bn::BnConfig, AffineRepr};
-use ark_ff::{AdditiveGroup, BigInt};
 use ark_ff::Field;
+use ark_ff::{AdditiveGroup, BigInt};
 use num_bigint::BigUint;
 
 use crate::{
@@ -99,6 +99,7 @@ pub fn g1_affine_push_not_montgomery(point: ark_bn254::G1Affine) -> Script {
     }
 }
 
+#[derive(Debug, Clone)]
 pub enum Hint {
     Fq(ark_bn254::Fq),
     BigIntegerTmulLC1(num_bigint::BigInt),
@@ -109,8 +110,8 @@ impl Hint {
     pub fn push(&self) -> Script {
         const K1: (u32, u32) = Fq::bigint_tmul_lc_1();
         const K2: (u32, u32) = Fq::bigint_tmul_lc_2();
-        pub type T1 = BigIntImpl<{K1.0}, {K1.1}>;
-        pub type T2 = BigIntImpl<{K2.0}, {K2.1}>;
+        pub type T1 = BigIntImpl<{ K1.0 }, { K1.1 }>;
+        pub type T2 = BigIntImpl<{ K2.0 }, { K2.1 }>;
         match self {
             Hint::Fq(fq) => script! {
                 { fq_push_not_montgomery(*fq) }
@@ -124,7 +125,6 @@ impl Hint {
         }
     }
 }
-
 // input:
 //  f            12 elements
 //  coeffs.c0    2 elements
@@ -225,7 +225,12 @@ pub fn ell_by_constant_affine(constant: &EllCoeff) -> Script {
     }
 }
 
-pub fn hinted_ell_by_constant_affine(f: ark_bn254::Fq12, x: ark_bn254::Fq, y: ark_bn254::Fq, constant: &EllCoeff) -> (Script, Vec<Hint>) {
+pub fn hinted_ell_by_constant_affine(
+    f: ark_bn254::Fq12,
+    x: ark_bn254::Fq,
+    y: ark_bn254::Fq,
+    constant: &EllCoeff,
+) -> (Script, Vec<Hint>) {
     assert_eq!(constant.0, ark_bn254::Fq2::ONE);
     let mut hints = Vec::new();
 
@@ -239,12 +244,11 @@ pub fn hinted_ell_by_constant_affine(f: ark_bn254::Fq12, x: ark_bn254::Fq, y: ar
     c2.mul_assign_by_fp(&y);
     let (hinted_script5, hint5) = Fq12::hinted_mul_by_34(f, c1, c2);
 
-    let script_lines = vec! [
+    let script_lines = vec![
         // [f, x', y']
         // update c1, c1' = x' * c1
         Fq::copy(1),
         hinted_script1,
-
         // [f, x', y', x' * c1.0]
         Fq::roll(2),
         hinted_script2,
@@ -253,7 +257,7 @@ pub fn hinted_ell_by_constant_affine(f: ark_bn254::Fq12, x: ark_bn254::Fq, y: ar
 
         // update c2, c2' = -y' * c2
         Fq::copy(2),
-        hinted_script3,  // Fq::mul_by_constant(&constant.2.c0),
+        hinted_script3, // Fq::mul_by_constant(&constant.2.c0),
         // [f, y', x' * c1, y' * c2.0]
         Fq::roll(3),
         hinted_script4,
@@ -266,7 +270,7 @@ pub fn hinted_ell_by_constant_affine(f: ark_bn254::Fq12, x: ark_bn254::Fq, y: ar
         // [f]
     ];
 
-    let mut script = script!{};
+    let mut script = script! {};
     for script_line in script_lines {
         script = script.push_script(script_line.compile());
     }
@@ -275,6 +279,61 @@ pub fn hinted_ell_by_constant_affine(f: ark_bn254::Fq12, x: ark_bn254::Fq, y: ar
     hints.extend(hint3);
     hints.extend(hint4);
     hints.extend(hint5);
+
+    (script, hints)
+}
+
+
+pub fn new_hinted_ell_by_constant_affine(x: ark_bn254::Fq, y: ark_bn254::Fq, slope: ark_bn254::Fq2, bias: ark_bn254::Fq2) -> (Script, Vec<Hint>) {
+    let mut hints = Vec::new();
+
+    let (hinted_script1, hint1) = Fq::hinted_mul(1, x, 0, slope.c0);
+    let (hinted_script2, hint2) = Fq::hinted_mul(1, x, 0, slope.c1);
+    let (hinted_script3, hint3) = Fq::hinted_mul(1, y, 0, bias.c0);
+    let (hinted_script4, hint4) = Fq::hinted_mul(1, y, 0, bias.c1);
+
+
+    let script_lines = vec! [
+        // [slope, bias, x', y']
+        // update c1, c1' = x' * c1
+        Fq::copy(1),
+        // [slope0, slope1, bias0, bias1, x', y', x']
+        Fq::roll(6),
+        // [slope1, bias0, bias1, x', y', x', slope0]
+        hinted_script1,
+        // [slope1, bias0, bias1, x', y', x'* slope0]
+
+        Fq::roll(2),
+        // [slope1, bias0, bias1, y', x'* slope0, x']
+        Fq::roll(5),
+        // [bias0, bias1, y', x'* slope0, x', slope1]
+        hinted_script2,
+        // [bias0, bias1, y', x'* slope0, x'* slope1]
+
+        // update c2, c2' = -y' * c2
+        Fq::copy(2),
+        // [bias0, bias1, y', x'* slope0, x'* slope1, y']
+        Fq::roll(5),
+        // [bias1, y', x'* slope0, x'* slope1, y', bias0]
+        hinted_script3,  
+        // [bias1, y', x'* slope0, x'* slope1, y'*bias0]
+        Fq::roll(3),
+        // [bias1, x'* slope0, x'* slope1, y'*bias0, y']
+        Fq::roll(4),
+        // [x'* slope0, x'* slope1, y'*bias0, y', bias1]
+        hinted_script4,
+        // [x'* slope0, x'* slope1, y'*bias0, y'* bias1]
+
+    ];
+
+    let mut script = script!{};
+    for script_line in script_lines {
+        script = script.push_script(script_line.compile());
+    }
+    hints.extend(hint1);
+    hints.extend(hint2);
+    hints.extend(hint3);
+    hints.extend(hint4);
     
     (script, hints)
 
@@ -374,6 +433,66 @@ pub fn from_eval_point(p: ark_bn254::G1Affine) -> Script {
 /// output on stack:
 ///      x' = -p.x / p.y
 ///      y' = 1 / p.y
+///  // Stack: [hints, pxd, pyd, px, py] 
+pub fn new_hinted_x_from_eval_point(p: ark_bn254::G1Affine, py_inv: ark_bn254::Fq) -> (Script, Vec<Hint>) {
+    let mut hints = Vec::new();
+
+    // let py_inv = p.y().unwrap().inverse().unwrap();
+
+    let (hinted_script1, hint1) = Fq::hinted_mul(1, p.y, 0, py_inv);
+    let (hinted_script2, hint2) = Fq::hinted_mul(1, py_inv, 0, -p.x);
+    let script_lines = vec! [
+        // Stack: [hints, pxd, pyd, px, py] 
+        Fq::copy(2),
+        // Stack: [hints, pxd, pyd, px, py, pyd] 
+        hinted_script1,
+        Fq::push_one_not_montgomery(),
+        Fq::equalverify(1, 0),
+        // Stack: [hints, pxd, pyd, px]
+        Fq::neg(0),
+        // Stack: [hints, pxd, pyd, -px]
+        hinted_script2
+    ];
+
+    let mut script = script!{};
+    for script_line in script_lines {
+        script = script.push_script(script_line.compile());
+    }
+    hints.extend(hint1);
+    hints.extend(hint2);
+
+    (script, hints)
+}
+
+pub fn new_hinted_y_from_eval_point(py: ark_bn254::Fq, py_inv: ark_bn254::Fq) -> (Script, Vec<Hint>) {
+    let mut hints = Vec::new();
+
+
+    let (hinted_script1, hint1) = Fq::hinted_mul(1, py_inv, 0, py);
+    let script_lines = vec! [
+        // Stack: [hints, pyd_calc, pyd_claim, py_claim]
+        {Fq::copy(2)},
+        {Fq::roll(1)},
+        // Stack: [hints, pyd_calc, pyd_claim, pyd_calc, py_claim]
+        hinted_script1,
+        {Fq::push_one_not_montgomery()},
+        {Fq::equalverify(1,0)}
+    ];
+    let mut script = script!{};
+    for script_line in script_lines {
+        script = script.push_script(script_line.compile());
+    }
+    hints.extend(hint1);
+
+    (script, hints)
+}
+
+
+/// input of func (params):
+///      p.x, p.y
+/// output on stack:
+///      x' = -p.x / p.y
+///      y' = 1 / p.y
 pub fn hinted_from_eval_point(p: ark_bn254::G1Affine) -> (Script, Vec<Hint>) {
     let mut hints = Vec::new();
 
@@ -381,7 +500,7 @@ pub fn hinted_from_eval_point(p: ark_bn254::G1Affine) -> (Script, Vec<Hint>) {
 
     let (hinted_script1, hint1) = Fq::hinted_mul(2, py_inv, 0, p.y);
     let (hinted_script2, hint2) = Fq::hinted_mul(2, py_inv, 0, -p.x);
-    let script_lines = vec! [
+    let script_lines = vec![
         Fq::push_u32_le_not_montgomery(&BigUint::from(py_inv).to_u32_digits()),
         // [1/y]
         // check p.y.inv() is valid
@@ -409,7 +528,7 @@ pub fn hinted_from_eval_point(p: ark_bn254::G1Affine) -> (Script, Vec<Hint>) {
         // [-x/y, 1/y]
     ];
 
-    let mut script = script!{};
+    let mut script = script! {};
     for script_line in script_lines {
         script = script.push_script(script_line.compile());
     }
@@ -418,6 +537,7 @@ pub fn hinted_from_eval_point(p: ark_bn254::G1Affine) -> (Script, Vec<Hint>) {
 
     (script, hints)
 }
+
 
 /// input of stack:
 ///      p.x, p.y (affine space)
@@ -523,8 +643,75 @@ pub fn affine_add_line(c3: ark_bn254::Fq2, c4: ark_bn254::Fq2) -> Script {
     }
 }
 
-pub fn hinted_affine_add_line(tx: ark_bn254::Fq2, qx: ark_bn254::Fq2, c3: ark_bn254::Fq2, c4: ark_bn254::Fq2) -> (Script, Vec<Hint>) {
+pub fn hinted_affine_add_line(
+    tx: ark_bn254::Fq2,
+    qx: ark_bn254::Fq2,
+    c3: ark_bn254::Fq2,
+    c4: ark_bn254::Fq2,
+) -> (Script, Vec<Hint>) {
     let mut hints = Vec::new();
+
+    let (hinted_script0, hint0) = Fq2::hinted_square(c3);
+    let (hinted_script1, hint1) = Fq2::hinted_mul(4, c3, 0, c3.square() - tx - qx);
+    let script0 = script! {
+        for _ in 0..<Fq as crate::bn254::fp254impl::Fp254Impl>::N_LIMBS {
+            OP_DEPTH OP_1SUB OP_ROLL // hints
+        }
+    };
+    let script_lines = vec![
+        // [T.x, Q.x]
+        Fq2::neg(0),
+        // [T.x, -Q.x]
+        Fq2::roll(2),
+        // [-Q.x, T.x]
+        Fq2::neg(0),
+        // [-T.x - Q.x]
+        Fq2::add(2, 0),
+        // [-T.x - Q.x]
+        // fq2_push_not_montgomery(c3),
+        script0.clone(),
+        script0.clone(),
+        Fq2::copy(0),
+        // [-T.x - Q.x, alpha]
+        // fq2_push_not_montgomery(c3.square()),
+        hinted_script0,
+        // [-T.x - Q.x, alpha, alpha^2]
+        // calculate x' = alpha^2 - T.x - Q.x
+        Fq2::add(4, 0),
+        // [alpha, x']
+        Fq2::copy(0),
+        // [alpha, x', x']
+        hinted_script1,
+        // [x', alpha * x']
+        Fq2::neg(0),
+        // [x', -alpha * x']
+        // fq2_push_not_montgomery(c4),
+        script0.clone(),
+        script0.clone(),
+        // [x', -alpha * x', -bias]
+        // compute y' = -bias - alpha * x'
+        Fq2::add(2, 0),
+        // [x', y']
+    ];
+
+    let mut script = script! {};
+    for script_line in script_lines {
+        script = script.push_script(script_line.compile());
+    }
+    hints.push(Hint::Fq(c3.c0));
+    hints.push(Hint::Fq(c3.c1));
+    hints.extend(hint0);
+    hints.extend(hint1);
+    hints.push(Hint::Fq(c4.c0));
+    hints.push(Hint::Fq(c4.c1));
+
+    (script, hints)
+}
+
+#[allow(unused_variables)]
+pub fn new_hinted_affine_add_line(tx: ark_bn254::Fq2, qx: ark_bn254::Fq2, c3: ark_bn254::Fq2, c4: ark_bn254::Fq2) -> (Script, Vec<Hint>) {
+    let mut hints = Vec::new();
+    let (hsc, hts) = Fq2::hinted_square(c3);
     let (hinted_script1, hint1) = Fq2::hinted_mul(4, c3, 0, c3.square()-tx-qx);
 
     let script_lines = vec! [
@@ -537,9 +724,9 @@ pub fn hinted_affine_add_line(tx: ark_bn254::Fq2, qx: ark_bn254::Fq2, c3: ark_bn
         // [-T.x - Q.x]
         Fq2::add(2, 0),
         // [-T.x - Q.x]
-        fq2_push_not_montgomery(c3),
-        // [-T.x - Q.x, alpha]
-        fq2_push_not_montgomery(c3.square()),
+        Fq2::roll(2),
+        Fq2::copy(0),
+        hsc,
         // [-T.x - Q.x, alpha, alpha^2]
         // calculate x' = alpha^2 - T.x - Q.x
         Fq2::add(4, 0),
@@ -550,10 +737,10 @@ pub fn hinted_affine_add_line(tx: ark_bn254::Fq2, qx: ark_bn254::Fq2, c3: ark_bn
         // [x', alpha * x']
         Fq2::neg(0),
         // [x', -alpha * x']
-        fq2_push_not_montgomery(c4),
+        // fq2_push_not_montgomery(c4),
         // [x', -alpha * x', -bias]
         // compute y' = -bias - alpha * x'
-        Fq2::add(2, 0),
+        Fq2::add(4, 0),
         // [x', y']
     ];
 
@@ -561,10 +748,12 @@ pub fn hinted_affine_add_line(tx: ark_bn254::Fq2, qx: ark_bn254::Fq2, c3: ark_bn
     for script_line in script_lines {
         script = script.push_script(script_line.compile());
     }
+    hints.extend(hts);
     hints.extend(hint1);
 
     (script, hints)
 }
+
 
 /// double a point T:
 ///     x' = alpha^2 - 2 * T.x
@@ -598,17 +787,74 @@ pub fn affine_double_line(c3: ark_bn254::Fq2, c4: ark_bn254::Fq2) -> Script {
     }
 }
 
-pub fn hinted_affine_double_line(tx: ark_bn254::Fq2, c3: ark_bn254::Fq2, c4: ark_bn254::Fq2) -> (Script, Vec<Hint>) {
+pub fn hinted_affine_double_line(
+    tx: ark_bn254::Fq2,
+    c3: ark_bn254::Fq2,
+    c4: ark_bn254::Fq2,
+) -> (Script, Vec<Hint>) {
     let mut hints = Vec::new();
 
+    let (hinted_script0, hint0) = Fq2::hinted_square(c3);
+    let (hinted_script1, hint1) = Fq2::hinted_mul(4, c3, 0, c3.square() - tx - tx);
+    let script0 = script! {
+        for _ in 0..<Fq as crate::bn254::fp254impl::Fp254Impl>::N_LIMBS {
+            OP_DEPTH OP_1SUB OP_ROLL // hints
+        }
+    };
+    let script_lines = vec![
+        Fq2::double(0),
+        Fq2::neg(0),
+        // [- 2 * T.x]
+        // fq2_push_not_montgomery(c3),
+        script0.clone(),
+        script0.clone(),
+        Fq2::copy(0),
+        // fq2_push_not_montgomery(c3.square()),
+        hinted_script0,
+        // [- 2 * T.x, alpha, alpha^2]
+        Fq2::add(4, 0),
+        Fq2::copy(0),
+        // [alpha, x', x']
+        hinted_script1,
+        Fq2::neg(0),
+        // [x', -alpha * x']
+        // fq2_push_not_montgomery(c4),
+        script0.clone(),
+        script0.clone(),
+        Fq2::add(2, 0),
+        // [x', y']
+    ];
+
+    let mut script = script! {};
+    for script_line in script_lines {
+        script = script.push_script(script_line.compile());
+    }
+
+    hints.push(Hint::Fq(c3.c0));
+    hints.push(Hint::Fq(c3.c1));
+    hints.extend(hint0);
+    hints.extend(hint1);
+    hints.push(Hint::Fq(c4.c0));
+    hints.push(Hint::Fq(c4.c1));
+
+    (script, hints)
+}
+
+#[allow(unused_variables)]
+pub fn new_hinted_affine_double_line(tx: ark_bn254::Fq2, c3: ark_bn254::Fq2, c4: ark_bn254::Fq2) -> (Script, Vec<Hint>) {
+    let mut hints = Vec::new();
+
+    let (hsc, hts) = Fq2::hinted_square(c3);
     let (hinted_script1, hint1) = Fq2::hinted_mul(4, c3, 0, c3.square()-tx-tx);
 
     let script_lines = vec! [
         Fq2::double(0),
         Fq2::neg(0),
-        // [- 2 * T.x]
-        fq2_push_not_montgomery(c3),
-        fq2_push_not_montgomery(c3.square()),
+        // [alpha, - 2 * T.x]
+        Fq2::roll(2),
+        Fq2::copy(0),
+        hsc,
+        // fq2_push_not_montgomery(c3.square()),
         // [- 2 * T.x, alpha, alpha^2]
         Fq2::add(4, 0),
         Fq2::copy(0),
@@ -617,19 +863,21 @@ pub fn hinted_affine_double_line(tx: ark_bn254::Fq2, c3: ark_bn254::Fq2, c4: ark
         Fq2::neg(0),
         // [x', -alpha * x']
 
-        fq2_push_not_montgomery(c4),
-        Fq2::add(2, 0),
+        Fq2::add(4, 0),
         // [x', y']
     ];
 
     let mut script = script!{};
+
     for script_line in script_lines {
         script = script.push_script(script_line.compile());
     }
+    hints.extend(hts);
     hints.extend(hint1);
 
     (script, hints)
 }
+
 
 /// check line through one point, that is:
 ///     y - alpha * x - bias = 0
@@ -667,10 +915,17 @@ pub fn check_line_through_point(c3: ark_bn254::Fq2, c4: ark_bn254::Fq2) -> Scrip
     }
 }
 
+
 pub fn hinted_check_line_through_point(x: ark_bn254::Fq2, c3: ark_bn254::Fq2, c4: ark_bn254::Fq2) -> (Script, Vec<Hint>) {
     let mut hints: Vec<Hint> = Vec::new();
-    
-    let (hinted_script1, hint1) = Fq2::hinted_mul_by_constant(x, &c3);
+
+    let (hinted_script1, hint1) = Fq2::hinted_mul_by_constant_stable(x, &c3);
+
+    let script0 = script! {
+        for _ in 0..<Fq as crate::bn254::fp254impl::Fp254Impl>::N_LIMBS {
+            OP_DEPTH OP_1SUB OP_ROLL // hints
+        }
+    };
 
     let script_lines = vec![
         // [x, y]
@@ -682,9 +937,46 @@ pub fn hinted_check_line_through_point(x: ark_bn254::Fq2, c3: ark_bn254::Fq2, c4
         // [y, -alpha * x]
         Fq2::add(2, 0),
         // [y - alpha * x]
-
-        fq2_push_not_montgomery(c4),
+        // fq2_push_not_montgomery(c4),
+        script0.clone(),
+        script0.clone(),
         // [y - alpha * x, -bias]
+        Fq2::add(2, 0),
+        // [y - alpha * x - bias]
+        Fq2::push_zero(),
+        // [y - alpha * x - bias, 0]
+        Fq2::equalverify(),
+    ];
+
+    let mut script = script! {};
+    for script_line in script_lines {
+        script = script.push_script(script_line.compile());
+    }
+    hints.extend(hint1);
+    hints.push(Hint::Fq(c4.c0));
+    hints.push(Hint::Fq(c4.c1));
+
+
+    (script, hints)
+}
+
+#[allow(unused_variables)]
+pub fn new_hinted_check_line_through_point(x: ark_bn254::Fq2, c3: ark_bn254::Fq2, c4: ark_bn254::Fq2) -> (Script, Vec<Hint>) {
+    let mut hints: Vec<Hint> = Vec::new();
+    
+    let (hinted_script1, hint1) = Fq2::hinted_mul(2, x,0, c3);
+
+    let script_lines = vec![
+        // [alpha, bias, y, x ]
+        Fq2::roll(2),
+        // [alpha, bias, x, y ]
+        Fq2::roll(6),
+        hinted_script1,
+        // [bias, y, alpha * x]
+        Fq2::neg(0),
+        // [bias, y, -alpha * x]
+        Fq2::add(2, 0),
+        // [bias, y - alpha * x]
         Fq2::add(2, 0),
         // [y - alpha * x - bias]
 
@@ -701,6 +993,7 @@ pub fn hinted_check_line_through_point(x: ark_bn254::Fq2, c3: ark_bn254::Fq2, c4
 
     (script, hints)
 }
+
 
 /// check whether a tuple coefficient (alpha, -bias) of a tangent line is satisfied with expected point T (affine)
 /// two aspects:
@@ -742,14 +1035,18 @@ pub fn check_tangent_line(c3: ark_bn254::Fq2, c4: ark_bn254::Fq2) -> Script {
     }
 }
 
-pub fn hinted_check_tangent_line(t: ark_bn254::G2Affine, c3: ark_bn254::Fq2, c4: ark_bn254::Fq2) -> (Script, Vec<Hint>) {
+pub fn hinted_check_tangent_line(
+    t: ark_bn254::G2Affine,
+    c3: ark_bn254::Fq2,
+    c4: ark_bn254::Fq2,
+) -> (Script, Vec<Hint>) {
     let mut hints = Vec::new();
 
-    let (hinted_script1, hint1) = Fq2::hinted_mul_by_constant(t.y.double(), &c3);
+    let (hinted_script1, hint1) = Fq2::hinted_mul_by_constant_stable(t.y.double(), &c3);
     let (hinted_script2, hint2) = Fq2::hinted_square(t.x);
     let (hinted_script3, hint3) = hinted_check_line_through_point(t.x, c3, c4);
 
-    let script_lines = vec! [
+    let script_lines = vec![
         // alpha * (2 * T.y) = 3 * T.x^2
         Fq2::copy(0),
         Fq2::double(0),
@@ -772,7 +1069,7 @@ pub fn hinted_check_tangent_line(t: ark_bn254::G2Affine, c3: ark_bn254::Fq2, c4:
         // []
     ];
 
-    let mut script = script!{};
+    let mut script = script! {};
     for script_line in script_lines {
         script = script.push_script(script_line.compile());
     }
@@ -810,7 +1107,12 @@ pub fn check_chord_line(c3: ark_bn254::Fq2, c4: ark_bn254::Fq2) -> Script {
     }
 }
 
-pub fn hinted_check_chord_line(t: ark_bn254::G2Affine, q: ark_bn254::G2Affine, c3: ark_bn254::Fq2, c4: ark_bn254::Fq2) -> (Script, Vec<Hint>) {
+pub fn hinted_check_chord_line(
+    t: ark_bn254::G2Affine,
+    q: ark_bn254::G2Affine,
+    c3: ark_bn254::Fq2,
+    c4: ark_bn254::Fq2,
+) -> (Script, Vec<Hint>) {
     let mut hints = Vec::new();
 
     let (mut script, hint1) = hinted_check_line_through_point(q.x, c3, c4);
@@ -824,6 +1126,32 @@ pub fn hinted_check_chord_line(t: ark_bn254::G2Affine, q: ark_bn254::G2Affine, c
     (script, hints)
 }
 
+#[allow(unused_variables)]
+pub fn new_hinted_check_chord_line(t: ark_bn254::G2Affine, q: ark_bn254::G2Affine, c3: ark_bn254::Fq2, c4: ark_bn254::Fq2) -> (Script, Vec<Hint>) {
+    let mut hints = Vec::new();
+
+    // let (script1, hint1) = new_hinted_check_line_through_point(t.x, c3, c4);
+    let (script2, hint2) = new_hinted_check_line_through_point(q.x, c3, c4);
+
+
+    let script_lines = vec![
+        // {Fq2::toaltstack()},
+        // {Fq2::toaltstack()},
+        // script1, // t
+        // {Fq2::fromaltstack()}, // q
+        // {Fq2::fromaltstack()}, // q
+        script2,
+    ];
+    let mut script = script!{};
+    for script_line in script_lines {
+        script = script.push_script(script_line.compile());
+    }
+
+    // hints.extend(hint1);
+    hints.extend(hint2);
+
+    (script, hints)
+}
 // stack data: beta^{2 * (p - 1) / 6}, beta^{3 * (p - 1) / 6}, beta^{2 * (p^2 - 1) / 6}, 1/2, B,
 // P1, P2, P3, P4, Q4, c, c', wi, f, Px, Py, Tx, Ty, Tz, Qx, Qy
 // [..., Fq12, Fq12, Fq12, Fq12, Fq, Fq, (Fq, Fq), (Fq, Fq), (Fq, Fq), (Fq, Fq), (Fq, Fq)]
@@ -1173,10 +1501,12 @@ pub fn double_line() -> Script {
     }
 }
 
+
+
+
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::bn254::fq2::Fq2;
     use ark_ff::AdditiveGroup;
     use ark_std::UniformRand;
     use num_traits::One;
@@ -1321,7 +1651,12 @@ mod test {
         // affine mode
         let coeffs = G2Prepared::from_affine(b);
         let (from_eval_point_script, hints_eval) = hinted_from_eval_point(p);
-        let (ell_by_constant_affine_script, hints) = hinted_ell_by_constant_affine(f, -p.x / p.y, p.y.inverse().unwrap(),&coeffs.ell_coeffs[0]);
+        let (ell_by_constant_affine_script, hints) = hinted_ell_by_constant_affine(
+            f,
+            -p.x / p.y,
+            p.y.inverse().unwrap(),
+            &coeffs.ell_coeffs[0],
+        );
         println!(
             "Pairing.ell_by_constant_affine: {} bytes",
             ell_by_constant_affine_script.len()
@@ -1343,10 +1678,10 @@ mod test {
         };
 
         let script = script! {
-            for tmp in hints_eval { 
+            for tmp in hints_eval {
                 { tmp.push() }
             }
-            for tmp in hints { 
+            for tmp in hints {
                 { tmp.push() }
             }
             { fq12_push_not_montgomery(f) }
@@ -1381,7 +1716,7 @@ mod test {
         let p = ark_bn254::G1Affine::rand(&mut prng);
         let (ell_by_constant_affine_script, hints) = hinted_from_eval_point(p);
         let script = script! {
-            for tmp in hints { 
+            for tmp in hints {
                 { tmp.push() }
             }
             { ell_by_constant_affine_script.clone() }
@@ -1389,6 +1724,47 @@ mod test {
             { Fq::push_u32_le_not_montgomery(&BigUint::from(p.y.inverse().unwrap()).to_u32_digits()) }
             { Fq::equalverify(2, 0) }
             { Fq::equalverify(1, 0) }
+            OP_TRUE
+        };
+        let exec_result = execute_script(script);
+        assert!(exec_result.success);
+    }
+
+    #[test]
+    fn test_new_hintedx_from_eval_point() {
+        let mut prng = ChaCha20Rng::seed_from_u64(0);
+        let p = ark_bn254::G1Affine::rand(&mut prng);
+        let (ell_by_constant_affine_script, hints) = new_hinted_x_from_eval_point(p, p.y.inverse().unwrap());
+        let script = script! {
+            for tmp in hints { 
+                { tmp.push() }
+            }
+            { Fq::push_u32_le_not_montgomery(&BigUint::from(-p.x / p.y).to_u32_digits()) }
+            { Fq::push_u32_le_not_montgomery(&BigUint::from(p.y.inverse().unwrap()).to_u32_digits()) }
+            { Fq::push_u32_le_not_montgomery(&BigUint::from(p.x).to_u32_digits()) }
+            { Fq::push_u32_le_not_montgomery(&BigUint::from(p.y).to_u32_digits()) }
+            { ell_by_constant_affine_script.clone() }
+            {Fq::equalverify(1,0)}
+            OP_TRUE
+        };
+        let exec_result = execute_script(script);
+        assert!(exec_result.success);
+    }
+
+    #[test]
+    fn test_new_hintedy_from_eval_point() {
+        let mut prng = ChaCha20Rng::seed_from_u64(0);
+        let p = ark_bn254::G1Affine::rand(&mut prng);
+        let (ell_by_constant_affine_script, hints) = new_hinted_y_from_eval_point(p.y, p.y.inverse().unwrap());
+        let script = script! {
+            for tmp in hints { 
+                { tmp.push() }
+            }
+            { Fq::push_u32_le_not_montgomery(&BigUint::from(p.y.inverse().unwrap()).to_u32_digits()) }
+            { Fq::push_u32_le_not_montgomery(&BigUint::from(p.y.inverse().unwrap()).to_u32_digits()) }
+            { Fq::push_u32_le_not_montgomery(&BigUint::from(p.y).to_u32_digits()) }
+            { ell_by_constant_affine_script.clone() }
+            {Fq::equalverify(1,0)}
             OP_TRUE
         };
         let exec_result = execute_script(script);
@@ -1448,7 +1824,7 @@ mod test {
         let (hinted_add_line, hints) = hinted_affine_add_line(t.x, q.x, alpha, bias_minus);
 
         let script = script! {
-            for hint in hints { 
+            for hint in hints {
                 { hint.push() }
             }
             { fq2_push_not_montgomery(t.x) }
@@ -1468,7 +1844,11 @@ mod test {
         };
         let exec_result = execute_script(script);
         assert!(exec_result.success);
-        println!("hinted_add_line: {} @ {} stack", hinted_add_line.len(), exec_result.stats.max_nb_stack_items);
+        println!(
+            "hinted_add_line: {} @ {} stack",
+            hinted_add_line.len(),
+            exec_result.stats.max_nb_stack_items
+        );
     }
 
     #[test]
@@ -1527,9 +1907,10 @@ mod test {
         let x = alpha.square() - t.x.double();
         let y = bias_minus - alpha * x;
         let (hinted_double_line, hints) = hinted_affine_double_line(t.x, alpha, bias_minus);
+        println!("hinted_affine_double_line: {}", hinted_double_line.len());
 
         let script = script! {
-            for hint in hints { 
+            for hint in hints {
                 { hint.push() }
             }
             { fq2_push_not_montgomery(t.x) }
@@ -1570,7 +1951,11 @@ mod test {
         let exec_result = execute_script(script);
         assert!(exec_result.success);
 
-        println!("check_line: {} @ {} stack", check_line_through_point(alpha, bias_minus).len(), exec_result.stats.max_nb_stack_items);
+        println!(
+            "check_line: {} @ {} stack",
+            check_line_through_point(alpha, bias_minus).len(),
+            exec_result.stats.max_nb_stack_items
+        );
     }
 
     #[test]
@@ -1589,7 +1974,7 @@ mod test {
         let (hinted_check_line, hints) = hinted_check_line_through_point(t.x, alpha, bias_minus);
 
         let script = script! {
-            for hint in hints { 
+            for hint in hints {
                 { hint.push() }
             }
             { fq2_push_not_montgomery(t.x) }
@@ -1599,7 +1984,11 @@ mod test {
         };
         let exec_result = execute_script(script);
         assert!(exec_result.success);
-        println!("hinted_check_line: {} @ {} stack", hinted_check_line.len(), exec_result.stats.max_nb_stack_items);
+        println!(
+            "hinted_check_line: {} @ {} stack",
+            hinted_check_line.len(),
+            exec_result.stats.max_nb_stack_items
+        );
     }
 
     #[test]
@@ -1635,7 +2024,7 @@ mod test {
         let (hinted_check_line, hints) = hinted_check_chord_line(t, q, alpha, bias_minus);
 
         let script = script! {
-            for hint in hints { 
+            for hint in hints {
                 { hint.push() }
             }
             { fq2_push_not_montgomery(t.x) }
@@ -1647,6 +2036,11 @@ mod test {
         };
         let exec_result = execute_script(script);
         assert!(exec_result.success);
-        println!("hinted_check_line: {} @ {} stack", hinted_check_line.len(), exec_result.stats.max_nb_stack_items);
+        println!(
+            "hinted_check_line: {} @ {} stack",
+            hinted_check_line.len(),
+            exec_result.stats.max_nb_stack_items
+        );
     }
+
 }

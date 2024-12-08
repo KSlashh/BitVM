@@ -18,6 +18,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 // NOTE: BRIDGE_SFTP_HOST should be an ip/domain that supports SSH
 
+#[allow(dead_code)]
 struct SftpCredentials {
     pub host: String,
     pub port: String,
@@ -70,6 +71,7 @@ impl Sftp {
         }
     }
 
+    #[allow(unused_variables)]
     async fn get_object(&self, key: &str, file_path: Option<&str>) -> Result<Vec<u8>, String> {
         let mut buffer: Vec<u8> = vec![];
 
@@ -97,6 +99,7 @@ impl Sftp {
         }
     }
 
+    #[allow(unused_variables)]
     async fn upload_object(
         &self,
         key: &str,
@@ -143,6 +146,7 @@ impl Sftp {
 
 #[async_trait]
 impl DataStoreDriver for Sftp {
+    #[allow(unused_variables)]
     async fn list_objects(&self, file_path: Option<&str>) -> Result<Vec<String>, String> {
         match connect(&self.credentials).await {
             Ok(sftp) => {

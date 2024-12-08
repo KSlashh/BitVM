@@ -1,9 +1,8 @@
 use bitcoin::{
-    absolute, consensus, Amount, Network, PublicKey, ScriptBuf, TapSighashType, Transaction, TxOut,
+    absolute, Amount, Network, PublicKey, ScriptBuf, TapSighashType, Transaction, TxOut,
     XOnlyPublicKey,
 };
 use musig2::{secp256k1::schnorr::Signature, PartialSignature, PubNonce, SecNonce};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use super::{
@@ -17,13 +16,11 @@ use super::{
     pre_signed::*,
     pre_signed_musig2::*,
 };
-use crate::bridge::commitment::WPublicKey;
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[allow(dead_code)]
+#[derive(Clone)]
 pub struct KickOffTimeoutTransaction {
-    #[serde(with = "consensus::serde::With::<consensus::serde::Hex>")]
     tx: Transaction,
-    #[serde(with = "consensus::serde::With::<consensus::serde::Hex>")]
     prev_outs: Vec<TxOut>,
     prev_scripts: Vec<ScriptBuf>,
     connector_1: Connector1,
@@ -73,7 +70,6 @@ impl KickOffTimeoutTransaction {
             context.network,
             &context.operator_taproot_public_key,
             &context.n_of_n_taproot_public_key,
-            &context.operator_commitment_pubkey,
             input_0,
         )
     }
@@ -82,14 +78,12 @@ impl KickOffTimeoutTransaction {
         network: Network,
         operator_taproot_public_key: &XOnlyPublicKey,
         n_of_n_taproot_public_key: &XOnlyPublicKey,
-        operator_commitment_pubkey: &WPublicKey,
         input_0: Input,
     ) -> Self {
         let connector_1 = Connector1::new(
             network,
             &operator_taproot_public_key,
             &n_of_n_taproot_public_key,
-            &operator_commitment_pubkey,
         );
 
         let input_0_leaf = 1;
@@ -105,7 +99,7 @@ impl KickOffTimeoutTransaction {
         let reward_output_amount = total_output_amount - (total_output_amount * 95 / 100);
         let _output_1 = TxOut {
             value: reward_output_amount,
-            script_pubkey: ScriptBuf::default(),
+            script_pubkey: generate_burn_script_address(network).script_pubkey(),
         };
 
         KickOffTimeoutTransaction {

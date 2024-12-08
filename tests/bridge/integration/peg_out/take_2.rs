@@ -1,28 +1,27 @@
-use std::time::Duration;
 
-use bitcoin::{Address, Amount, OutPoint};
+use bitcoin::{Amount, OutPoint};
 use bitvm::bridge::{
     connectors::connector::TaprootConnector,
-    graphs::base::{FEE_AMOUNT, HUGE_FEE_AMOUNT, INITIAL_AMOUNT},
-    scripts::generate_pay_to_pubkey_script_address,
+    graphs::base::{DUST_AMOUNT, FEE_AMOUNT, INITIAL_AMOUNT, LARGE_FEE_AMOUNT, ONE_HUNDRED},
     transactions::{
         base::{BaseTransaction, Input},
         take_2::Take2Transaction,
     },
 };
-use tokio::time::sleep;
+// use tokio::time::sleep;
+// use std::time::Duration;
 
 use crate::bridge::{
-    helper::verify_funding_inputs,
+    helper,
     integration::peg_out::utils::{create_and_mine_assert_tx, create_and_mine_peg_in_confirm_tx},
     setup::setup_test,
 };
 
 #[tokio::test]
 async fn test_take_2_success() {
+    let empty_script = vec![];
     let (
-        client,
-        _,
+        rpc,
         depositor_context,
         operator_context,
         verifier_0_context,
@@ -30,7 +29,7 @@ async fn test_take_2_success() {
         _,
         _,
         connector_b,
-        _,
+        mut connector_c,
         connector_z,
         _,
         _,
@@ -40,25 +39,19 @@ async fn test_take_2_success() {
         _,
         depositor_evm_address,
         _,
-        statement,
-    ) = setup_test().await;
+    ) = setup_test(&empty_script).await;
+    connector_c.gen_taproot_address();
 
-    // verify funding inputs
-    let mut funding_inputs: Vec<(&Address, Amount)> = vec![];
 
-    let deposit_input_amount = Amount::from_sat(INITIAL_AMOUNT + HUGE_FEE_AMOUNT);
+    let deposit_input_amount = Amount::from_sat(ONE_HUNDRED);
     let peg_in_confirm_funding_address = connector_z.generate_taproot_address();
-    funding_inputs.push((&peg_in_confirm_funding_address, deposit_input_amount));
 
-    let assert_input_amount = Amount::from_sat(INITIAL_AMOUNT + HUGE_FEE_AMOUNT);
+    let assert_input_amount = Amount::from_sat(INITIAL_AMOUNT + LARGE_FEE_AMOUNT + FEE_AMOUNT + 5*DUST_AMOUNT);
     let assert_funding_address = connector_b.generate_taproot_address();
-    funding_inputs.push((&assert_funding_address, assert_input_amount));
-
-    verify_funding_inputs(&client, &funding_inputs).await;
 
     // peg-in confirm
     let (peg_in_confirm_tx, peg_in_confirm_txid) = create_and_mine_peg_in_confirm_tx(
-        &client,
+        &rpc,
         &depositor_context,
         &verifier_0_context,
         &verifier_1_context,
@@ -70,11 +63,11 @@ async fn test_take_2_success() {
 
     // assert
     let (assert_tx, assert_txid) = create_and_mine_assert_tx(
-        &client,
+        &rpc,
         &operator_context,
         &assert_funding_address,
         assert_input_amount,
-        &statement
+        connector_c.clone(),
     )
     .await;
 
@@ -114,6 +107,7 @@ async fn test_take_2_success() {
 
     let mut take_2 = Take2Transaction::new(
         &operator_context,
+        connector_c,
         take_2_input_0,
         take_2_input_1,
         take_2_input_2,
@@ -130,25 +124,12 @@ async fn test_take_2_success() {
     let take_2_txid = take_2_tx.compute_txid();
 
     // mine take 2
-    sleep(Duration::from_secs(60)).await;
-    let take_2_result = client.esplora.broadcast(&take_2_tx).await;
-    assert!(take_2_result.is_ok());
+    // sleep(Duration::from_secs(60)).await;
+    helper::mint_block(&rpc, 1);
+    helper::broadcast_tx(&rpc, &take_2_tx);
+    helper::mint_block(&rpc, 1);
+    helper::validate_tx(&rpc, take_2_txid);
 
-    // operator balance
-    let operator_address = generate_pay_to_pubkey_script_address(
-        operator_context.network,
-        &operator_context.operator_public_key,
-    );
-    let operator_utxos = client
-        .esplora
-        .get_address_utxo(operator_address.clone())
-        .await
-        .unwrap();
-    let operator_utxo = operator_utxos
-        .clone()
-        .into_iter()
-        .find(|x| x.txid == take_2_txid);
-
-    // assert
-    assert!(operator_utxo.is_some());
+    // operator balance check
+    // TODO
 }

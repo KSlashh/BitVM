@@ -1,6 +1,4 @@
-use bitcoin::{Address, Network, PublicKey, ScriptBuf, TxIn};
-use serde::{Deserialize, Serialize};
-
+#[allow(unused_imports)]
 use super::{
     super::{
         super::bridge::{constants::NUM_BLOCKS_PER_2_WEEKS, utils::num_blocks_per_network},
@@ -9,6 +7,8 @@ use super::{
     },
     connector::*,
 };
+use bitcoin::{Address, Network, PublicKey, ScriptBuf, TxIn};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct Connector4 {

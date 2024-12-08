@@ -1,19 +1,16 @@
 use bitcoin::{
-    hex::{Case::Upper, DisplayHex},
-    key::Keypair, Witness,
+    hex::{Case::Upper, DisplayHex}, key::Keypair,
     Amount, Network, OutPoint, PublicKey, ScriptBuf, Txid, XOnlyPublicKey,
 };
+use crate::{bridge::connectors::connector_c::ConnectorC, treepp::*};
 use esplora_client::{AsyncClient, Error, TxStatus};
 use musig2::SecNonce;
 use num_traits::ToPrimitive;
-use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
     fmt::{Display, Formatter, Result as FmtResult},
 };
-
-use crate::bridge::commitment::WPublicKey;
 
 use super::{
     super::{
@@ -163,8 +160,9 @@ impl Display for PegOutOperatorStatus {
     }
 }
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct PegOutGraph {
+#[allow(dead_code)]
+#[derive(Clone)]
+pub struct PegOutGraph<'a> {
     version: String,
     network: Network,
     id: String,
@@ -178,21 +176,23 @@ pub struct PegOutGraph {
     pub peg_in_graph_id: String,
     peg_in_confirm_txid: Txid,
 
-    assert_transaction: AssertTransaction,
+    assert_transaction: AssertTransaction<'a>,
     challenge_transaction: ChallengeTransaction,
     disprove_chain_transaction: DisproveChainTransaction,
-    disprove_transaction: DisproveTransaction,
+    disprove_transaction: DisproveTransaction<'a>,
     kick_off_1_transaction: KickOff1Transaction,
     kick_off_2_transaction: KickOff2Transaction,
     kick_off_timeout_transaction: KickOffTimeoutTransaction,
     start_time_transaction: StartTimeTransaction,
     start_time_timeout_transaction: StartTimeTimeoutTransaction,
     take_1_transaction: Take1Transaction,
-    take_2_transaction: Take2Transaction,
+    take_2_transaction: Take2Transaction<'a>,
+
+    connector_c: ConnectorC<'a>,
 
     operator_public_key: PublicKey,
     operator_taproot_public_key: XOnlyPublicKey,
-    operator_commitment_pubkey: WPublicKey,
+    // operator_commitment_pubkey: WotsPublicKeys,
 
     withdrawer_public_key: Option<PublicKey>,
     withdrawer_taproot_public_key: Option<XOnlyPublicKey>,
@@ -201,19 +201,22 @@ pub struct PegOutGraph {
     peg_out_transaction: Option<PegOutTransaction>,
 }
 
-impl BaseGraph for PegOutGraph {
+impl<'a> BaseGraph for PegOutGraph<'a> {
     fn network(&self) -> Network { self.network }
 
     fn id(&self) -> &String { &self.id }
 }
 
-impl PegOutGraph {
-    pub fn new(context: &OperatorContext, peg_in_graph: &PegInGraph, kickoff_input: Input, statement: &[u8]) -> Self {
+impl<'a> PegOutGraph<'a> {
+    pub fn new(context: &OperatorContext, peg_in_graph: &PegInGraph, kickoff_input: Input, disprove_taps: &'a Vec<Script>) -> Self {
         let peg_in_confirm_transaction = peg_in_graph.peg_in_confirm_transaction_ref();
         let peg_in_confirm_txid = peg_in_confirm_transaction.tx().compute_txid();
 
         let kick_off_1_transaction = KickOff1Transaction::new(context, kickoff_input);
         let kick_off_1_txid = kick_off_1_transaction.tx().compute_txid();
+
+        let mut connector_c = ConnectorC::new(context.network, &context.operator_taproot_public_key, disprove_taps,);
+        connector_c.gen_taproot_address();
 
         let start_time_vout_0 = 2;
         let start_time_transaction = StartTimeTransaction::new(
@@ -257,7 +260,6 @@ impl PegOutGraph {
                 },
                 amount: kick_off_1_transaction.tx().output[kick_off_2_vout_0].value,
             },
-            statement,
         );
         let kick_off_2_txid = kick_off_2_transaction.tx().compute_txid();
 
@@ -333,7 +335,7 @@ impl PegOutGraph {
                 },
                 amount: kick_off_2_transaction.tx().output[assert_vout_0].value,
             },
-            statement,
+            connector_c.clone(),
         );
         let assert_txid = assert_transaction.tx().compute_txid();
 
@@ -343,6 +345,7 @@ impl PegOutGraph {
         let take_2_vout_3 = 2;
         let take_2_transaction = Take2Transaction::new(
             context,
+            connector_c.clone(),
             Input {
                 outpoint: OutPoint {
                     txid: peg_in_confirm_txid,
@@ -378,6 +381,7 @@ impl PegOutGraph {
         let disprove_vout_1 = 2;
         let disprove_transaction = DisproveTransaction::new(
             context,
+            connector_c.clone(),
             Input {
                 outpoint: OutPoint {
                     txid: assert_txid,
@@ -427,9 +431,10 @@ impl PegOutGraph {
             start_time_timeout_transaction,
             take_1_transaction,
             take_2_transaction,
+            connector_c,
             operator_public_key: context.operator_public_key,
             operator_taproot_public_key: context.operator_taproot_public_key,
-            operator_commitment_pubkey: context.operator_commitment_pubkey.clone(),
+            // operator_commitment_pubkey: context.operator_commitment_pubkey.clone(),
             withdrawer_public_key: None,
             withdrawer_taproot_public_key: None,
             withdrawer_evm_address: None,
@@ -446,7 +451,6 @@ impl PegOutGraph {
             &self.operator_public_key,
             &self.operator_taproot_public_key,
             &self.n_of_n_taproot_public_key,
-            &self.operator_commitment_pubkey,
             Input {
                 outpoint: self.kick_off_1_transaction.tx().input[kick_off_1_vout_0].previous_output, // Self-referencing
                 amount: self.kick_off_1_transaction.prev_outs()[kick_off_1_vout_0].value, // Self-referencing
@@ -475,7 +479,6 @@ impl PegOutGraph {
             self.network,
             &self.operator_taproot_public_key,
             &self.n_of_n_taproot_public_key,
-            &self.operator_commitment_pubkey,
             Input {
                 outpoint: OutPoint {
                     txid: kick_off_1_txid,
@@ -498,7 +501,6 @@ impl PegOutGraph {
             &self.operator_public_key,
             &self.operator_taproot_public_key,
             &self.n_of_n_taproot_public_key,
-            &self.operator_commitment_pubkey,
             Input {
                 outpoint: OutPoint {
                     txid: kick_off_1_txid,
@@ -514,7 +516,6 @@ impl PegOutGraph {
             self.network,
             &self.operator_taproot_public_key,
             &self.n_of_n_taproot_public_key,
-            &self.operator_commitment_pubkey,
             Input {
                 outpoint: OutPoint {
                     txid: kick_off_1_txid,
@@ -550,7 +551,6 @@ impl PegOutGraph {
             &self.operator_public_key,
             &self.operator_taproot_public_key,
             &self.n_of_n_taproot_public_key,
-            &self.operator_commitment_pubkey,
             Input {
                 outpoint: OutPoint {
                     txid: peg_in_confirm_txid,
@@ -587,7 +587,7 @@ impl PegOutGraph {
             &self.operator_public_key,
             &self.operator_taproot_public_key,
             &self.n_of_n_taproot_public_key,
-            &self.operator_commitment_pubkey,
+            self.connector_c.clone(),
             Input {
                 outpoint: OutPoint {
                     txid: kick_off_2_txid,
@@ -607,7 +607,7 @@ impl PegOutGraph {
             &self.operator_public_key,
             &self.operator_taproot_public_key,
             &self.n_of_n_taproot_public_key,
-            &self.operator_commitment_pubkey,
+            self.connector_c.clone(),
             Input {
                 outpoint: OutPoint {
                     txid: peg_in_confirm_txid,
@@ -645,7 +645,7 @@ impl PegOutGraph {
             self.network,
             &self.operator_taproot_public_key,
             &self.n_of_n_taproot_public_key,
-            &self.operator_commitment_pubkey,
+            self.connector_c.clone(),
             Input {
                 outpoint: OutPoint {
                     txid: assert_txid,
@@ -667,7 +667,6 @@ impl PegOutGraph {
         let disprove_chain_transaction = DisproveChainTransaction::new_for_validation(
             self.network,
             &self.n_of_n_taproot_public_key,
-            &self.operator_commitment_pubkey,
             Input {
                 outpoint: OutPoint {
                     txid: kick_off_2_txid,
@@ -676,6 +675,8 @@ impl PegOutGraph {
                 amount: kick_off_2_transaction.tx().output[disprove_chain_vout_0].value,
             },
         );
+
+        let connector_c = self.connector_c.clone(); 
 
         PegOutGraph {
             version: GRAPH_VERSION.to_string(),
@@ -697,9 +698,10 @@ impl PegOutGraph {
             start_time_timeout_transaction,
             take_1_transaction,
             take_2_transaction,
+            connector_c,
             operator_public_key: self.operator_public_key,
             operator_taproot_public_key: self.operator_taproot_public_key,
-            operator_commitment_pubkey: self.operator_commitment_pubkey.clone(),
+            // operator_commitment_pubkey: self.operator_commitment_pubkey.clone(),
             withdrawer_public_key: None,
             withdrawer_taproot_public_key: None,
             withdrawer_evm_address: None,
@@ -1248,8 +1250,7 @@ impl PegOutGraph {
         client: &AsyncClient,
         input_script_index: u32,
         output_script_pubkey: ScriptBuf,
-        pre_commitment: &Witness, 
-        post_commitment: &Witness,
+        disprove_hint_script: Script,
     ) {
         verify_if_not_mined(client, self.disprove_transaction.tx().compute_txid()).await;
 
@@ -1259,7 +1260,7 @@ impl PegOutGraph {
         if assert_status.is_ok_and(|status| status.confirmed) {
             // complete disprove tx
             self.disprove_transaction
-                .add_input_output(input_script_index, output_script_pubkey, pre_commitment, post_commitment);
+                .add_input_output(input_script_index, output_script_pubkey, disprove_hint_script);
             let disprove_tx = self.disprove_transaction.finalize();
 
             // broadcast disprove tx
