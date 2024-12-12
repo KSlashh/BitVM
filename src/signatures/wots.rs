@@ -171,6 +171,43 @@ macro_rules! impl_wots {
                     }
                 }
 
+                pub fn checksig_verify_lit(public_key: PublicKey) -> Script {
+                    script! {
+                        for i in 0..N_DIGITS {
+                            { MAX_DIGIT } OP_MIN
+                            OP_DUP OP_TOALTSTACK OP_TOALTSTACK
+                            for _ in 0..MAX_DIGIT {
+                                OP_DUP OP_HASH160
+                            }
+                            OP_FROMALTSTACK
+                            OP_PICK
+                            { public_key[(N_DIGITS - i - 1) as usize].to_vec() }
+                            OP_EQUALVERIFY
+
+                            for _ in 0..(MAX_DIGIT + 1) / 2 { OP_2DROP }
+                        }
+
+                        // compute checksum
+                        OP_FROMALTSTACK OP_NEGATE
+                        for _ in 1..M_DIGITS {
+                            OP_FROMALTSTACK OP_SUB
+                        }
+                        { MAX_DIGIT * M_DIGITS }
+                        OP_ADD
+
+                        // pre-computed checksum
+                        OP_FROMALTSTACK
+                        for _ in 1..C_DIGITS {
+                            for _ in 0..WINDOW {
+                                OP_DUP OP_ADD
+                            }
+                            OP_FROMALTSTACK OP_ADD
+                        }
+                        // ensure checksums match
+                        OP_EQUALVERIFY
+                    }
+                }
+
                 pub mod compact {
                     use super::*;
 
@@ -212,6 +249,42 @@ macro_rules! impl_wots {
                             OP_FROMALTSTACK OP_DUP OP_NEGATE
                             for _ in 1..M_DIGITS {
                                 OP_FROMALTSTACK OP_TUCK OP_SUB
+                            }
+                            { MAX_DIGIT * M_DIGITS }
+                            OP_ADD
+
+                            // pre-computed checksum
+                            OP_FROMALTSTACK
+
+                            for _ in 1..C_DIGITS {
+                                for _ in 0..WINDOW {
+                                    OP_DUP OP_ADD
+                                }
+                                OP_FROMALTSTACK OP_ADD
+                            }
+                            // ensure checksums match
+                            OP_EQUALVERIFY
+                        }
+                    }
+
+                    pub fn checksig_verify_lit(public_key: PublicKey) -> Script {
+                        script! {
+                            for i in 0..N_DIGITS {
+                                { public_key[(N_DIGITS - i - 1) as usize].to_vec() } OP_SWAP
+                                OP_2DUP OP_EQUAL
+                                OP_IF { MAX_DIGIT } OP_TOALTSTACK OP_ENDIF
+                                for j in 0..MAX_DIGIT {
+                                    OP_HASH160
+                                    OP_2DUP OP_EQUAL
+                                    OP_IF { MAX_DIGIT - j - 1 } OP_TOALTSTACK OP_ENDIF
+                                }
+                                OP_2DROP
+                            }
+
+                            // compute checksum
+                            OP_FROMALTSTACK OP_NEGATE
+                            for _ in 1..M_DIGITS {
+                                OP_FROMALTSTACK OP_SUB
                             }
                             { MAX_DIGIT * M_DIGITS }
                             OP_ADD

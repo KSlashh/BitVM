@@ -647,3 +647,50 @@ pub fn test_disprove_script_size() {
         .unwrap();
     t.join().unwrap();
 }
+
+#[test]
+pub fn test_bitcommitment() {
+    let secret = "a01b23c45d67e89f";
+
+    let public_key = wots160::generate_public_key(&secret);
+    let msg = "0123456789abcdef0123456789abcdef01234567";
+    let msg_bytes = hex::decode(&msg).unwrap();
+    let script160 = script! {
+        { wots160::sign(&secret, &msg_bytes) }
+        { wots160::checksig_verify_lit(public_key) }
+        OP_TRUE
+    };
+    let script160_compact = script! {
+        { wots160::compact::sign(&secret, &msg_bytes) }
+        { wots160::compact::checksig_verify_lit(public_key) }
+        OP_TRUE
+    };
+
+    let public_key = wots256::generate_public_key(&secret);
+    let msg = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    let msg_bytes = hex::decode(&msg).unwrap();
+    let script256 = script! {
+        { wots256::sign(&secret, &msg_bytes) }
+        { wots256::checksig_verify_lit(public_key) }
+        OP_TRUE
+    };
+    let script256_compact = script! {
+        { wots256::compact::sign(&secret, &msg_bytes) }
+        { wots256::compact::checksig_verify_lit(public_key) }
+        OP_TRUE
+    };
+
+    println!(
+        "bitcommitment script size:\nwots160: {:?}\nwots160::compact; {:?}\nwots256: {:?}\nwots256::compact; {:?}",
+        script160.len(), script160_compact.len(), script256.len(), script256_compact.len());
+
+    let res160 = execute_script(script160);
+    let res160_compact = execute_script(script160_compact);
+    let res256 = execute_script(script256);
+    let res256_compact = execute_script(script256_compact);
+
+    dbg!(res160);
+    dbg!(res160_compact);
+    dbg!(res256);
+    dbg!(res256_compact);
+}

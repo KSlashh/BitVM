@@ -270,4 +270,32 @@ mod tests {
             file.write_all(&test_res.as_bytes()).unwrap();
         } 
     }
+
+    #[test]
+    fn calc_avg_weight() {
+        let res_file_name = "chunker_data/disprove_tx_test_res.txt";
+        let f = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(res_file_name)
+            .unwrap();
+        let lines: Vec<String> = BufReader::new(f).lines().collect::<Result<_, _>>().unwrap();
+        let mut total_weigth = 0;
+        let mut tx_num = 0;
+        for line in lines {
+            let re = Regex::new(r"tx-weight: Weight\((\d+)\)").unwrap();
+            let weight = if let Some(captures) = re.captures(&line) {
+                if let Some(i_match) = captures.get(1) {
+                    if let Ok(i) = i_match.as_str().parse::<usize>() {
+                        i
+                    } else { panic!() }
+                } else { panic!() }
+            } else { continue };
+            tx_num += 1;
+            total_weigth += weight;
+        }
+        let avg_weight = total_weigth / tx_num;
+        println!("avg weight: {avg_weight}");
+    }
 }

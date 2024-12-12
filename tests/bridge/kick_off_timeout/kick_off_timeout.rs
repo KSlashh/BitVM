@@ -62,5 +62,10 @@ async fn test_kick_off_timeout_tx() {
     helper::mint_block(&rpc, 1);
     let txid = tx.compute_txid();
     println!("Txid: {:?}", txid.clone());
+    let weight = tx.weight().to_wu();
+    let fee_rate = 20;
+    let fee_sat = weight * fee_rate / 4;
+    let fee= (fee_sat as f64) / 1_000_000_000.0;
+    println!("weight: {weight} WU, fee_rate: {fee_rate} sats/vB, fee: {fee} BTC, fee_sat: {fee_sat}");
     helper::validate_tx(&rpc, txid);
 }
