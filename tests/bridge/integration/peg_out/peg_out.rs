@@ -32,8 +32,9 @@ async fn test_peg_out_success() {
         _,
         _,
         _,
+        _,
         withdrawer_evm_address,
-    ) = setup_test(&empty_script).await;
+    ) = setup_test(&empty_script, &empty_script).await;
     let timestamp = 1722328130u32;
 
     let input_amount_raw = INITIAL_AMOUNT + FEE_AMOUNT;

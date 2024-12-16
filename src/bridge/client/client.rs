@@ -644,6 +644,7 @@ impl<'a> BitVMClient<'a> {
         peg_in_graph_id: &str,
         kickoff_input: Input,
         disprove_taps: &'a Vec<Script>,
+        bitcom_lock_scripts: &'a Vec<Script>,
     ) -> String {
         if self.operator_context.is_none() {
             panic!("Operator context must be initialized");
@@ -674,6 +675,7 @@ impl<'a> BitVMClient<'a> {
             peg_in_graph.unwrap(),
             kickoff_input,
             disprove_taps,
+            bitcom_lock_scripts,
         );
 
         self.data.peg_out_graphs.push(peg_out_graph);

@@ -33,7 +33,8 @@ async fn test_take_1_tx() {
         _,
         _,
         _,
-    ) = setup_test(&empty_script).await;
+        _,
+    ) = setup_test(&empty_script, &empty_script).await;
 
     let input_value0 = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT);
     let funding_utxo_address0 = connector_0.generate_taproot_address();

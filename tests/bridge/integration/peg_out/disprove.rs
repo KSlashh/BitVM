@@ -1,6 +1,6 @@
 use bitcoin::{Amount, OutPoint};
 use bitvm::bridge::{
-    connectors::connector::TaprootConnector, graphs::base::{HUGE_FEE_AMOUNT, INITIAL_AMOUNT}, scripts::generate_pay_to_pubkey_script_address, transactions::{
+    connectors::connector::TaprootConnector, graphs::base::{HUGE_FEE_AMOUNT, DUST_AMOUNT, INITIAL_AMOUNT}, scripts::generate_pay_to_pubkey_script_address, transactions::{
         assert::AssertTransaction,
         base::{BaseTransaction, Input},
         disprove::DisproveTransaction,
@@ -13,7 +13,7 @@ use crate::bridge::{
     helper, integration::peg_out::utils::create_and_mine_kick_off_2_tx,
 };
 
-use crate::bridge::setup::{corrupt_assertions, get_wots_keys, setup_test, get_tapscripts, get_signed_assertions, get_groth16_proof};
+use crate::bridge::setup::{get_bitcom_unlock_scripts, corrupt_assertions, get_bitcom_lock_scripts, get_wots_keys, setup_test, get_tapscripts, get_signed_assertions, get_groth16_proof};
 
 
 #[tokio::test]
@@ -30,6 +30,7 @@ async fn test_disprove_success() {
     }
 
     let tap_scripts = get_tapscripts();
+    let bitcom_lock_scripts = get_bitcom_lock_scripts();
     let (
         rpc,
         _,
@@ -47,9 +48,10 @@ async fn test_disprove_success() {
         _,
         _,
         _,
+        revealers,
         _,
         _,
-    ) = setup_test(&tap_scripts).await;
+    ) = setup_test(&tap_scripts, &bitcom_lock_scripts).await;
 
     // verify funding inputs
     let kick_off_2_input_amount = Amount::from_sat(INITIAL_AMOUNT + 3*HUGE_FEE_AMOUNT);
@@ -65,15 +67,6 @@ async fn test_disprove_success() {
         .spawn(get_invalid_assertions)
         .unwrap();
     let (leaf_index, hint_script) = t.join().unwrap();
-    
-    // let (vk, _, _) = get_groth16_proof();
-    // let (wots_pk, _) = get_wots_keys();
-    // let mut signed_assertions = get_signed_assertions();
-    // let index = 10; // TODO: test wots256 & wots 160
-    // corrupt_assertions(&mut signed_assertions, index);
-    // let res = validate_assertions(&vk, signed_assertions, wots_pk);
-    // assert!(res.is_some(), "unexpected validate assertions result");
-    // let (leaf_index, hint_script) = res.unwrap();
 
     // kick-off 2
     let (kick_off_2_tx, kick_off_2_txid) = create_and_mine_kick_off_2_tx(
@@ -81,6 +74,7 @@ async fn test_disprove_success() {
         &operator_context,
         &kick_off_2_funding_utxo_address,
         kick_off_2_input_amount,
+        revealers.clone(),
     )
     .await;
 
@@ -93,8 +87,21 @@ async fn test_disprove_success() {
         },
         amount: kick_off_2_tx.output[vout as usize].value,
     };
-    let assert = AssertTransaction::new(&operator_context, assert_input_0, connector_c.clone());
+    let revealer_num = revealers.len();
+    let bitcom_utxo_amount = Amount::from_sat(DUST_AMOUNT);
+    let bitcom_utxo_addresses = revealers.iter().map(|revealer| revealer.generate_taproot_address()).collect();
+    let bitcom_utxo_amounts = vec![bitcom_utxo_amount; revealer_num];
+    let bitcom_outpoint = helper::generate_stub_outpoint_batch(&rpc, &bitcom_utxo_addresses, &bitcom_utxo_amounts);
+    let bitcom_inputs = bitcom_outpoint.iter().map(|outpoint| Input { outpoint: *outpoint, amount: bitcom_utxo_amount }).collect();
 
+    let mut assert = AssertTransaction::new(
+        &operator_context, 
+        assert_input_0, 
+        bitcom_inputs,
+        connector_c.clone(), 
+        revealers,
+    );
+    assert.push_bitcommitments_witness(get_bitcom_unlock_scripts());
     let assert_tx = assert.finalize();
     let assert_txid = assert_tx.compute_txid();
     helper::mint_block(&rpc, 1);

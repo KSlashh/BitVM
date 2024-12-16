@@ -2,7 +2,7 @@ use bitcoin::{
     hex::{Case::Upper, DisplayHex}, key::Keypair,
     Amount, Network, OutPoint, PublicKey, ScriptBuf, Txid, XOnlyPublicKey,
 };
-use crate::{bridge::connectors::connector_c::ConnectorC, treepp::*};
+use crate::{bridge::connectors::{connector_c::ConnectorC, revealer::Revealer}, treepp::*};
 use esplora_client::{AsyncClient, Error, TxStatus};
 use musig2::SecNonce;
 use num_traits::ToPrimitive;
@@ -189,6 +189,7 @@ pub struct PegOutGraph<'a> {
     take_2_transaction: Take2Transaction<'a>,
 
     connector_c: ConnectorC<'a>,
+    revealers: Vec<Revealer<'a>>,
 
     operator_public_key: PublicKey,
     operator_taproot_public_key: XOnlyPublicKey,
@@ -208,7 +209,7 @@ impl<'a> BaseGraph for PegOutGraph<'a> {
 }
 
 impl<'a> PegOutGraph<'a> {
-    pub fn new(context: &OperatorContext, peg_in_graph: &PegInGraph, kickoff_input: Input, disprove_taps: &'a Vec<Script>) -> Self {
+    pub fn new(context: &OperatorContext, peg_in_graph: &PegInGraph, kickoff_input: Input, disprove_taps: &'a Vec<Script>, bitcom_lock_scripts: &'a Vec<Script>) -> Self {
         let peg_in_confirm_transaction = peg_in_graph.peg_in_confirm_transaction_ref();
         let peg_in_confirm_txid = peg_in_confirm_transaction.tx().compute_txid();
 
@@ -217,6 +218,10 @@ impl<'a> PegOutGraph<'a> {
 
         let mut connector_c = ConnectorC::new(context.network, &context.operator_taproot_public_key, disprove_taps,);
         connector_c.gen_taproot_address();
+
+        let revealers: Vec<Revealer<'a>> = bitcom_lock_scripts.iter()
+            .map(|scr| Revealer::new(context.network, &context.n_of_n_taproot_public_key, scr))
+            .collect();
 
         let start_time_vout_0 = 2;
         let start_time_transaction = StartTimeTransaction::new(
@@ -260,6 +265,7 @@ impl<'a> PegOutGraph<'a> {
                 },
                 amount: kick_off_1_transaction.tx().output[kick_off_2_vout_0].value,
             },
+            revealers.clone(),
         );
         let kick_off_2_txid = kick_off_2_transaction.tx().compute_txid();
 
@@ -326,16 +332,27 @@ impl<'a> PegOutGraph<'a> {
         );
 
         let assert_vout_0 = 1;
+        let assert_input_0 = Input {
+            outpoint: OutPoint {
+                txid: kick_off_2_txid,
+                vout: assert_vout_0.to_u32().unwrap(),
+            },
+            amount: kick_off_2_transaction.tx().output[assert_vout_0].value,
+        };
+        let range = 0..revealers.len();
+        let assert_bitcom_inputs = range.map(|i| Input {
+            outpoint: OutPoint {
+                txid: kick_off_2_txid,
+                vout: (i+2) as u32,
+            },
+            amount: kick_off_2_transaction.tx().output[i+2].value,
+        }).collect();
         let assert_transaction = AssertTransaction::new(
             context,
-            Input {
-                outpoint: OutPoint {
-                    txid: kick_off_2_txid,
-                    vout: assert_vout_0.to_u32().unwrap(),
-                },
-                amount: kick_off_2_transaction.tx().output[assert_vout_0].value,
-            },
+            assert_input_0,
+            assert_bitcom_inputs,
             connector_c.clone(),
+            revealers.clone(),
         );
         let assert_txid = assert_transaction.tx().compute_txid();
 
@@ -432,6 +449,7 @@ impl<'a> PegOutGraph<'a> {
             take_1_transaction,
             take_2_transaction,
             connector_c,
+            revealers,
             operator_public_key: context.operator_public_key,
             operator_taproot_public_key: context.operator_taproot_public_key,
             // operator_commitment_pubkey: context.operator_commitment_pubkey.clone(),
@@ -508,6 +526,7 @@ impl<'a> PegOutGraph<'a> {
                 },
                 amount: kick_off_1_transaction.tx().output[kick_off_2_vout_0].value,
             },
+            self.revealers.clone(),
         );
         let kick_off_2_txid = kick_off_2_transaction.tx().compute_txid();
 
@@ -582,19 +601,30 @@ impl<'a> PegOutGraph<'a> {
         );
 
         let assert_vout_0 = 1;
+        let assert_input_0 = Input {
+            outpoint: OutPoint {
+                txid: kick_off_2_txid,
+                vout: assert_vout_0.to_u32().unwrap(),
+            },
+            amount: kick_off_2_transaction.tx().output[assert_vout_0].value,
+        };
+        let range = 0..self.revealers.len();
+        let assert_bitcom_inputs = range.map(|i| Input {
+            outpoint: OutPoint {
+                txid: kick_off_2_txid,
+                vout: (i+2) as u32,
+            },
+            amount: kick_off_2_transaction.tx().output[i+2].value,
+        }).collect();
         let assert_transaction = AssertTransaction::new_for_validation(
             self.network,
             &self.operator_public_key,
             &self.operator_taproot_public_key,
             &self.n_of_n_taproot_public_key,
             self.connector_c.clone(),
-            Input {
-                outpoint: OutPoint {
-                    txid: kick_off_2_txid,
-                    vout: assert_vout_0.to_u32().unwrap(),
-                },
-                amount: kick_off_2_transaction.tx().output[assert_vout_0].value,
-            },
+            self.revealers.clone(),
+            assert_input_0,
+            assert_bitcom_inputs,
         );
         let assert_txid = assert_transaction.tx().compute_txid();
 
@@ -677,6 +707,7 @@ impl<'a> PegOutGraph<'a> {
         );
 
         let connector_c = self.connector_c.clone(); 
+        let revealers = self.revealers.clone();
 
         PegOutGraph {
             version: GRAPH_VERSION.to_string(),
@@ -699,6 +730,7 @@ impl<'a> PegOutGraph<'a> {
             take_1_transaction,
             take_2_transaction,
             connector_c,
+            revealers,
             operator_public_key: self.operator_public_key,
             operator_taproot_public_key: self.operator_taproot_public_key,
             // operator_commitment_pubkey: self.operator_commitment_pubkey.clone(),

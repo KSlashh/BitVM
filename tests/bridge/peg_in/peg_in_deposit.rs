@@ -31,9 +31,10 @@ async fn test_peg_in_deposit_tx() {
         _,
         _,
         _,
+        _,
         depositor_evm_address,
         _,
-    ) = setup_test(&empty_script).await;
+    ) = setup_test(&empty_script, &empty_script).await;
 
     let amount = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT);
     let outpoint = generate_stub_outpoint(
@@ -49,11 +50,6 @@ async fn test_peg_in_deposit_tx() {
         &depositor_context,
         &depositor_evm_address,
         Input { outpoint, amount },
-    );
-
-    println!(
-        "Depositor public key: {:?}\n",
-        &depositor_context.depositor_public_key
     );
 
     let tx = peg_in_deposit_tx.finalize();

@@ -1,7 +1,10 @@
 use bitcoin::{Address, Amount, Transaction, Txid};
 use bitcoincore_rpc::Client;
 use bitvm::bridge::{
-    connectors::connector_c::ConnectorC, contexts::{depositor::DepositorContext, operator::OperatorContext, verifier::VerifierContext}, transactions::{
+    connectors::{connector_c::ConnectorC, revealer::Revealer, connector::TaprootConnector}, 
+    contexts::{depositor::DepositorContext, operator::OperatorContext, verifier::VerifierContext}, 
+    graphs::base::DUST_AMOUNT,
+    transactions::{
         assert::AssertTransaction,
         base::{BaseTransaction, Input},
         kick_off_1::KickOff1Transaction,
@@ -10,7 +13,7 @@ use bitvm::bridge::{
     }
 };
 
-use crate::bridge::helper::{generate_stub_outpoint, self};
+use crate::bridge::{helper::{self, generate_stub_outpoint, generate_stub_outpoint_batch}, setup::get_bitcom_unlock_scripts};
 
 pub async fn create_and_mine_kick_off_1_tx<'a>(
     rpc: &Client,
@@ -42,6 +45,7 @@ pub async fn create_and_mine_kick_off_2_tx<'a>(
     operator_context: &OperatorContext,
     kick_off_2_funding_utxo_address: &Address,
     input_amount: Amount,
+    revealers: Vec<Revealer<'a>>,
 ) -> (Transaction, Txid) {
     let kick_off_2_funding_outpoint =
         generate_stub_outpoint(&rpc, kick_off_2_funding_utxo_address, input_amount);
@@ -49,7 +53,7 @@ pub async fn create_and_mine_kick_off_2_tx<'a>(
         outpoint: kick_off_2_funding_outpoint,
         amount: input_amount,
     };
-    let kick_off_2 = KickOff2Transaction::new(&operator_context, kick_off_2_input);
+    let kick_off_2 = KickOff2Transaction::new(&operator_context, kick_off_2_input, revealers);
     let kick_off_2_tx = kick_off_2.finalize();
     let kick_off_2_txid = kick_off_2_tx.compute_txid();
 
@@ -66,18 +70,26 @@ pub async fn create_and_mine_assert_tx<'a>(
     rpc: &Client,
     operator_context: &OperatorContext,
     assert_funding_utxo_address: &Address,
-    input_amount: Amount,
+    input_0_amount: Amount,
     connector_c: ConnectorC<'a>,
+    revealers: Vec<Revealer<'a>>,
 ) -> (Transaction, Txid) {
     // create assert tx
     let assert_funding_outpoint =
-        generate_stub_outpoint(&rpc, assert_funding_utxo_address, input_amount);
+        generate_stub_outpoint(&rpc, assert_funding_utxo_address, input_0_amount);
     let assert_input = Input {
         outpoint: assert_funding_outpoint,
-        amount: input_amount,
+        amount: input_0_amount,
     };
-    let assert = AssertTransaction::new(&operator_context, assert_input, connector_c);
 
+    let revealer_num = revealers.len();
+    let bitcom_utxo_amount = Amount::from_sat(DUST_AMOUNT);
+    let bitcom_utxo_addresses = revealers.iter().map(|revealer| revealer.generate_taproot_address()).collect();
+    let bitcom_utxo_amounts = vec![bitcom_utxo_amount; revealer_num];
+    let bitcom_outpoint = generate_stub_outpoint_batch(&rpc, &bitcom_utxo_addresses, &bitcom_utxo_amounts);
+    let bitcom_inputs = bitcom_outpoint.iter().map(|outpoint| Input { outpoint: *outpoint, amount: bitcom_utxo_amount }).collect();
+    let mut assert = AssertTransaction::new(&operator_context, assert_input, bitcom_inputs, connector_c, revealers);
+    assert.push_bitcommitments_witness(get_bitcom_unlock_scripts());
     let assert_tx = assert.finalize();
     let assert_txid = assert_tx.compute_txid();
 

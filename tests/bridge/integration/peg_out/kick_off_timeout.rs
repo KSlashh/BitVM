@@ -38,7 +38,8 @@ async fn test_kick_off_timeout_success() {
         _,
         _,
         _,
-    ) = setup_test(&empty_script).await;
+        _,
+    ) = setup_test(&empty_script, &empty_script).await;
 
     // verify funding inputs
     let kick_off_1_input_amount = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT);

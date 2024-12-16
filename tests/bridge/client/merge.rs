@@ -50,7 +50,7 @@ use crate::bridge::setup::{setup_test, new_client};
 //     assert_eq!(merged_data.peg_out_graphs.len(), 2);
 // }
 
-async fn setup_and_create_graphs<'a>(tap_scripts: &'a Vec<Script>) -> (BitVMClient<'a>, PegInGraph, PegOutGraph<'a>) {
+async fn setup_and_create_graphs<'a>(tap_scripts: &'a Vec<Script>, bitcom_lock_scripts: &'a Vec<Script>) -> (BitVMClient<'a>, PegInGraph, PegOutGraph<'a>) {
     let (
         _,
         depositor_context,
@@ -68,9 +68,10 @@ async fn setup_and_create_graphs<'a>(tap_scripts: &'a Vec<Script>) -> (BitVMClie
         _,
         _,
         _,
+    _,
         depositor_evm_address,
         _,
-    ) = setup_test(tap_scripts).await;
+    ) = setup_test(tap_scripts, &bitcom_lock_scripts).await;
     let (mut client, _) = new_client().await;
 
     let amount = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT + 1);
@@ -101,6 +102,7 @@ async fn setup_and_create_graphs<'a>(tap_scripts: &'a Vec<Script>) -> (BitVMClie
                 amount,
             },
             tap_scripts,
+            bitcom_lock_scripts,
         )
         .await;
 
@@ -121,6 +123,7 @@ async fn setup_and_create_graphs<'a>(tap_scripts: &'a Vec<Script>) -> (BitVMClie
             amount,
         },
         tap_scripts,
+        bitcom_lock_scripts,
     );
 
     return (client, new_peg_in_graph, new_peg_out_graph);

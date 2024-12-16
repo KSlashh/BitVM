@@ -33,6 +33,7 @@ mod tests {
         }
 
         let tap_scripts = get_tapscripts();
+        let bitcom_lock_scripts = vec![];
         let (
             rpc,
             _,
@@ -52,7 +53,8 @@ mod tests {
             connector_5,
             _,
             _,
-        ) = setup_test(&tap_scripts).await;
+            _,
+        ) = setup_test(&tap_scripts, &bitcom_lock_scripts).await;
 
         connector_c.gen_taproot_address();
         let amount_0 = Amount::from_sat(DUST_AMOUNT);
@@ -172,6 +174,7 @@ mod tests {
     #[tokio::test]
     async fn test_all_disprove_tapnode() {
         let tap_scripts = get_tapscripts();
+        let bitcom_lock_scripts = vec![];
         let (
             rpc,
             _,
@@ -191,7 +194,8 @@ mod tests {
             connector_5,
             _,
             _,
-        ) = setup_test(&tap_scripts).await;
+            _,
+        ) = setup_test(&tap_scripts, &bitcom_lock_scripts).await;
         connector_c.gen_taproot_address();
 
         let amount_0 = Amount::from_sat(DUST_AMOUNT);

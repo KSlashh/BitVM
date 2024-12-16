@@ -14,6 +14,7 @@ use super::super::{helper::{generate_stub_outpoint, self}, setup::setup_test};
 #[tokio::test]
 async fn test_take_2_tx() {
     let tap_scripts = vec![];
+    let bitcom_lock_scripts = vec![];
     let (
         rpc,
         _,
@@ -33,7 +34,8 @@ async fn test_take_2_tx() {
         connector_5,
         _,
         _,
-    ) = setup_test(&tap_scripts).await;
+        _,
+    ) = setup_test(&tap_scripts, &bitcom_lock_scripts).await;
     connector_c.gen_taproot_address();
 
     let input_value0 = Amount::from_sat(INITIAL_AMOUNT + HUGE_FEE_AMOUNT);

@@ -39,7 +39,8 @@ mod tests {
             _,
             _,
             _,
-        ) = setup_test(&empty_script).await;
+            _,
+        ) = setup_test(&empty_script, &empty_script).await;
 
         let amount = Amount::from_sat(INITIAL_AMOUNT);
         let outpoint =
@@ -86,7 +87,8 @@ mod tests {
             _,
             _,
             _,
-        ) = setup_test(&empty_script).await;
+            _,
+        ) = setup_test(&empty_script, &empty_script).await;
 
         let amount = Amount::from_sat(INITIAL_AMOUNT);
         let outpoint =

@@ -1,12 +1,11 @@
 use bitcoin::{Network, PublicKey};
 use bitvm::{bridge::{
-    client::client::BitVMClient, constants::DestinationNetwork,
-    connectors::{
+    client::client::BitVMClient, connectors::{
         connector_0::Connector0, connector_1::Connector1, connector_2::Connector2,
         connector_3::Connector3, connector_4::Connector4, connector_5::Connector5,
         connector_a::ConnectorA, connector_b::ConnectorB, connector_c::ConnectorC,
-        connector_z::ConnectorZ,
-    }, contexts::{
+        connector_z::ConnectorZ, revealer::Revealer,
+    }, constants::DestinationNetwork, contexts::{
         base::generate_keys_from_secret, depositor::DepositorContext, operator::OperatorContext,
         verifier::VerifierContext, withdrawer::WithdrawerContext,
     }, graphs::base::{
@@ -16,7 +15,7 @@ use bitvm::{bridge::{
 use bitvm::bridge::groth16::{
     Proof, WotsSignatures, VerifyingKey, PublicInputs, TEST_SECRET, WotsPublicKeys, WotsSecretKeys,
     load_all_signed_assertions_from_file, load_assert_tapscripts_from_file, load_proof_from_file, 
-    corrupt_signed_assertions, generate_wots_keys_from_secrets,
+    corrupt_signed_assertions, generate_wots_keys_from_secrets, assert_bitcom_lock, assert_unlock_scripts_from_file,
 };
 use bitcoincore_rpc::Client;
 
@@ -174,7 +173,7 @@ pub async fn new_client<'a>() -> (
     )
 }
 
-pub async fn setup_test<'a>(tap_scripts: &'a Vec<Script>) -> (
+pub async fn setup_test<'a>(tap_scripts: &'a Vec<Script>, bitcom_lock_script: &'a Vec<Script>) -> (
     // BitVMClient<'a>,
     // BitVMClient<'a>,
     Client,
@@ -193,6 +192,7 @@ pub async fn setup_test<'a>(tap_scripts: &'a Vec<Script>) -> (
     Connector3,
     Connector4,
     Connector5,
+    Vec<Revealer<'a>>,
     String,
     String,
 ) {
@@ -219,27 +219,6 @@ pub async fn setup_test<'a>(tap_scripts: &'a Vec<Script>) -> (
         WithdrawerContext::new(source_network, WITHDRAWER_SECRET, &n_of_n_public_keys);
 
     let rpc = helper::new_rpc_client().await;
-    // let client_0 = BitVMClient::new(
-    //     source_network,
-    //     destination_network,
-    //     &n_of_n_public_keys,
-    //     Some(DEPOSITOR_SECRET),
-    //     Some(OPERATOR_SECRET),
-    //     Some(VERIFIER_0_SECRET),
-    //     Some(WITHDRAWER_SECRET),
-    // )
-    // .await;
-
-    // let client_1 = BitVMClient::new(
-    //     source_network,
-    //     destination_network,
-    //     &n_of_n_public_keys,
-    //     Some(DEPOSITOR_SECRET),
-    //     Some(OPERATOR_SECRET),
-    //     Some(VERIFIER_1_SECRET),
-    //     Some(WITHDRAWER_SECRET),
-    // )
-    // .await;
 
     let connector_a = ConnectorA::new(
         source_network,
@@ -270,6 +249,12 @@ pub async fn setup_test<'a>(tap_scripts: &'a Vec<Script>) -> (
 
     let connector_c = ConnectorC::new(source_network, &operator_context.operator_taproot_public_key, &tap_scripts);
 
+    let mut revealers = Vec::new();
+    for i in 0..bitcom_lock_script.len() {
+        let revealer = Revealer::new(source_network, &operator_context.n_of_n_taproot_public_key, &bitcom_lock_script[i]);
+        revealers.push(revealer);
+    }
+
     return (
         // client_0,
         // client_1,
@@ -289,6 +274,7 @@ pub async fn setup_test<'a>(tap_scripts: &'a Vec<Script>) -> (
         connector_3,
         connector_4,
         connector_5,
+        revealers,
         DEPOSITOR_EVM_ADDRESS.to_string(),
         WITHDRAWER_EVM_ADDRESS.to_string(),
     );
@@ -296,6 +282,28 @@ pub async fn setup_test<'a>(tap_scripts: &'a Vec<Script>) -> (
 
 pub fn get_groth16_proof() -> (VerifyingKey, Proof, PublicInputs) {
     load_proof_from_file("chunker_data/dummy_proof.json")
+}
+
+pub fn get_bitcom_lock_scripts() -> Vec<Script> {
+    fn run() -> Vec<Script> {
+        let (wots_pk, _) = get_wots_keys();
+        assert_bitcom_lock(&wots_pk)
+    }
+    
+    use std::thread;
+    const STACK_SIZE: usize = 32 * 1024 * 1024;
+    let t = thread::Builder::new()
+        .stack_size(STACK_SIZE)
+        .spawn(run)
+        .unwrap();
+    match t.join() {
+        Ok(v) => v, 
+        Err(e) => panic!("error get_invalid_assertions: {e:?}"),
+    }
+}
+
+pub fn get_bitcom_unlock_scripts() -> Vec<Script> {
+    assert_unlock_scripts_from_file("signed_assertions/signed_assertion")
 }
 
 pub fn get_tapscripts() -> Vec<Script> {

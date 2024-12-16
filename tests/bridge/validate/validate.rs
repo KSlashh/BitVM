@@ -19,7 +19,7 @@ use super::super::setup::setup_test;
 // #[tokio::test]
 async fn test_validate_success() {
     let empty_scripts = vec![];
-    let (peg_in_graph, peg_out_graph, _) = setup_and_create_graphs(&empty_scripts).await;
+    let (peg_in_graph, peg_out_graph, _) = setup_and_create_graphs(&empty_scripts, &empty_scripts).await;
 
     let is_peg_in_data_valid = peg_in_graph.validate();
     let is_peg_out_data_valid = peg_out_graph.validate();
@@ -30,7 +30,7 @@ async fn test_validate_success() {
 
 // #[tokio::test]
 async fn test_validate_invalid_previous_output() {
-    let (mut peg_in_graph, _, peg_in_outpoint) = setup_and_create_graphs(&vec![]).await;
+    let (mut peg_in_graph, _, peg_in_outpoint) = setup_and_create_graphs(&vec![], &vec![]).await;
 
     let changed_outpoint = OutPoint {
         txid: peg_in_outpoint.txid,
@@ -47,7 +47,7 @@ async fn test_validate_invalid_previous_output() {
 
 // #[tokio::test]
 async fn test_validate_invalid_script_sig() {
-    let (mut peg_in_graph, _, _) = setup_and_create_graphs(&vec![]).await;
+    let (mut peg_in_graph, _, _) = setup_and_create_graphs(&vec![], &vec![]).await;
 
     let deposit_tx = peg_in_graph.peg_in_deposit_transaction.tx_mut();
     deposit_tx.input[0].script_sig = generate_burn_script();
@@ -59,7 +59,7 @@ async fn test_validate_invalid_script_sig() {
 
 // #[tokio::test]
 async fn test_validate_invalid_sequence() {
-    let (mut peg_in_graph, _, _) = setup_and_create_graphs(&vec![]).await;
+    let (mut peg_in_graph, _, _) = setup_and_create_graphs(&vec![], &vec![]).await;
 
     let deposit_tx = peg_in_graph.peg_in_deposit_transaction.tx_mut();
     deposit_tx.input[0].sequence = bitcoin::Sequence(100);
@@ -71,7 +71,7 @@ async fn test_validate_invalid_sequence() {
 
 // #[tokio::test]
 async fn test_validate_invalid_value() {
-    let (mut peg_in_graph, _, _) = setup_and_create_graphs(&vec![]).await;
+    let (mut peg_in_graph, _, _) = setup_and_create_graphs(&vec![], &vec![]).await;
 
     let deposit_tx = peg_in_graph.peg_in_deposit_transaction.tx_mut();
     deposit_tx.output[0].value = Amount::from_sat(1);
@@ -83,7 +83,7 @@ async fn test_validate_invalid_value() {
 
 // #[tokio::test]
 async fn test_validate_invalid_script_pubkey() {
-    let (mut peg_in_graph, _, _) = setup_and_create_graphs(&vec![]).await;
+    let (mut peg_in_graph, _, _) = setup_and_create_graphs(&vec![], &vec![]).await;
 
     let deposit_tx = peg_in_graph.peg_in_deposit_transaction.tx_mut();
     deposit_tx.output[0].script_pubkey = generate_burn_script();
@@ -93,7 +93,7 @@ async fn test_validate_invalid_script_pubkey() {
     assert_eq!(is_peg_in_data_valid, false);
 }
 
-async fn setup_and_create_graphs<'a>(tap_scripts: &'a Vec<Script>) -> (PegInGraph, PegOutGraph, OutPoint) {
+async fn setup_and_create_graphs<'a>(tap_scripts: &'a Vec<Script>, bitcom_lock_scripts: &'a Vec<Script>) -> (PegInGraph, PegOutGraph<'a>, OutPoint) {
     let (
         _,
         depositor_context,
@@ -111,9 +111,10 @@ async fn setup_and_create_graphs<'a>(tap_scripts: &'a Vec<Script>) -> (PegInGrap
         _,
         _,
         _,
+        _,
         depositor_evm_address,
         _,
-    ) = setup_test(&tap_scripts).await;
+    ) = setup_test(tap_scripts, bitcom_lock_scripts).await;
 
     let amount = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT + 1);
     let peg_in_outpoint = OutPoint {
@@ -143,7 +144,8 @@ async fn setup_and_create_graphs<'a>(tap_scripts: &'a Vec<Script>) -> (PegInGrap
             outpoint: peg_out_outpoint,
             amount,
         },
-        &tap_scripts,
+        tap_scripts,
+        bitcom_lock_scripts,
     );
 
     return (peg_in_graph, peg_out_graph, peg_in_outpoint);

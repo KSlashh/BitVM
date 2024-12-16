@@ -1,5 +1,5 @@
 use bitcoin::Amount;
-
+use bitvm::treepp::*;
 use bitvm::bridge::{
     connectors::connector::TaprootConnector,
     graphs::base::{HUGE_FEE_AMOUNT, INITIAL_AMOUNT},
@@ -9,13 +9,14 @@ use bitvm::bridge::{
     },
 };
 
-use super::super::{helper::{generate_stub_outpoint, self}, setup::setup_test};
+use super::super::{helper::{generate_stub_outpoint, self}, setup::{setup_test, get_bitcom_lock_scripts}};
 
 #[tokio::test]
 async fn test_kick_off_2_tx() {
-    let empty_script = vec![];
-    let (rpc, _, operator_context, _, _, _, _, _, _, _, _, connector_1, _, _, _, _, _, _) =
-        setup_test(&empty_script).await;
+    let empty_script: Vec<Script> = vec![];
+    let bitcom_lock_scripts = get_bitcom_lock_scripts();
+    let (rpc, _, operator_context, _, _, _, _, _, _, _, _, connector_1, _, _, _, _, revealers, _, _) =
+        setup_test(&empty_script, &bitcom_lock_scripts).await;
 
     let input_value0 = Amount::from_sat(INITIAL_AMOUNT + HUGE_FEE_AMOUNT);
     let funding_utxo_address0 = connector_1.generate_taproot_address();
@@ -28,6 +29,7 @@ async fn test_kick_off_2_tx() {
             outpoint: funding_outpoint0,
             amount: input_value0,
         },
+        revealers,
     );
 
     let tx = kick_off_2_tx.finalize();

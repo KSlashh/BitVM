@@ -31,9 +31,10 @@ async fn test_peg_in_confirm_tx() {
         _,
         _,
         _,
+        _,
         depositor_evm_address,
         _,
-    ) = setup_test(&empty_script).await;
+    ) = setup_test(&empty_script, &empty_script).await;
 
     let amount = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT);
     let outpoint =

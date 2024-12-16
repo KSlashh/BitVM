@@ -36,9 +36,10 @@ async fn test_peg_in_success() {
         _,
         _,
         _,
+        _,
         depositor_evm_address,
         _,
-    ) = setup_test(&empty_script).await;
+    ) = setup_test(&empty_script, &empty_script).await;
 
     let input_amount_raw = INITIAL_AMOUNT + FEE_AMOUNT * 2;
     let deposit_input_amount = Amount::from_sat(input_amount_raw);
@@ -117,9 +118,10 @@ async fn test_peg_in_time_lock_not_surpassed() {
         _,
         _,
         _,
+        _,
         depositor_evm_address,
         _,
-    ) = setup_test(&empty_script).await;
+    ) = setup_test(&empty_script, &empty_script).await;
 
     let input_amount_raw = INITIAL_AMOUNT + FEE_AMOUNT * 2;
     let deposit_input_amount = Amount::from_sat(input_amount_raw);
@@ -183,9 +185,10 @@ async fn test_peg_in_time_lock_surpassed() {
         _,
         _,
         _,
+        _,
         depositor_evm_address,
         _,
-    ) = setup_test(&empty_script).await;
+    ) = setup_test(&empty_script, &empty_script).await;
 
     let input_amount_raw = INITIAL_AMOUNT + FEE_AMOUNT * 2;
     let deposit_input_amount = Amount::from_sat(input_amount_raw);

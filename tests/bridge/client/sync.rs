@@ -29,9 +29,10 @@ async fn test_sync() {
         _,
         _,
         _,
+        _,
         depositor_evm_address,
         _,
-    ) = setup_test(&empty_scripts).await;
+    ) = setup_test(&empty_scripts, &empty_scripts).await;
     let (mut client, _) = new_client().await;
 
     println!("Read from remote");
@@ -66,6 +67,7 @@ async fn test_sync() {
                 ),
                 amount,
             },
+            &empty_scripts,
             &empty_scripts,
         )
         .await;

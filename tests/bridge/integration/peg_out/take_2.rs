@@ -2,7 +2,7 @@
 use bitcoin::{Amount, OutPoint};
 use bitvm::bridge::{
     connectors::connector::TaprootConnector,
-    graphs::base::{DUST_AMOUNT, FEE_AMOUNT, INITIAL_AMOUNT, LARGE_FEE_AMOUNT, ONE_HUNDRED},
+    graphs::base::{DUST_AMOUNT, FEE_AMOUNT, HUGE_FEE_AMOUNT, INITIAL_AMOUNT, ONE_HUNDRED},
     transactions::{
         base::{BaseTransaction, Input},
         take_2::Take2Transaction,
@@ -14,12 +14,13 @@ use bitvm::bridge::{
 use crate::bridge::{
     helper,
     integration::peg_out::utils::{create_and_mine_assert_tx, create_and_mine_peg_in_confirm_tx},
-    setup::setup_test,
+    setup::{setup_test, get_bitcom_lock_scripts},
 };
 
 #[tokio::test]
 async fn test_take_2_success() {
     let empty_script = vec![];
+    let bitcom_lock_script = get_bitcom_lock_scripts();
     let (
         rpc,
         depositor_context,
@@ -37,16 +38,17 @@ async fn test_take_2_success() {
         _,
         _,
         _,
+        revealers,
         depositor_evm_address,
         _,
-    ) = setup_test(&empty_script).await;
+    ) = setup_test(&empty_script, &bitcom_lock_script).await;
     connector_c.gen_taproot_address();
 
 
     let deposit_input_amount = Amount::from_sat(ONE_HUNDRED);
     let peg_in_confirm_funding_address = connector_z.generate_taproot_address();
 
-    let assert_input_amount = Amount::from_sat(INITIAL_AMOUNT + LARGE_FEE_AMOUNT + FEE_AMOUNT + 5*DUST_AMOUNT);
+    let assert_input_amount = Amount::from_sat(INITIAL_AMOUNT + HUGE_FEE_AMOUNT + FEE_AMOUNT + 5*DUST_AMOUNT);
     let assert_funding_address = connector_b.generate_taproot_address();
 
     // peg-in confirm
@@ -68,6 +70,7 @@ async fn test_take_2_success() {
         &assert_funding_address,
         assert_input_amount,
         connector_c.clone(),
+        revealers,
     )
     .await;
 

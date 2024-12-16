@@ -36,7 +36,8 @@ async fn test_peg_out_for_chain() {
         _,
         _,
         _,
-    ) = setup_test(&empty_script).await;
+        _,
+    ) = setup_test(&empty_script, &empty_script).await;
 
     let input_amount_raw = INITIAL_AMOUNT + FEE_AMOUNT;
     let operator_input_amount = Amount::from_sat(input_amount_raw);

@@ -3,13 +3,15 @@ use bitcoin::{
     XOnlyPublicKey,
 };
 
+use crate::bridge::graphs::base::LARGE_FEE_AMOUNT;
+
 use super::{
     super::{
         connectors::{
-            connector::*, connector_1::Connector1, connector_3::Connector3, connector_b::ConnectorB,
+            connector::*, connector_1::Connector1, connector_3::Connector3, connector_b::ConnectorB, revealer::Revealer,
         },
         contexts::operator::OperatorContext,
-        graphs::base::{DUST_AMOUNT, FEE_AMOUNT},
+        graphs::base::DUST_AMOUNT,
     },
     base::*,
     pre_signed::*,
@@ -34,14 +36,15 @@ impl PreSignedTransaction for KickOff2Transaction {
     fn prev_scripts(&self) -> &Vec<ScriptBuf> { &self.prev_scripts }
 }
 
-impl KickOff2Transaction {
-    pub fn new(context: &OperatorContext, input_0: Input) -> Self {
+impl<'a> KickOff2Transaction {
+    pub fn new(context: &OperatorContext, input_0: Input , revealers: Vec<Revealer<'a>>) -> Self {
         let mut this = Self::new_for_validation(
             context.network,
             &context.operator_public_key,
             &context.operator_taproot_public_key,
             &context.n_of_n_taproot_public_key,
             input_0,
+            revealers,
         );
 
         // sign input[0], leaf_0
@@ -59,6 +62,7 @@ impl KickOff2Transaction {
         operator_taproot_public_key: &XOnlyPublicKey,
         n_of_n_taproot_public_key: &XOnlyPublicKey,
         input_0: Input,
+        revealers: Vec<Revealer<'a>>,
     ) -> Self {
         let connector_1 = Connector1::new(
             network,
@@ -71,24 +75,35 @@ impl KickOff2Transaction {
         let input_0_leaf = 0;
         let _input_0 = connector_1.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
 
-        let total_output_amount = input_0.amount - Amount::from_sat(FEE_AMOUNT);
+        let total_output_amount = input_0.amount - Amount::from_sat(LARGE_FEE_AMOUNT);
 
         let _output_0 = TxOut {
             value: Amount::from_sat(DUST_AMOUNT),
             script_pubkey: connector_3.generate_address().script_pubkey(),
         };
 
+        let connector_b_amount = total_output_amount - Amount::from_sat(DUST_AMOUNT*(1+revealers.len() as u64));
         let _output_1 = TxOut {
-            value: total_output_amount - Amount::from_sat(DUST_AMOUNT),
+            value: connector_b_amount,
             script_pubkey: connector_b.generate_taproot_address().script_pubkey(),
         };
+
+        let mut output_vec = vec![_output_0, _output_1];
+
+        for i in 0..revealers.len() {
+            let output_i = TxOut {
+                value: Amount::from_sat(DUST_AMOUNT),
+                script_pubkey: revealers[i].generate_taproot_address().script_pubkey(),
+            };
+            output_vec.push(output_i);
+        }
 
         KickOff2Transaction {
             tx: Transaction {
                 version: bitcoin::transaction::Version(2),
                 lock_time: absolute::LockTime::ZERO,
                 input: vec![_input_0],
-                output: vec![_output_0, _output_1],
+                output: output_vec,
             },
             prev_outs: vec![TxOut {
                 value: input_0.amount,
@@ -102,6 +117,6 @@ impl KickOff2Transaction {
     pub fn num_blocks_timelock_0(&self) -> u32 { self.connector_1.num_blocks_timelock_0 }
 }
 
-impl BaseTransaction for KickOff2Transaction {
+impl<'a> BaseTransaction for KickOff2Transaction {
     fn finalize(&self) -> Transaction { self.tx.clone() }
 }

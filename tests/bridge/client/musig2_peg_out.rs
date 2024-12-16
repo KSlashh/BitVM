@@ -25,7 +25,7 @@ async fn test_musig2_peg_out_take_1() {
     let with_challenge_tx = false;
     let with_assert_tx = false;
     let (mut depositor_operator_verifier_0_client, _, peg_out_graph_id, _) =
-        create_peg_out_graph(&empty_scripts, with_kick_off_2_tx, with_challenge_tx, with_assert_tx).await;
+        create_peg_out_graph(&empty_scripts, &empty_scripts, with_kick_off_2_tx, with_challenge_tx, with_assert_tx).await;
 
     depositor_operator_verifier_0_client.sync().await;
     depositor_operator_verifier_0_client
@@ -40,7 +40,7 @@ async fn test_musig2_peg_out_take_2() {
     let with_challenge_tx = false;
     let with_assert_tx = true;
     let (mut depositor_operator_verifier_0_client, _, peg_out_graph_id, _) =
-        create_peg_out_graph(&empty_scripts, with_kick_off_2_tx, with_challenge_tx, with_assert_tx).await;
+        create_peg_out_graph(&empty_scripts, &empty_scripts, with_kick_off_2_tx, with_challenge_tx, with_assert_tx).await;
 
     eprintln!("Broadcasting take 2...");
     depositor_operator_verifier_0_client.sync().await;
@@ -56,7 +56,7 @@ async fn test_musig2_start_time_timeout() {
     let with_challenge_tx = false;
     let with_assert_tx = false;
     let (mut depositor_operator_verifier_0_client, _, peg_out_graph_id, depositor_context) =
-        create_peg_out_graph(&empty_scripts, with_kick_off_2_tx, with_challenge_tx, with_assert_tx).await;
+        create_peg_out_graph(&empty_scripts, &empty_scripts, with_kick_off_2_tx, with_challenge_tx, with_assert_tx).await;
 
     depositor_operator_verifier_0_client.sync().await;
     depositor_operator_verifier_0_client
@@ -74,7 +74,7 @@ async fn test_musig2_kick_off_timeout() {
     let with_challenge_tx = false;
     let with_assert_tx = false;
     let (mut depositor_operator_verifier_0_client, _, peg_out_graph_id, depositor_context) =
-        create_peg_out_graph(&empty_scripts, with_kick_off_2_tx, with_challenge_tx, with_assert_tx).await;
+        create_peg_out_graph(&empty_scripts, &empty_scripts, with_kick_off_2_tx, with_challenge_tx, with_assert_tx).await;
 
     depositor_operator_verifier_0_client.sync().await;
     depositor_operator_verifier_0_client
@@ -110,7 +110,7 @@ async fn test_musig2_peg_out_disprove_chain_with_challenge() {
     let with_challenge_tx = true;
     let with_assert_tx = false;
     let (mut depositor_operator_verifier_0_client, _, peg_out_graph_id, depositor_context) =
-        create_peg_out_graph(&empty_scripts, with_kick_off_2_tx, with_challenge_tx, with_assert_tx).await;
+        create_peg_out_graph(&empty_scripts, &empty_scripts, with_kick_off_2_tx, with_challenge_tx, with_assert_tx).await;
 
     depositor_operator_verifier_0_client.sync().await;
     depositor_operator_verifier_0_client
@@ -123,6 +123,7 @@ async fn test_musig2_peg_out_disprove_chain_with_challenge() {
 
 async fn create_peg_out_graph<'a>(
     tap_scripts: &'a Vec<Script>,
+    bitcom_lock_scripts: &'a Vec<Script>,
     with_kick_off_2_tx: bool,
     with_challenge_tx: bool,
     with_assert_tx: bool,
@@ -144,9 +145,10 @@ async fn create_peg_out_graph<'a>(
         _,
         _,
         _,
+        _,
         depositor_evm_address,
         _,
-    ) = setup_test(tap_scripts).await;
+    ) = setup_test(tap_scripts, bitcom_lock_scripts).await;
     let (mut depositor_operator_verifier_0_client, mut verifier_1_client) = new_client().await;
 
 
@@ -196,6 +198,7 @@ async fn create_peg_out_graph<'a>(
                 amount: kick_off_input_amount,
             },
             tap_scripts,
+            &bitcom_lock_scripts,
         )
         .await;
 

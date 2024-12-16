@@ -16,8 +16,8 @@ use crate::bridge::{
 #[tokio::test]
 async fn test_start_time_success() {
     let empty_script = vec![];
-    let (rpc, _, operator_context, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =
-        setup_test(&empty_script).await;
+    let (rpc, _, operator_context, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) =
+        setup_test(&empty_script, &empty_script).await;
 
     let kick_off_1_input_amount = Amount::from_sat(INITIAL_AMOUNT + FEE_AMOUNT);
     let kick_off_1_funding_utxo_address = generate_pay_to_pubkey_script_address(

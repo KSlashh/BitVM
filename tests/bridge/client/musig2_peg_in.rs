@@ -33,9 +33,10 @@ async fn test_musig2_peg_in() {
         _,
         _,
         _,
+        _,
         depositor_evm_address,
         _,
-    ) = setup_test(&empty_scripts).await;
+    ) = setup_test(&empty_scripts, &empty_scripts).await;
     let (mut depositor_operator_verifier_0_client, mut verifier_1_client) = new_client().await;
 
     // Depositor: generate graph

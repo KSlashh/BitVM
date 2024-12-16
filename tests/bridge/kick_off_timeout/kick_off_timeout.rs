@@ -33,7 +33,8 @@ async fn test_kick_off_timeout_tx() {
         _,
         _,
         _,
-    ) = setup_test(&empty_script).await;
+        _,
+    ) = setup_test(&empty_script, &empty_script).await;
 
     let input_value0 = Amount::from_sat(ONE_HUNDRED * 2 / 100);
     let outpoint_0 = generate_stub_outpoint(

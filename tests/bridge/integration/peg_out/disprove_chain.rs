@@ -1,7 +1,7 @@
 use bitcoin::{Amount, OutPoint};
 use bitvm::bridge::{
     connectors::connector::TaprootConnector,
-    graphs::base::{DUST_AMOUNT, FEE_AMOUNT, INITIAL_AMOUNT},
+    graphs::base::{DUST_AMOUNT, FEE_AMOUNT, HUGE_FEE_AMOUNT, INITIAL_AMOUNT},
     scripts::generate_pay_to_pubkey_script_address,
     transactions::{
         base::{BaseTransaction, Input},
@@ -11,12 +11,13 @@ use bitvm::bridge::{
 
 use crate::bridge::{
     helper, integration::peg_out::utils::create_and_mine_kick_off_2_tx,
-    setup::setup_test,
+    setup::{setup_test, get_bitcom_lock_scripts},
 };
 
 #[tokio::test]
 async fn test_disprove_chain_success() {
     let empty_script = vec![];
+    let bitcom_lock_script = get_bitcom_lock_scripts();
     let (
         rpc,
         _,
@@ -34,12 +35,13 @@ async fn test_disprove_chain_success() {
         _,
         _,
         _,
+        revealers,
         _,
         _,
-    ) = setup_test(&empty_script).await;
+    ) = setup_test(&empty_script, &bitcom_lock_script).await;
 
     // verify funding inputs
-    let kick_off_2_input_amount = Amount::from_sat(INITIAL_AMOUNT + 2*FEE_AMOUNT + DUST_AMOUNT);
+    let kick_off_2_input_amount = Amount::from_sat(INITIAL_AMOUNT + HUGE_FEE_AMOUNT + FEE_AMOUNT + DUST_AMOUNT);
     let kick_off_2_funding_utxo_address = connector_1.generate_taproot_address();
 
     // kick-off 2
@@ -48,6 +50,7 @@ async fn test_disprove_chain_success() {
         &operator_context,
         &kick_off_2_funding_utxo_address,
         kick_off_2_input_amount,
+        revealers,
     )
     .await;
 

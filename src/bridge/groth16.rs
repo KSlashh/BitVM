@@ -1,12 +1,12 @@
 
 use std::collections::HashMap;
+use std::cmp::min;
 use crate::chunk::test_utils::read_map_from_file;
 use crate::groth16::g16;
 use crate::treepp::*;
 use crate::chunk;
 use ark_bn254::{Bn254, Fr};
-use ark_ff::Field;
-use crate::signatures::wots::{wots160, wots256};
+use crate::signatures::wots::{wots160, wots256, SignatureImpl};
 
 pub type WotsPublicKeys = g16::PublicKeys;
 pub type WotsSecretKeys = Vec<u8>;
@@ -16,6 +16,9 @@ pub type PublicInputs = g16::PublicInputs;
 pub type Assertions = g16::Assertions;
 pub type WotsSignatures = g16::Signatures;
 
+pub const WOTS160_STACKING_LIMIT: usize = 11;
+pub const WOTS256_STACKING_LIMIT: usize = 7;
+
 pub enum WotsSignature {
     Sig256(wots256::Signature),
     Sig160(wots160::Signature),
@@ -23,11 +26,11 @@ pub enum WotsSignature {
 
 
 pub fn kickoff_bitcom_lock(
-    wots_pk: &WotsPublicKeys, 
+    _wots_pk: &WotsPublicKeys, 
     _vk: &VerifyingKey,
 ) -> Vec<(u32,Script)> {
-    // TODO: Split into two parts for kickoff and assert
-    generate_bitcommitments(wots_pk)
+    // TODO
+    Vec::new()
 }
 
 #[allow(unused_variables)]
@@ -43,33 +46,187 @@ pub fn kickoff_bitcom_witness(
 
 pub fn assert_bitcom_lock(
     wots_pk: &WotsPublicKeys, 
-    _vk: &ark_groth16::VerifyingKey<Bn254>,
-) -> Vec<(u32,Script)> {
-    // TODO: Split into two parts for kickoff and assert
-    generate_bitcommitments(wots_pk)
+) -> Vec<Script> {
+    let (mut bitcomms, wots256_num) = generate_bitcommitments(wots_pk);
+
+    let wots160_num = bitcomms.len() - wots256_num;
+    let wots256_scr_num = (wots256_num - 1)/WOTS256_STACKING_LIMIT + 1;
+    let wots160_scr_num = (wots160_num - 1)/WOTS160_STACKING_LIMIT + 1;
+
+    let mut res = Vec::new();
+    for i in 0..wots256_scr_num {
+        let stacking_script_num = min(wots256_num - i*WOTS256_STACKING_LIMIT, WOTS256_STACKING_LIMIT);
+        let scr = script! {
+            for j in 0..stacking_script_num {
+                { bitcomms.remove(&((i*WOTS256_STACKING_LIMIT + j) as u32)).unwrap() }
+            }
+        };
+        res.push(scr);
+    }
+    for i in 0..wots160_scr_num {
+        let stacking_script_num = min(wots160_num - i*WOTS160_STACKING_LIMIT, WOTS160_STACKING_LIMIT);
+        let scr = script! {
+            for j in 0..stacking_script_num {
+                { bitcomms.remove(&((i*WOTS160_STACKING_LIMIT + j + wots256_num) as u32)).unwrap() }
+            }
+        };
+        res.push(scr);
+    }
+
+    res
 }
 
-#[allow(unused_variables)]
-pub fn assert_bitcom_witness(
+pub fn assert_unlock_scripts(
     proof: Proof,
     public_inputs: PublicInputs,
     wots_sk: &WotsSecretKeys,
     vk: &VerifyingKey,
-) -> Vec<Vec<u8>> {
-    // TODO
-    Vec::new()
+) -> Vec<Script> {
+    let mut wots256_sigs = Vec::new();
+    let mut wots160_sigs = Vec::new();
+
+    {
+        let assertions = gene_assertions(proof, public_inputs, vk);
+        let signed_assertions = sign_assertions(wots_sk, assertions);
+        wots256_sigs.extend_from_slice(&signed_assertions.0);
+        wots256_sigs.extend_from_slice(&signed_assertions.1);
+        wots160_sigs.extend_from_slice(&signed_assertions.2);
+    }
+
+    let mut res = Vec::new();  
+
+    let wots256_num = g16::N_VERIFIER_PUBLIC_INPUTS + g16::N_VERIFIER_FQS;
+    let wots160_num = g16::N_VERIFIER_HASHES;
+    let wots256_scr_num = (wots256_num - 1)/WOTS256_STACKING_LIMIT + 1;
+    let wots160_scr_num = (wots160_num - 1)/WOTS160_STACKING_LIMIT + 1;
+
+    for i in 0..wots256_scr_num {
+        let stacking_script_num = min(wots256_num - i*WOTS256_STACKING_LIMIT, WOTS256_STACKING_LIMIT);
+        let mut scr = script! {};
+        for j in 0..stacking_script_num {
+            let index = i*WOTS256_STACKING_LIMIT + j;
+            let sig = wots256_sigs[index].clone();
+            let unlock_script = sig.to_script();
+            scr = script! {
+                {unlock_script}
+                {scr}
+            };
+        }
+        scr = script! {
+            OP_TRUE
+            {scr}
+        };
+        res.push(scr);
+    }
+    for i in 0..wots160_scr_num {
+        let stacking_script_num = min(wots160_num - i*WOTS160_STACKING_LIMIT, WOTS160_STACKING_LIMIT);
+        let mut scr = script! {};
+        for j in 0..stacking_script_num {
+            let index = i*WOTS160_STACKING_LIMIT + j;
+            let sig = wots160_sigs[index].clone();
+            let unlock_script = sig.to_script();
+            scr = script! {
+                {unlock_script}
+                {scr}
+            };
+        }
+        scr = script! {
+            OP_TRUE
+            {scr}
+        };
+        res.push(scr);
+    }
+
+    res   
+}
+
+pub fn assert_unlock_scripts_from_file(file_prefix: &str) -> Vec<Script> {
+    let mut res = Vec::new();  
+
+    let wots256_num = g16::N_VERIFIER_PUBLIC_INPUTS + g16::N_VERIFIER_FQS;
+    let wots160_num = g16::N_VERIFIER_HASHES;
+    let wots256_scr_num = (wots256_num - 1)/WOTS256_STACKING_LIMIT + 1;
+    let wots160_scr_num = (wots160_num - 1)/WOTS160_STACKING_LIMIT + 1;
+
+    for i in 0..wots256_scr_num {
+        let stacking_script_num = min(wots256_num - i*WOTS256_STACKING_LIMIT, WOTS256_STACKING_LIMIT);
+        let mut scr = script! {};
+        for j in 0..stacking_script_num {
+            let index = i*WOTS256_STACKING_LIMIT + j;
+            let sig = load_signed_assertions_from_file(file_prefix, index as u32);
+            let unlock_script = match sig {
+                WotsSignature::Sig256(s) => s.to_script(),
+                WotsSignature::Sig160(_s) => panic!("invalid wots sig type"),
+            };
+            scr = script! {
+                {unlock_script}
+                {scr}
+            };
+        }
+        scr = script! {
+            OP_TRUE
+            {scr}
+        };
+        res.push(scr);
+    }
+    for i in 0..wots160_scr_num {
+        let stacking_script_num = min(wots160_num - i*WOTS160_STACKING_LIMIT, WOTS160_STACKING_LIMIT);
+        let mut scr = script! {};
+        for j in 0..stacking_script_num {
+            let index = i*WOTS160_STACKING_LIMIT + j + wots256_num;
+            let sig = load_signed_assertions_from_file(file_prefix, index as u32);
+            let unlock_script = match sig {
+                WotsSignature::Sig256(_s) => panic!("invalid wots sig type"),
+                WotsSignature::Sig160(s) => s.to_script(),
+            };
+            scr = script! {
+                {unlock_script}
+                {scr}
+            };
+        }
+        scr = script! {
+            OP_TRUE
+            {scr}
+        };
+        res.push(scr);
+    }
+
+    res
+}
+
+pub fn generate_bitcommitments(
+    wots_pk: &WotsPublicKeys, 
+) -> (HashMap<u32,Script>, usize) {
+    let mut bitcomms: HashMap<u32, Script> = HashMap::new();
+
+    for i in 0..wots_pk.0.len() {
+        let scr = wots256::checksig_verify_lit(wots_pk.0[i]);
+        bitcomms.insert(i as u32, scr);
+    }
+    let len = bitcomms.len();
+    for i in 0..wots_pk.1.len() {
+        let scr = wots256::checksig_verify_lit(wots_pk.1[i]);
+        bitcomms.insert((len + i) as u32, scr);
+    }
+    let len = bitcomms.len();
+    for i in 0..wots_pk.2.len() {
+        let scr = wots160::checksig_verify_lit(wots_pk.2[i]);
+        bitcomms.insert((len + i) as u32, scr);
+    }
+
+    (bitcomms, len)
 }
 
 pub fn disprove_witness(
     _index: u32,
     hint_script: Script,
 ) -> Vec<Vec<u8>> {
-    hint_script_to_witness(hint_script)
+    script_to_witness(hint_script)
 }
 
-pub fn hint_script_to_witness(hint_script: Script) -> Vec<Vec<u8>> {
+pub fn script_to_witness(scr: Script) -> Vec<Vec<u8>> {
     let mut witness = Vec::new();
-    let res = execute_script(hint_script);
+    let res = execute_script(scr);
     let stack = res.final_stack;
     for i in 0..stack.len() {
         witness.push(stack.get(i));
@@ -272,34 +429,6 @@ pub fn validate_assertions(
 ) -> Option<(usize, Script)> {
     chunk::api::validate_assertions(vk, signed_asserts, inpubkeys)
 }   
-
-pub fn generate_bitcommitments(
-    wots_pk: &WotsPublicKeys, 
-) -> Vec<(u32,Script)> {
-    let mut pubkeys: HashMap<u32, chunk::wots::WOTSPubKey> = HashMap::new();
-    for i in 0..wots_pk.0.len() {
-        pubkeys.insert(i as u32, chunk::wots::WOTSPubKey::P256(wots_pk.0[i]));
-    }
-    let len = pubkeys.len();
-    for i in 0..wots_pk.1.len() {
-        pubkeys.insert((len + i) as u32, chunk::wots::WOTSPubKey::P256(wots_pk.1[i]));
-    }
-    let len = pubkeys.len();
-    for i in 0..wots_pk.2.len() {
-        pubkeys.insert((len + i) as u32, chunk::wots::WOTSPubKey::P160(wots_pk.2[i]));
-    }
-    chunk::compile::compile(
-        chunk::compile::Vkey {
-            q2: ark_bn254::G2Affine::identity(),
-            q3: ark_bn254::G2Affine::identity(),
-            p3vk: vec![],
-            p1q1: ark_bn254::Fq12::ONE,
-            vky0: ark_bn254::G1Affine::identity(),
-        },
-        &pubkeys,
-        true,
-    )
-}
 
 pub fn generate_wots_keys_from_secrets(secret: &str) -> (WotsPublicKeys, WotsSecretKeys) {
     (
@@ -694,3 +823,25 @@ pub fn test_bitcommitment() {
     dbg!(res256);
     dbg!(res256_compact);
 }
+
+#[test]
+pub fn test_bitcommitment_stacking() {
+    let (wots_pk, _) = generate_wots_keys_from_secrets(TEST_SECRET);
+    let lock_scripts = assert_bitcom_lock(&wots_pk);
+    let unlock_scripts = assert_unlock_scripts_from_file("signed_assertions/signed_assertion");
+
+    assert_eq!(lock_scripts.len(), unlock_scripts.len());
+    for i in 0..lock_scripts.len() {
+        println!("\ntest bitcommitment_{i}");
+        let full_script = script! {
+            { unlock_scripts[i].clone() }
+            { lock_scripts[i].clone() }
+        };
+        dbg!(&full_script.len());
+        let res = execute_script(full_script);
+        dbg!(&res.stats.max_nb_stack_items);
+        assert!(res.success);
+    }
+}
+
+
