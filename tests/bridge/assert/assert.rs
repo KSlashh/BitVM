@@ -6,11 +6,12 @@ use bitvm::bridge::{
         assert::AssertTransaction,
         base::{BaseTransaction, Input},
     },
+    groth16::extract_signed_assertions_from_assert_tx,
 };
 
 use super::super::{
     helper::{generate_stub_outpoint, generate_stub_outpoint_batch, self}, 
-    setup::{setup_test, get_bitcom_lock_scripts, get_bitcom_unlock_scripts}
+    setup::{setup_test, get_bitcom_lock_scripts, get_bitcom_unlock_scripts, get_signed_assertions}
 };
 
 #[tokio::test]
@@ -72,4 +73,9 @@ async fn test_assert_tx() {
     let fee= (fee_sat as f64) / 1_000_000_000.0;
     println!("weight: {weight} WU, fee_rate: {fee_rate} sats/vB, fee: {fee} BTC, fee_sat: {fee_sat}");
     helper::validate_tx(&rpc, txid);
+
+    let raw_sigs = get_signed_assertions();
+    let raw_assert_tx = helper::get_raw_tx(&rpc, txid);
+    let extract_sigs = extract_signed_assertions_from_assert_tx(raw_assert_tx);
+    assert!(extract_sigs == raw_sigs);
 }

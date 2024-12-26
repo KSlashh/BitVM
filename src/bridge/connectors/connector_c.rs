@@ -38,6 +38,15 @@ impl<'a> ConnectorC<'a> {
         }
     }
 
+    // re-use previously calculated value to save time
+    // input won't be verified, make sure its right
+    pub fn import_taproot_address(&mut self, connector_c_address: Address) {
+        match self.taproot_address.clone() {
+            Some(addr) => assert!(connector_c_address == addr, "connector_c already had an address, and is different from the new one"),
+            _ => self.taproot_address = Some(connector_c_address),
+        }
+    }
+
     pub fn gen_taproot_address(&mut self) -> Address {
         if Option::is_none(&self.taproot_address) {
             let addr: Address = self.generate_taproot_address();

@@ -303,15 +303,15 @@ pub fn get_bitcom_lock_scripts() -> Vec<Script> {
 }
 
 pub fn get_bitcom_unlock_scripts() -> Vec<Script> {
-    assert_unlock_scripts_from_file("signed_assertions/signed_assertion")
+    assert_unlock_scripts_from_file("chunker_data/signed_assertions", None, None)
 }
 
 pub fn get_tapscripts() -> Vec<Script> {
-    load_assert_tapscripts_from_file(0, g16::N_TAPLEAVES - 1, "tapscripts/tapscript")
+    load_assert_tapscripts_from_file(0, g16::N_TAPLEAVES - 1, "chunker_data/tapscripts")
 }
 
 pub fn get_signed_assertions() -> WotsSignatures {
-    load_all_signed_assertions_from_file("signed_assertions/signed_assertion")
+    load_all_signed_assertions_from_file("chunker_data/signed_assertions")
 }   
 
 pub fn corrupt_assertions(signed_assertions: &mut WotsSignatures, index: usize) {

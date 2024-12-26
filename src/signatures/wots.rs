@@ -27,6 +27,8 @@ macro_rules! impl_wots {
                 pub const M_DIGITS: u32 = ceil_div(N_BITS, WINDOW);
                 pub const C_DIGITS: u32 = ceil_div(log2(M_DIGITS * MAX_DIGIT), WINDOW);
                 pub const N_DIGITS: u32 = M_DIGITS + C_DIGITS;
+                pub const WITNESS_LEN: u32 = N_DIGITS*2;
+                pub const COMPACT_WITNESS_LEN: u32 = N_DIGITS;
 
                 // compile time assertion on 1 <= WINDOW <= 8
                 const _: u32 = WINDOW - 1;
@@ -55,6 +57,23 @@ macro_rules! impl_wots {
                             }
                         }
                     }
+                }
+
+                pub fn from_witness(witness: &Vec<Vec<u8>>) -> Signature {
+                    assert!(witness.len() as u32 == WITNESS_LEN, "invalid witness: invalid witness length");
+                    let mut res: Signature = [([0; 20], 0);  N_DIGITS as usize];
+                    for i in 0..(WITNESS_LEN/2) {
+                        let preimage_vec = witness[2*i as usize].clone();
+                        let digit = witness[1+2*i as usize].clone();
+                        assert!(preimage_vec.len() == 20, "invalid witness: invalid preimage length");
+                        let d = match digit.len() {
+                            0 => 0u8,
+                            1 => digit[0],
+                            _ => panic!("invalid witness: invalid digit length"),
+                        };
+                        res[i as usize] = (preimage_vec.try_into().unwrap(), d);
+                    }
+                    res
                 }
 
                 /// Compute the checksum of the message's digits.

@@ -5,6 +5,7 @@ use crate::chunk::test_utils::read_map_from_file;
 use crate::groth16::g16;
 use crate::treepp::*;
 use crate::chunk;
+use bitcoin::Transaction;
 use ark_bn254::{Bn254, Fr};
 use crate::signatures::wots::{wots160, wots256, SignatureImpl};
 
@@ -140,7 +141,7 @@ pub fn assert_unlock_scripts(
     res   
 }
 
-pub fn assert_unlock_scripts_from_file(file_prefix: &str) -> Vec<Script> {
+pub fn assert_unlock_scripts_from_file(sig_data_dir: &str, corrput_index: Option<usize>, wots_sk: Option<WotsSecretKeys>) -> Vec<Script> {
     let mut res = Vec::new();  
 
     let wots256_num = g16::N_VERIFIER_PUBLIC_INPUTS + g16::N_VERIFIER_FQS;
@@ -148,15 +149,30 @@ pub fn assert_unlock_scripts_from_file(file_prefix: &str) -> Vec<Script> {
     let wots256_scr_num = (wots256_num - 1)/WOTS256_STACKING_LIMIT + 1;
     let wots160_scr_num = (wots160_num - 1)/WOTS160_STACKING_LIMIT + 1;
 
+    let corrput_index = match corrput_index {
+        Some(i) => {
+            assert!(wots_sk.is_some(), "need wots secret_key to generator corrupt signature");
+            assert!(i < (wots256_num + wots160_num), "corrupt index out of range");
+            i
+        },
+        _ => (wots256_num + wots160_num) + 1000,
+    };
+
     for i in 0..wots256_scr_num {
         let stacking_script_num = min(wots256_num - i*WOTS256_STACKING_LIMIT, WOTS256_STACKING_LIMIT);
         let mut scr = script! {};
         for j in 0..stacking_script_num {
             let index = i*WOTS256_STACKING_LIMIT + j;
-            let sig = load_signed_assertions_from_file(file_prefix, index as u32);
-            let unlock_script = match sig {
-                WotsSignature::Sig256(s) => s.to_script(),
-                WotsSignature::Sig160(_s) => panic!("invalid wots sig type"),
+            let unlock_script = if index == corrput_index {
+                let secret = String::from_utf8(wots_sk.clone().unwrap()).unwrap();
+                let scramble: [u8; 32] = [0x1u8; 32];
+                wots256::get_signature(&format!("{secret}{:04x}", index), &scramble).to_script()
+            } else {
+                let sig = load_signed_assertions_from_file(sig_data_dir, index as u32);
+                match sig {
+                    WotsSignature::Sig256(s) => s.to_script(),
+                    WotsSignature::Sig160(_s) => panic!("invalid wots sig type"),
+                }
             };
             scr = script! {
                 {unlock_script}
@@ -174,10 +190,16 @@ pub fn assert_unlock_scripts_from_file(file_prefix: &str) -> Vec<Script> {
         let mut scr = script! {};
         for j in 0..stacking_script_num {
             let index = i*WOTS160_STACKING_LIMIT + j + wots256_num;
-            let sig = load_signed_assertions_from_file(file_prefix, index as u32);
-            let unlock_script = match sig {
-                WotsSignature::Sig256(_s) => panic!("invalid wots sig type"),
-                WotsSignature::Sig160(s) => s.to_script(),
+            let unlock_script = if index == corrput_index {
+                let secret = String::from_utf8(wots_sk.clone().unwrap()).unwrap();
+                let scramble: [u8; 20] = [0x1u8; 20];
+                wots160::get_signature(&format!("{secret}{:04x}", index), &scramble).to_script()
+            } else {
+                let sig = load_signed_assertions_from_file(sig_data_dir, index as u32);
+                match sig {
+                    WotsSignature::Sig256(_s) => panic!("invalid wots sig type"),
+                    WotsSignature::Sig160(s) => s.to_script(),
+                }
             };
             scr = script! {
                 {unlock_script}
@@ -259,16 +281,24 @@ pub fn generate_assert_tapscripts(
     vk: &VerifyingKey, 
     wots_pk: WotsPublicKeys, 
     write_to_file: bool,
-    file_prefix: &str,
+    tapscript_data_dir: &str,
 ) -> Vec<Script> {
     let ops_scripts = chunk::api::api_compile(vk);
     let taps = chunk::api::generate_tapscripts(wots_pk, &ops_scripts);
     if write_to_file {
+        let _ = std::fs::create_dir_all(tapscript_data_dir);
         let mut script_cache = HashMap::new();
         for i in 0..taps.len() {
             script_cache.insert(i as u32, vec![taps[i].clone()]);
         }
-        chunk::test_utils::write_scripts_to_separate_files(script_cache, file_prefix);
+        let mut buf: HashMap<u32, Vec<Vec<u8>>> = HashMap::new();
+        for (k, v) in script_cache {
+            let file = format!("{tapscript_data_dir}/tapscripts_{k}.json");
+            let vs = v.into_iter().map(|x| x.compile().to_bytes()).collect();
+            buf.insert(k, vs);
+            chunk::test_utils::write_map_to_file(&buf, &file).unwrap();
+            buf.clear();
+        }
     }
     taps
 }   
@@ -279,12 +309,13 @@ pub fn generate_signed_assertions(
     wots_sk: &WotsSecretKeys,
     vk: &VerifyingKey,
     write_to_file: bool,
-    file_prefix: &str,
+    file_dir: &str,
 ) -> WotsSignatures {
     let assn = gene_assertions(proof, public_inputs, vk);
     let sigs = sign_assertions(wots_sk, assn);
     
     if write_to_file {
+        let _ = std::fs::create_dir_all(file_dir);
         let mut index = 0;
         for ss in sigs.0 {
             let mut s_map: HashMap<u32, Vec<Vec<u8>>> = HashMap::new();
@@ -294,7 +325,7 @@ pub fn generate_signed_assertions(
                 v.push(vec![d]);
             }
             s_map.insert(index, v);
-            chunk::test_utils::write_map_to_file(&s_map, &format!("chunker_data/{file_prefix}_{index}.json")).expect("fail to write signed assertions");
+            chunk::test_utils::write_map_to_file(&s_map, &format!("{file_dir}/signed_assertion_{index}.json")).expect("fail to write signed assertions");
             index += 1;
         }
         for ss in sigs.1 {
@@ -305,7 +336,7 @@ pub fn generate_signed_assertions(
                 v.push(vec![d]);
             }
             s_map.insert(index, v);
-            chunk::test_utils::write_map_to_file(&s_map, &format!("chunker_data/{file_prefix}_{index}.json")).expect("fail to write signed assertions");
+            chunk::test_utils::write_map_to_file(&s_map, &format!("{file_dir}/signed_assertion_{index}.json")).expect("fail to write signed assertions");
             index += 1;
         }
         for ss in sigs.2 {
@@ -316,7 +347,7 @@ pub fn generate_signed_assertions(
                 v.push(vec![d]);
             }
             s_map.insert(index, v);
-            chunk::test_utils::write_map_to_file(&s_map, &format!("chunker_data/{file_prefix}_{index}.json")).expect("fail to write signed assertions");
+            chunk::test_utils::write_map_to_file(&s_map, &format!("{file_dir}/signed_assertion_{index}.json")).expect("fail to write signed assertions");
             index += 1;
         }
     }
@@ -362,7 +393,6 @@ pub fn sign_assertions(
 
     (psig, fsig, hsig)
 }
-
 
 pub fn corrupt_signed_assertions(
     wots_sk: &WotsSecretKeys,
@@ -437,10 +467,14 @@ pub fn generate_wots_keys_from_secrets(secret: &str) -> (WotsPublicKeys, WotsSec
     )
 }
 
-pub fn load_assert_tapscripts_from_file(start_index: usize, end_index: usize, file_prefix: &str) -> Vec<Script> {
+pub fn load_all_assert_tapscripts_from_file(tapscript_data_dir: &str) -> Vec<Script> {
+    load_assert_tapscripts_from_file(0, g16::N_TAPLEAVES-1, tapscript_data_dir)
+}
+
+pub fn load_assert_tapscripts_from_file(start_index: usize, end_index: usize, tapscript_data_dir: &str) -> Vec<Script> {
     let mut taps = vec![];
     for index in start_index..(end_index+1) {
-        let read = chunk::test_utils::read_scripts_from_file(&format!("chunker_data/{file_prefix}_{index}.json"));
+        let read = chunk::test_utils::read_scripts_from_file(&format!("{tapscript_data_dir}/tapscript_{index}.json"));
         let read_scr = read.get(&(index as u32)).unwrap();
         assert_eq!(read_scr.len(), 1);
         let tap_node = read_scr[0].clone();
@@ -450,12 +484,12 @@ pub fn load_assert_tapscripts_from_file(start_index: usize, end_index: usize, fi
 }
 
 pub fn load_all_signed_assertions_from_file(
-    file_prefix: &str,
+    sig_data_dir: &str,
 ) -> WotsSignatures {
     let mut psig = vec![];
     let (min, max) = (0, g16::N_VERIFIER_PUBLIC_INPUTS);
     for i in min..max {
-        let s = load_signed_assertions_from_file(file_prefix, i as u32);
+        let s = load_signed_assertions_from_file(sig_data_dir, i as u32);
         let sig = if let WotsSignature::Sig256(sig) = s { 
             sig 
         } else {
@@ -468,7 +502,7 @@ pub fn load_all_signed_assertions_from_file(
     let mut fsig = vec![];
     let (min, max) = (max, max + g16::N_VERIFIER_FQS);
     for i in min..max {
-        let s = load_signed_assertions_from_file(file_prefix, i as u32);
+        let s = load_signed_assertions_from_file(sig_data_dir, i as u32);
         let sig = if let WotsSignature::Sig256(sig) = s { 
             sig 
         } else {
@@ -481,7 +515,7 @@ pub fn load_all_signed_assertions_from_file(
     let mut hsig = vec![];
     let (min, max) = (max, max + g16::N_VERIFIER_HASHES);
     for i in min..max {
-        let s = load_signed_assertions_from_file(file_prefix, i as u32);
+        let s = load_signed_assertions_from_file(sig_data_dir, i as u32);
         let sig = if let WotsSignature::Sig160(sig) = s { 
             sig 
         } else {
@@ -496,10 +530,10 @@ pub fn load_all_signed_assertions_from_file(
 }
 
 pub fn load_signed_assertions_from_file(
-    file_prefix: &str,
+    data_dir: &str,
     index: u32,
 ) -> WotsSignature {
-    let file_name = format!("chunker_data/{file_prefix}_{index}.json");
+    let file_name = format!("{data_dir}/signed_assertion_{index}.json");
     let res = chunk::test_utils::read_map_from_file(&file_name)
         .expect(&format!("fail to read assertion from {file_name}"));
     let v = res.get(&index).unwrap();
@@ -531,6 +565,48 @@ pub fn load_signed_assertions_from_file(
         }
         _ => panic!("Invalid wots siganture length")
     }
+}
+
+pub fn extract_signed_assertions_from_assert_tx(
+    assert_tx: Transaction,
+) -> WotsSignatures {
+    let wots256_num = g16::N_VERIFIER_PUBLIC_INPUTS + g16::N_VERIFIER_FQS;
+    let wots160_num = g16::N_VERIFIER_HASHES;
+    let wots256_scr_num = (wots256_num - 1)/WOTS256_STACKING_LIMIT + 1;
+    let wots160_scr_num = (wots160_num - 1)/WOTS160_STACKING_LIMIT + 1;
+    let bitcom_scr_num = wots256_scr_num + wots160_scr_num;
+    assert!(bitcom_scr_num + 1 == assert_tx.input.len(), "given tx may not be assert_tx: mismatch input amount");
+    let mut wots256_bitcoms = Vec::new();
+    for i in 0..wots256_scr_num {
+        let witness = assert_tx.input[i+1].witness.clone().to_vec();
+        let stacking_script_num = min(wots256_num - i*WOTS256_STACKING_LIMIT, WOTS256_STACKING_LIMIT);
+        let mut bitcoms = Vec::new();
+        for j in 0..stacking_script_num {
+            let start = 1+j*wots256::WITNESS_LEN as usize;
+            let end = 1+(j+1)*wots256::WITNESS_LEN as usize;
+            let sig = wots256::from_witness(&witness[start..end].to_vec());
+            bitcoms.push(sig);
+        }
+        wots256_bitcoms.extend(bitcoms.iter().rev());
+    }
+    let mut wots160_bitcoms = Vec::new();
+    for i in 0..wots160_scr_num {
+        let witness = assert_tx.input[i+1+wots256_scr_num].witness.clone().to_vec();
+        let stacking_script_num = min(wots160_num - i*WOTS160_STACKING_LIMIT, WOTS160_STACKING_LIMIT);
+        let mut bitcoms = Vec::new();
+        for j in 0..stacking_script_num {
+            let start = 1+j*wots160::WITNESS_LEN as usize;
+            let end = 1+(j+1)*wots160::WITNESS_LEN as usize;
+            let sig = wots160::from_witness(&witness[start..end].to_vec());
+            bitcoms.push(sig);
+        }
+        wots160_bitcoms.extend(bitcoms.iter().rev());
+    }
+    (   
+        wots256_bitcoms[..g16::N_VERIFIER_PUBLIC_INPUTS].try_into().unwrap(),
+        wots256_bitcoms[g16::N_VERIFIER_PUBLIC_INPUTS..].try_into().unwrap(),
+        wots160_bitcoms[..].try_into().unwrap(),
+    )
 }
 
 pub fn load_proof_from_file(filename: &str) -> (VerifyingKey, Proof, PublicInputs) {
@@ -659,14 +735,14 @@ pub fn test_gene_sigs() {
     let _ = std::fs::create_dir("chunker_data/signed_assertions");
     let (vk, proof, pubin) = load_proof_from_file("chunker_data/dummy_proof.json");
     let (_, wots_sk) = generate_wots_keys_from_secrets(TEST_SECRET);
-    generate_signed_assertions(proof, pubin, &wots_sk, &vk, true, "signed_assertions/signed_assertion");
+    generate_signed_assertions(proof, pubin, &wots_sk, &vk, true, "chunker_data/signed_assertions");
 }
 
 #[test]
 pub fn test_validate_assertions() {
     let (vk, _, _) = load_proof_from_file("chunker_data/dummy_proof.json");
     let (wots_pk, _) = generate_wots_keys_from_secrets(TEST_SECRET);
-    let signed_assertions = load_all_signed_assertions_from_file("signed_assertions/signed_assertion");
+    let signed_assertions = load_all_signed_assertions_from_file("chunker_data/signed_assertions");
     validate_assertions(&vk, signed_assertions, wots_pk);
 }
 
@@ -679,7 +755,7 @@ pub fn test_disprove_invalid_assertions() {
     fn run() {
         let (vk, _, _) = load_proof_from_file("chunker_data/dummy_proof.json");
         let (wots_pk, wots_sk) = generate_wots_keys_from_secrets(TEST_SECRET);
-        let mut signed_assertions = load_all_signed_assertions_from_file("signed_assertions/signed_assertion");
+        let mut signed_assertions = load_all_signed_assertions_from_file("chunker_data/signed_assertions");
         
         // continue previous test
         let res_file_name = "chunker_data/disprove_test_res_2.txt";
@@ -713,7 +789,7 @@ pub fn test_disprove_invalid_assertions() {
             assert!(res.is_some(), "unexpected validate assertions result");
             let (leaf_index, hint_script) = res.unwrap();
 
-            let lock_script = load_assert_tapscripts_from_file(leaf_index, leaf_index, "tapscripts/tapscript");
+            let lock_script = load_assert_tapscripts_from_file(leaf_index, leaf_index, "chunker_data/tapscripts");
             let lock_script = lock_script[0].clone();
 
             let scr = script!(
@@ -745,7 +821,7 @@ pub fn test_disprove_script_size() {
     fn run() {
         let (vk, _, _) = load_proof_from_file("chunker_data/dummy_proof.json");
         let (wots_pk, wots_sk) = generate_wots_keys_from_secrets(TEST_SECRET);
-        let mut signed_assertions = load_all_signed_assertions_from_file("signed_assertions/signed_assertion");
+        let mut signed_assertions = load_all_signed_assertions_from_file("chunker_data/signed_assertions");
         let mut script_size = Vec::new();
         for i in 0..(g16::N_VERIFIER_PUBLIC_INPUTS + g16::N_VERIFIER_FQS + g16::N_VERIFIER_HASHES) {
             let correct_sig = corrupt_signed_assertions(&wots_sk, &mut signed_assertions, i);
@@ -754,7 +830,7 @@ pub fn test_disprove_script_size() {
             assert!(res.is_some(), "unexpected validate assertions result");
             let (leaf_index, hint_script) = res.unwrap();
 
-            let lock_script = load_assert_tapscripts_from_file(leaf_index, leaf_index+1, "tapscripts/tapscript");
+            let lock_script = load_assert_tapscripts_from_file(leaf_index, leaf_index+1, "chunker_data/tapscripts");
 
             script_size.push(hint_script.len() + lock_script.len());
 
@@ -828,7 +904,7 @@ pub fn test_bitcommitment() {
 pub fn test_bitcommitment_stacking() {
     let (wots_pk, _) = generate_wots_keys_from_secrets(TEST_SECRET);
     let lock_scripts = assert_bitcom_lock(&wots_pk);
-    let unlock_scripts = assert_unlock_scripts_from_file("signed_assertions/signed_assertion");
+    let unlock_scripts = assert_unlock_scripts_from_file("chunker_data/signed_assertions", None, None);
 
     assert_eq!(lock_scripts.len(), unlock_scripts.len());
     for i in 0..lock_scripts.len() {
@@ -843,5 +919,4 @@ pub fn test_bitcommitment_stacking() {
         assert!(res.success);
     }
 }
-
 

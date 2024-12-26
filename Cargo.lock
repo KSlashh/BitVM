@@ -1733,6 +1733,7 @@ dependencies = [
  "bitcoincore-rpc",
  "bitcoincore-rpc-json",
  "blake3",
+ "clap",
  "dotenv",
  "esplora-client",
  "futures",
@@ -1752,6 +1753,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "shh",
  "strum",
  "strum_macros",
  "suppaftp",
@@ -4798,6 +4800,16 @@ name = "shell-escape"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "45bb67a18fa91266cc7807181f62f9178a6873bfad7dc788c42e6430db40184f"
+
+[[package]]
+name = "shh"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5205eb079ac8be8ec77b7470aff4a050610d42c32819deee362ca414c926d3ab"
+dependencies = [
+ "libc",
+ "winapi",
+]
 
 [[package]]
 name = "shlex"

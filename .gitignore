@@ -30,3 +30,5 @@ tmp
 # Bridge public and private files
 bridge_data/
 chunker_data*/
+poc_data/*
+!poc_data/dummy_proof.json
