@@ -11,56 +11,67 @@ pub(crate) enum Commands {
     },
 
     /// -DEPOSITOR--: generate pegin-prepare, pegin-comfirm & pegin-refund txns
-    GeneratePeginTxns {
-        /// (hex String) txid of input utxo
-        // #[arg(long)]
-        fund_txid: String,
+    GeneratePeginTx {
+        /// (sats)  deposit amount of pegin tx
+        #[arg(long="amount")]
+        deposit_amount: u64,
 
-        /// (u32) vout of input utxo
-        // #[arg(long)]
-        fund_vout: u32,
+        /// (sats)  fee amount of pegin tx
+        #[arg(long="fee")]
+        fee_amount: u64,
 
-        /// (hex String) sequence of input utxo
-        // #[arg(long)]
-        sequence: String, 
+        /// (Address) address to receive change
+        #[arg(long="change")]
+        change_address: String,
 
-        /// (sats)  amount of input utxo
-        // #[arg(long)]
-        amount: u64,
+        /// (array of strings) input utxos for pegin tx
+        /// format: "txid:vout:amount" 
+        /// example: "f4184fc596403b9d638783cf57adfe4c75c605f6356fbc91338530e9831e9e16:0:10000000000"
+        #[arg(long="inputs", num_args = 1.., value_delimiter = ',', required = true)]
+        tx_inputs: Vec<String>,
     },
 
     /// -DEPOSITOR--: sign pegin-confirm or pegin-refund
     DepositorSign {
-        /// sign pegin-confirm txn
-        #[arg(long)]
-        pegin_confirm: bool,
-
-        /// sign pegin-refund txn
-        #[arg(long)]
-        pegin_refund: bool,
     },
 
     /// -FEDERATION-: push federation members' pre-signature for necessary txns, include: pegin_comfirm, take_1, take_2, assert_final, disprove
     FederationPresign {
     },
 
+    /// -OPERATOR---: generate winternitz public-keys & secret-keys 
+    /// (⚠ Warning: This feature is for testing and development purposes only. It may not be secure enough for production use.)
+    GenerateWotsKeys {
+        /// (String) a random seed used to generate wots keypairs
+        // #[arg(short = 's', long = "seed")]
+        secret_seed: String,
+    }, 
+
+    /// -OPERATOR---: generate winternitz signatures for groth16-proof & intermediate-values 
+    SignProof {
+        /// skip verifying the correctness of generated sigs
+        #[arg(long)]
+        skip_validation: bool,
+    },
+
     /// -OPERATOR---: generate pre-kickoff(pegout-confirm) tx
-    GeneratePrekickoffTx {
-        /// (hex String) txid of input utxo
-        // #[arg(long)]
-        fund_txid: String,
+    GeneratePrekickoffTx { /// (sats)  stake amount of pre-kickof tx
+        #[arg(long="amount")]
+        stake_amount: u64,
 
-        /// (u32) vout of input utxo
-        // #[arg(long)]
-        fund_vout: u32,
+        /// (sats)  fee amount of pre-kickof tx
+        #[arg(long="fee")]
+        fee_amount: u64,
 
-        /// (hex String) sequence of input utxo
-        // #[arg(long)]
-        sequence: String, 
+        /// (Address) address to receive change
+        #[arg(long="change")]
+        change_address: String,
 
-        /// (sats)  amount of input utxo
-        // #[arg(long)]
-        amount: u64,
+        /// (array of formatted strings) input utxos for prekickoff tx
+        /// format: txid:vout:amount
+        /// example: f4184fc596403b9d638783cf57adfe4c75c605f6356fbc91338530e9831e9e16:0:10000000000
+        #[arg(long="inputs", num_args = 1.., value_delimiter = ',', required = true)]
+        tx_inputs: Vec<String>,
     },
 
     /// -OPERATOR---: push operator's pre-signature necessary txns, include: challenge
@@ -88,21 +99,6 @@ pub(crate) enum Commands {
         /// sign take-2 txn
         #[arg(long)]
         take_2: bool,
-    },
-
-    /// -OPERATOR---: generate winternitz public-keys & secret-keys 
-    /// (⚠ Warning: This feature is for testing and development purposes only. It may not be secure enough for production use.)
-    GenerateWotsKeys {
-        /// (String) a random seed used to generate wots keypairs
-        // #[arg(short = 's', long = "seed")]
-        secret_seed: String,
-    }, 
-
-    /// -OPERATOR---: generate winternitz signatures for groth16-proof & intermediate-values 
-    SignProof {
-        /// skip verifying the correctness of generated sigs
-        #[arg(long)]
-        skip_validation: bool,
     },
 
     /// -CHALLENGER-: check if the groth16-proof(bitcommitments) is valid 

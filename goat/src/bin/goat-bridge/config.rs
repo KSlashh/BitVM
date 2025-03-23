@@ -16,6 +16,7 @@ pub const DFFAULT_DISPROVE_WITNESS_FILE: &str = "data/public/disprove_witness.js
 
 pub const DEFAULT_TXNS_DIR: &str = "data/public/txns/";
 pub const DEFAULT_SIGNED_TXNS_DIR: &str = "data/public/signed_txns/";
+pub const PEGIN_FILE_NAME: &str = "pegin.json";
 pub const PEGIN_DEPOSIT_FILE_NAME: &str = "pegin-deposit.json";
 pub const PEGIN_REFUND_FILE_NAME: &str = "pegin-refund.json";
 pub const PEGIN_CONFIRM_FILE_NAME: &str = "pegin-confirm.json";
@@ -24,14 +25,13 @@ pub const KICKOFF_FILE_NAME: &str = "kickoff.json";
 pub const TAKE1_FILE_NAME: &str = "take-1.json";
 pub const CHALLENGE_FILE_NAME: &str = "challenge.json";
 pub const ASSERT_INIT_FILE_NAME: &str = "assert-init.json";
-pub const ASSERT_COMMIT_1_FILE_NAME: &str = "assert-commit-1.json";
-pub const ASSERT_COMMIT_2_FILE_NAME: &str = "assert-commit-2.json";
+pub const ASSERT_COMMIT_FILE_NAME: &str = "assert-commit.json";
 pub const ASSERT_FINAL_FILE_NAME: &str = "assert-final.json";
 pub const TAKE2_FILE_NAME: &str = "take-2.json";
 pub const DISPROVE_FILE_NAME: &str = "disprove.json";
 
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Config {
     #[serde(default)] 
     pub general: GeneralConfig,
@@ -45,7 +45,7 @@ pub struct Config {
     pub challenger: ChallengerConfig,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct GeneralConfig {    
     #[serde(default = "default_network")]
     pub network: String,
@@ -78,7 +78,7 @@ pub struct GeneralConfig {
     pub signed_assertions_file: String,
 }
 
-#[derive(Deserialize, Debug, Default)]
+#[derive(Deserialize, Debug, Default, Clone)]
 pub struct DepositorConfig {    
     pub depositor_evm_address: Option<String>,
     // pub depositor_taproot_public_key: Option<String>,
@@ -86,19 +86,19 @@ pub struct DepositorConfig {
     pub depositor_seckey: Option<String>,  
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct OperatorConfig {   
     #[serde(default = "default_operator_wots_secret_file")]
     pub operator_wots_seckey_file: String,
     pub operator_seckey: Option<String>,  
 }
 
-#[derive(Deserialize, Debug, Default)]
+#[derive(Deserialize, Debug, Default, Clone)]
 pub struct FederationConfig {  
     pub federation_seckeys: Option<Vec<String>>,  
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct ChallengerConfig {   
     #[serde(default = "default_disprove_witness_file")]
     pub disprove_witness_file: String, 

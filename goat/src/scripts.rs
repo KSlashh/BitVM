@@ -158,3 +158,14 @@ pub fn generate_timelock_taproot_script_address(
         network,
     )
 }
+
+pub fn generate_opreturn_script(
+    msg: Vec<u8>,
+) -> ScriptBuf {
+    assert!(msg.len() <= 75, "message must less than 75 bytes");
+    script! {
+        OP_RETURN
+        {msg}
+    }.compile()
+}
+

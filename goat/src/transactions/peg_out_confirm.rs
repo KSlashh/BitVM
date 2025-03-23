@@ -1,6 +1,6 @@
 use bitcoin::{
     absolute, consensus, Amount, EcdsaSighashType, Network, PublicKey, ScriptBuf, Transaction,
-    TxOut, Witness, Sequence, TxIn
+    TxOut, Witness, Address, TxIn
 };
 use serde::{Deserialize, Serialize};
 
@@ -18,40 +18,52 @@ use super::{
 pub struct PreKickoffTransaction {
     #[serde(with = "consensus::serde::With::<consensus::serde::Hex>")]
     tx: Transaction,
+    #[serde(with = "consensus::serde::With::<consensus::serde::Hex>")]
+    fee_amount: Amount,
 }
 
 impl PreKickoffTransaction {
     pub fn new_unsigned(
         connector_6: &Connector6,
-        input_0: Input,
-        input_0_sequence: Sequence,
+        inputs: Vec<Input>,
+        stake_amount: Amount,
+        fee_amount: Amount,
+        change_address: Address, 
     ) -> Self {
-        let _input_0 = TxIn {
-            previous_output: input_0.outpoint,
-            script_sig: ScriptBuf::new(),
-            sequence: input_0_sequence,
-            witness: Witness::default(),
-        };
-
-        let total_output_amount = input_0.amount - Amount::from_sat(MIN_RELAY_FEE_PEG_OUT_CONFIRM);
-
-        let _output_0 = TxOut {
-            value: total_output_amount,
+        let mut total_input_amount = Amount::ZERO;
+        let txins: Vec<TxIn> = inputs.iter()
+            .map(|input| {
+                total_input_amount += input.amount;
+                generate_default_tx_in(input)
+            }).collect();
+        let change_amount = total_input_amount - stake_amount - fee_amount;
+        let mut txouts = vec![];
+        let output_0 =  TxOut {
+            value: stake_amount,
             script_pubkey: connector_6.generate_taproot_address().script_pubkey(),
         };
+        txouts.push(output_0);
+        if change_amount > Amount::from_sat(DUST_AMOUNT) {
+            let output_1 = TxOut {
+                value: change_amount,
+                script_pubkey: change_address.script_pubkey(),
+            };
+            txouts.push(output_1);
+        }
 
         PreKickoffTransaction {
             tx: Transaction {
                 version: bitcoin::transaction::Version(2),
                 lock_time: absolute::LockTime::ZERO,
-                input: vec![_input_0],
-                output: vec![_output_0],
-            }
+                input: txins,
+                output: txouts,
+            },
+            fee_amount,
         }
     }
 
-    pub fn add_unlock_witness(&mut self, witness: Witness) {
-        self.tx.input[0].witness = witness
+    pub fn add_unlock_witness(&mut self, input_index: usize, witness: Witness) {
+        self.tx.input[input_index].witness = witness
     }
 
     pub fn tx(&self) -> &Transaction { &self.tx }

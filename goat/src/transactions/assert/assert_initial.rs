@@ -3,18 +3,19 @@ use bitcoin::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{
-    super::{
-        super::{
-            connectors::{base::*, connector_b::ConnectorB, connector_d::ConnectorD},
-            contexts::operator::OperatorContext,
-            transactions::base::DUST_AMOUNT,
+use crate::{
+        connectors::{base::*, connector_b::ConnectorB, connector_d::ConnectorD},
+        contexts::operator::OperatorContext,
+        transactions::{
+            base::*,
+            pre_signed::*,
+            assert::utils::{
+                AllCommitConnectorsE, COMMIT_TX_NUM,
+            }, 
+            base::DUST_AMOUNT,
         },
-        base::*,
-        pre_signed::*,
-    },
-    utils::{AssertCommit1ConnectorsE, AssertCommit2ConnectorsE},
-};
+    }
+;
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct AssertInitialTransaction {
@@ -40,15 +41,13 @@ impl AssertInitialTransaction {
         context: &OperatorContext,
         connector_b: &ConnectorB,
         connector_d: &ConnectorD,
-        assert_commit1_connectors_e: &AssertCommit1ConnectorsE,
-        assert_commit2_connectors_e: &AssertCommit2ConnectorsE,
+        all_commit_connectors_e: &AllCommitConnectorsE,
         input_0: Input,
     ) -> Self {
         let mut this = Self::new_for_validation(
             connector_b,
             connector_d,
-            assert_commit1_connectors_e,
-            assert_commit2_connectors_e,
+            all_commit_connectors_e,
             input_0,
         );
 
@@ -60,61 +59,40 @@ impl AssertInitialTransaction {
     pub fn new_for_validation(
         connector_b: &ConnectorB,
         connector_d: &ConnectorD,
-        assert_commit1_connectors_e: &AssertCommit1ConnectorsE,
-        assert_commit2_connectors_e: &AssertCommit2ConnectorsE,
+        all_commit_connectors_e: &AllCommitConnectorsE,
         input_0: Input,
     ) -> Self {
         let input_0_leaf = 0;
         let _input_0 = connector_b.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
-
         let total_output_amount = input_0.amount - Amount::from_sat(MIN_RELAY_FEE_ASSERT_INITIAL);
 
-        let assert_commit1_expense = Amount::from_sat(
-            MIN_RELAY_FEE_ASSERT_COMMIT1
-                + assert_commit1_connectors_e.connectors_num() as u64 * DUST_AMOUNT,
-        );
-        let assert_commit2_expense = Amount::from_sat(
-            MIN_RELAY_FEE_ASSERT_COMMIT2
-                + assert_commit2_connectors_e.connectors_num() as u64 * DUST_AMOUNT,
+        let assert_commits_expense = Amount::from_sat(
+            MIN_RELAY_FEE_ASSERT_COMMIT * COMMIT_TX_NUM as u64
+                + all_commit_connectors_e.connectors_num() as u64 * DUST_AMOUNT,
         );
         // goes to assert_final
         let _output_0 = TxOut {
-            value: total_output_amount - assert_commit1_expense - assert_commit2_expense,
+            value: total_output_amount - assert_commits_expense,
             script_pubkey: connector_d.generate_taproot_address().script_pubkey(),
         };
+        let mut txouts = vec![_output_0];
 
-        let mut output = vec![_output_0];
-
-        // simple outputs for assert_x txs
-        for i in 0..assert_commit1_connectors_e.connectors_num() {
-            let amount = if i == 0 {
-                MIN_RELAY_FEE_ASSERT_COMMIT1 + DUST_AMOUNT
-            } else {
-                DUST_AMOUNT
-            };
-            output.push(TxOut {
-                value: Amount::from_sat(amount),
-                script_pubkey: assert_commit1_connectors_e
-                    .get_connector_e(i)
-                    .generate_taproot_address()
-                    .script_pubkey(),
-            });
-        }
-
-        // simple outputs for assert_x txs
-        for i in 0..assert_commit2_connectors_e.connectors_num() {
-            let amount = if i == 0 {
-                MIN_RELAY_FEE_ASSERT_COMMIT2 + DUST_AMOUNT
-            } else {
-                DUST_AMOUNT
-            };
-            output.push(TxOut {
-                value: Amount::from_sat(amount),
-                script_pubkey: assert_commit2_connectors_e
-                    .get_connector_e(i)
-                    .generate_taproot_address()
-                    .script_pubkey(),
-            });
+        for i in 0..COMMIT_TX_NUM {
+            let assert_commit_i_connectors_e = &all_commit_connectors_e.commit_connectors_e_vec[i];
+            for j in 0..assert_commit_i_connectors_e.connectors_num() {
+                let amount = if j == 0 {
+                    MIN_RELAY_FEE_ASSERT_COMMIT + DUST_AMOUNT
+                } else {
+                    DUST_AMOUNT
+                };
+                txouts.push(TxOut {
+                    value: Amount::from_sat(amount),
+                    script_pubkey: assert_commit_i_connectors_e
+                        .get_connector_e(i)
+                        .generate_taproot_address()
+                        .script_pubkey(),
+                });
+            }            
         }
 
         AssertInitialTransaction {
@@ -122,7 +100,7 @@ impl AssertInitialTransaction {
                 version: bitcoin::transaction::Version(2),
                 lock_time: absolute::LockTime::ZERO,
                 input: vec![_input_0],
-                output,
+                output: txouts,
             },
             prev_outs: vec![TxOut {
                 value: input_0.amount,

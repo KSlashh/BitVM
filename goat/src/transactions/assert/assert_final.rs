@@ -12,14 +12,14 @@ use super::{
             connectors::{
                 base::*, connector_4::Connector4, connector_5::Connector5, connector_c::ConnectorC, connector_d::ConnectorD,
             },
-            contexts::{base::BaseContext, verifier::VerifierContext, operator::OperatorContext},
+            contexts::{base::BaseContext, operator::OperatorContext, verifier::VerifierContext},
             transactions::base::DUST_AMOUNT,
         },
         base::*,
         pre_signed::*,
         pre_signed_musig2::*,
     },
-    utils::AssertCommitConnectorsF,
+    utils::{AssertCommitConnectorsF, COMMIT_TX_NUM},
 };
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
@@ -79,8 +79,7 @@ impl AssertFinalTransaction {
         connector_d: &ConnectorD,
         assert_commit_connectors_f: &AssertCommitConnectorsF,
         input_0: Input,
-        input_1: Input,
-        input_2: Input,
+        input_f: [Input; COMMIT_TX_NUM],
     ) -> Self {
         let mut this = Self::new_for_validation(
             connector_4,
@@ -89,8 +88,7 @@ impl AssertFinalTransaction {
             connector_d,
             assert_commit_connectors_f,
             input_0,
-            input_1,
-            input_2,
+            input_f,
         );
 
         this.sign_commit_inputs(context);
@@ -106,22 +104,42 @@ impl AssertFinalTransaction {
         connector_d: &ConnectorD,
         assert_commit_connectors_f: &AssertCommitConnectorsF,
         input_0: Input,
-        input_1: Input,
-        input_2: Input,
+        input_f: [Input; COMMIT_TX_NUM],
     ) -> Self {
+        let mut txins = vec![];
+        let mut prev_outs = vec![];
+        let mut prev_scripts = vec![];
+        let mut total_input_amount = Amount::ZERO;
+
+        // input_0 : connector_d
         let input_0_leaf = 0;
-        let _input_0 = connector_d.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
+        txins.push(
+            connector_d.generate_taproot_leaf_tx_in(input_0_leaf, &input_0)
+        );
+        prev_outs.push(TxOut {
+            value: input_0.amount,
+            script_pubkey: connector_d.generate_taproot_address().script_pubkey(),
+        });
+        prev_scripts.push(
+            connector_d.generate_taproot_leaf_script(input_0_leaf)
+        );
+        total_input_amount += input_0.amount;
 
-        // simple inputs from assert_commit txs
-        let _input_1 = assert_commit_connectors_f
-            .connector_f_1
-            .generate_tx_in(&input_1);
-        let _input_2 = assert_commit_connectors_f
-            .connector_f_2
-            .generate_tx_in(&input_2);
-
-        let total_output_amount = input_1.amount + input_2.amount + input_0.amount
-            - Amount::from_sat(MIN_RELAY_FEE_ASSERT_FINAL);
+        // other inputs: connectors_f
+        for i in 0..COMMIT_TX_NUM {
+            txins.push(
+                assert_commit_connectors_f.connectors_f[i].generate_tx_in(&input_f[i])
+            );
+            prev_outs.push(TxOut {
+                value: input_f[i].amount,
+                script_pubkey: assert_commit_connectors_f.connectors_f[i].generate_address().script_pubkey(),
+            });
+            prev_scripts.push(
+                assert_commit_connectors_f.connectors_f[i].generate_script(),
+            );
+            total_input_amount += input_f[i].amount;
+        }
+        let total_output_amount = total_input_amount - Amount::from_sat(MIN_RELAY_FEE_ASSERT_FINAL);
 
         // goes to take_2 tx
         let _output_0 = TxOut {
@@ -145,34 +163,11 @@ impl AssertFinalTransaction {
             tx: Transaction {
                 version: bitcoin::transaction::Version(2),
                 lock_time: absolute::LockTime::ZERO,
-                input: vec![_input_0, _input_1, _input_2],
+                input: txins,
                 output: vec![_output_0, _output_1, _output_2],
             },
-            prev_outs: vec![
-                TxOut {
-                    value: input_0.amount,
-                    script_pubkey: connector_d.generate_taproot_address().script_pubkey(),
-                },
-                TxOut {
-                    value: input_1.amount,
-                    script_pubkey: assert_commit_connectors_f
-                        .connector_f_1
-                        .generate_address()
-                        .script_pubkey(),
-                },
-                TxOut {
-                    value: input_2.amount,
-                    script_pubkey: assert_commit_connectors_f
-                        .connector_f_2
-                        .generate_address()
-                        .script_pubkey(),
-                },
-            ],
-            prev_scripts: vec![
-                connector_d.generate_taproot_leaf_script(input_0_leaf),
-                assert_commit_connectors_f.connector_f_1.generate_script(),
-                assert_commit_connectors_f.connector_f_2.generate_script(),
-            ],
+            prev_outs,
+            prev_scripts,
             musig2_nonces: HashMap::new(),
             musig2_nonce_signatures: HashMap::new(),
             musig2_signatures: HashMap::new(),
@@ -201,8 +196,7 @@ impl AssertFinalTransaction {
     }
 
     pub fn sign_commit_inputs(&mut self, context: &OperatorContext) {
-        let input_indexes = [1, 2];
-        for input_index in input_indexes {
+        for input_index in 1..(COMMIT_TX_NUM+1) {
             pre_sign_p2wsh_input(
                 self,
                 input_index,

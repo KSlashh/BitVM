@@ -5,9 +5,9 @@ use strum::{Display, EnumIter, IntoEnumIterator};
 
 use bitvm::{
     chunk::api::{
-        PublicKeys as ApiPublicKeys, NUM_PUBS, NUM_HASH, NUM_U256
+        PublicKeys as ApiPublicKeys, NUM_HASH, NUM_PUBS, NUM_U256
     }, 
-    signatures::{signing_winternitz::{WinternitzPublicKey, WinternitzSecret, LOG_D}, winternitz::Parameters}
+    signatures::{signing_winternitz::{WinternitzPublicKey, WinternitzSecret, LOG_D}, winternitz::Parameters, wots_api::HASH_LEN}
 };
 
 use super::constants::EVM_TXID_LENGTH;
@@ -101,10 +101,10 @@ impl CommitmentMessageId {
         }
         for i in 0..NUM_HASH {
             commitment_map.insert(
-                CommitmentMessageId::Groth16IntermediateValues((format!("{}", i + NUM_PUBS + NUM_U256), 20)),
+                CommitmentMessageId::Groth16IntermediateValues((format!("{}", i + NUM_PUBS + NUM_U256), HASH_LEN as usize)),
                 WinternitzPublicKey {
                     public_key: raw_pubkeys.2[i].to_vec(),
-                    parameters: Parameters::new_by_bit_length(8 * 20, LOG_D),
+                    parameters: Parameters::new_by_bit_length(8 * HASH_LEN, LOG_D),
                 }
             );
         }
@@ -137,8 +137,8 @@ impl CommitmentMessageId {
         }
         for i in 0..NUM_HASH {
             commitment_map.insert(
-                CommitmentMessageId::Groth16IntermediateValues((format!("{}", i + NUM_PUBS + NUM_U256), 20)),
-                WinternitzSecret::new(20),
+                CommitmentMessageId::Groth16IntermediateValues((format!("{}", i + NUM_PUBS + NUM_U256), HASH_LEN as usize)),
+                WinternitzSecret::new(HASH_LEN as usize),
             );
         }
 

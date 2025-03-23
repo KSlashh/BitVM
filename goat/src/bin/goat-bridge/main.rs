@@ -4,12 +4,13 @@ pub mod files;
 pub mod handles;
 
 use core::str::FromStr;
-use bitcoin::{OutPoint, Txid, Amount, Sequence};
+use bitcoin::{OutPoint, Txid, Amount, Address};
 use clap::{arg, command, Parser};
 use commands::Commands;
 use config::load_config;
+use goat_bridge::transactions::base::Input;
 use handles::{
-    handle_federation_presign, handle_generate_bitvm_instance, handle_generate_disprove_scripts, handle_generate_pegin_txns, handle_generate_prekickoff_tx, handle_generate_wots_keys, handle_operator_presign, handle_sign_proof, handle_verify_proof
+    handle_federation_presign, handle_generate_bitvm_instance, handle_generate_disprove_scripts, handle_generate_pegin_tx, handle_generate_prekickoff_tx, handle_generate_wots_keys, handle_operator_presign, handle_operator_sign_assert, handle_operator_sign_kickoff, handle_operator_sign_take1, handle_operator_sign_take2, handle_sign_proof, handle_verify_proof
 };
 
 #[derive(Parser)]
@@ -21,6 +22,27 @@ struct Cli {
 
     #[command(subcommand)]
     command: Commands,
+}
+
+
+#[derive(Debug)]
+struct TxInputValue(Txid, u32, u64);
+
+impl FromStr for TxInputValue {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = s.split(':').collect();
+        if parts.len() != 3 {
+            return Err(format!("invalid format: `{s}`,should be `string:u32:u64`"));
+        }
+
+        let txid = parts[0].parse::<Txid>().map_err(|e| format!("fail to parse input.txid: `{}`: {:?}", parts[0], e))?;
+        let vout = parts[1].parse::<u32>().map_err(|e| format!("fail to parse input.vout: `{}`: {:?}", parts[1], e))?;
+        let amount = parts[2].parse::<u64>().map_err(|e| format!("fail to parse input.amount: `{}`: {:?}", parts[2], e))?;
+
+        Ok(TxInputValue(txid, vout, amount))
+    }
 }
 
 #[tokio::main]
@@ -44,25 +66,41 @@ async fn main() {
             let conf = load_config(&cli.config_file);
             handle_verify_proof(conf);
         },
-        Commands::GeneratePeginTxns {fund_txid, fund_vout, sequence, amount} => {
+        Commands::GeneratePeginTx { tx_inputs, deposit_amount, fee_amount, change_address } => {
             let conf = load_config(&cli.config_file);
-            let fund_outpoint = OutPoint {
-                txid: Txid::from_str(fund_txid).expect("fail to decode txid"),
-                vout: *fund_vout,
-            };
-            let sequence = Sequence::from_hex(sequence).unwrap();
-            let amount = Amount::from_sat(*amount);
-            handle_generate_pegin_txns(conf, fund_outpoint, sequence, amount);
+            let inputs = tx_inputs.iter()
+                .map(|input| {
+                    let txin = TxInputValue::from_str(input).expect("fail to parse tx inputs");
+                    Input {
+                        outpoint: OutPoint { 
+                            txid: txin.0, 
+                            vout: txin.1
+                        },
+                        amount: Amount::from_sat(txin.2),
+                    }
+                }).collect();
+            let deposit_amount = Amount::from_sat(*deposit_amount);
+            let fee_amount = Amount::from_sat(*fee_amount);
+            let change_address = Address::from_str(change_address).expect("fail to parse change address").assume_checked();
+            handle_generate_pegin_tx(conf, inputs, deposit_amount, fee_amount, change_address);
         },
-        Commands::GeneratePrekickoffTx {fund_txid, fund_vout, sequence, amount} => {
+        Commands::GeneratePrekickoffTx { tx_inputs, stake_amount, fee_amount, change_address } => {
             let conf = load_config(&cli.config_file);
-            let fund_outpoint = OutPoint {
-                txid: Txid::from_str(fund_txid).expect("fail to decode txid"),
-                vout: *fund_vout,
-            };
-            let sequence = Sequence::from_hex(sequence).unwrap();
-            let amount = Amount::from_sat(*amount);
-            handle_generate_prekickoff_tx(conf, fund_outpoint, sequence, amount);
+            let inputs = tx_inputs.iter()
+                .map(|input| {
+                    let txin = TxInputValue::from_str(input).expect("fail to parse tx inputs");
+                    Input {
+                        outpoint: OutPoint { 
+                            txid: txin.0, 
+                            vout: txin.1
+                        },
+                        amount: Amount::from_sat(txin.2),
+                    }
+                }).collect();
+            let stake_amount = Amount::from_sat(*stake_amount);
+            let fee_amount = Amount::from_sat(*fee_amount);
+            let change_address = Address::from_str(change_address).expect("fail to parse change address").assume_checked();
+            handle_generate_prekickoff_tx(conf, inputs, stake_amount, fee_amount, change_address);
         },
         Commands::GenerateBitvmInstanace {} => {
             let conf = load_config(&cli.config_file);
@@ -76,7 +114,24 @@ async fn main() {
             let conf = load_config(&cli.config_file);
             handle_operator_presign(conf);
         },
-        
+        Commands::OperatorSign { kickoff, evm_withdraw_txid, take_1, assert, take_2 } => {
+            let conf = load_config(&cli.config_file);
+            if *kickoff {
+                let evm_withdraw_txid = evm_withdraw_txid.clone().expect("please provide --evm-withdraw-txid when signing kickoff tx");
+                let evm_withdraw_txid = hex::decode(evm_withdraw_txid.trim_start_matches("0x")).expect("fail to decode evm_txid");
+                let evm_withdraw_txid: [u8; 32] = evm_withdraw_txid.try_into().expect("invalid evm txid length");
+                handle_operator_sign_kickoff(conf.clone(), evm_withdraw_txid);
+            }
+            if *take_1 {
+                handle_operator_sign_take1(conf.clone());
+            }
+            if *assert {
+                handle_operator_sign_assert(conf.clone());
+            }
+            if *take_2 {
+                handle_operator_sign_take2(conf);
+            }
+        }
         _ => {}
     }
 }
@@ -134,5 +189,4 @@ fn generate_test_keys() {
     // dbg!(VERIFIER_1_SECRET);
 
 }
-
 

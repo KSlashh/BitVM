@@ -1,3 +1,4 @@
+use super::assert::utils::COMMIT_TX_NUM;
 use super::pre_signed_musig2::{verify_public_nonce, PreSignedMusig2Transaction};
 use bitcoin::{Amount, OutPoint, PublicKey, Script, Transaction, Txid, XOnlyPublicKey};
 use bitcoin::policy::{DEFAULT_MIN_RELAY_TX_FEE, DUST_RELAY_TX_FEE};
@@ -20,8 +21,7 @@ pub const REWARD_PRECISION: u64 = 1000;
 pub const REWARD_MULTIPLIER: u64 = 20;
 
 pub const MIN_RELAY_FEE_ASSERT_SET: u64 = MIN_RELAY_FEE_ASSERT_INITIAL
-    + MIN_RELAY_FEE_ASSERT_COMMIT1
-    + MIN_RELAY_FEE_ASSERT_COMMIT2
+    + MIN_RELAY_FEE_ASSERT_COMMIT * COMMIT_TX_NUM as u64
     + MIN_RELAY_FEE_ASSERT_FINAL;
 // use largest fee from each depth
 // assert fee is big enough to cover disprove chain or take 1
@@ -46,12 +46,12 @@ pub const MIN_RELAY_FEE_PEG_IN_REFUND: u64 = relay_fee(138);
 pub const MIN_RELAY_FEE_PEG_OUT_CONFIRM: u64 = relay_fee(122);
 pub const MIN_RELAY_FEE_ASSERT: u64 = relay_fee(232);
 pub const MIN_RELAY_FEE_ASSERT_INITIAL: u64 = relay_fee(48953);
-pub const MIN_RELAY_FEE_ASSERT_COMMIT1: u64 = relay_fee(739137);
-pub const MIN_RELAY_FEE_ASSERT_COMMIT2: u64 = relay_fee(470440);
+pub const MIN_RELAY_FEE_ASSERT_COMMIT: u64 = relay_fee(739137);
 pub const MIN_RELAY_FEE_ASSERT_FINAL: u64 = relay_fee(352);
 pub const MIN_RELAY_FEE_CHALLENGE: u64 = relay_fee(317);
 pub const MIN_RELAY_FEE_DISPROVE: u64 = relay_fee(1000000);
 
+#[derive(Clone)]
 pub struct Input {
     pub outpoint: OutPoint,
     pub amount: Amount,

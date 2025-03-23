@@ -1,10 +1,9 @@
 use crate::config::{
-    match_network, Config, PEGIN_DEPOSIT_FILE_NAME, 
-    PEGIN_REFUND_FILE_NAME, PEGIN_CONFIRM_FILE_NAME,
+    match_network, Config,
     PRE_KICKOFF_FILE_NAME, KICKOFF_FILE_NAME, TAKE1_FILE_NAME,
-    CHALLENGE_FILE_NAME, ASSERT_INIT_FILE_NAME, ASSERT_COMMIT_1_FILE_NAME,
-    ASSERT_COMMIT_2_FILE_NAME, ASSERT_FINAL_FILE_NAME, 
-    TAKE2_FILE_NAME, DISPROVE_FILE_NAME,
+    CHALLENGE_FILE_NAME, ASSERT_INIT_FILE_NAME,
+    ASSERT_COMMIT_FILE_NAME, ASSERT_FINAL_FILE_NAME, 
+    TAKE2_FILE_NAME, DISPROVE_FILE_NAME, PEGIN_FILE_NAME
 };
 use crate::files::{
     file_exists, load_groth16_proof, load_groth16_pubin, load_groth16_vk, load_scripts_bytes_from_file, load_scripts_from_file, load_signed_assertions_from_file, load_wots_pubkeys, load_wots_seckeys, write_bytes_to_file, write_disprove_witness, write_scripts_to_file, write_signed_assertions_to_file, write_wots_pubkeys, write_wots_seckeys 
@@ -24,31 +23,21 @@ use bitvm::signatures::{
     winternitz::Parameters, 
 };
 use goat_bridge::commitments::{NUM_KICKOFF, KICKOFF_MSG_SIZE, CommitmentMessageId};
-use goat_bridge::contexts::depositor::DepositorContext;
-use goat_bridge::contexts::operator::OperatorContext;
-use goat_bridge::transactions::assert::utils::MAX_CONNECTORS_E_PER_TX;
-use goat_bridge::transactions::base::BaseTransaction;
+use goat_bridge::transactions::assert::utils::{convert_to_connector_c_commits_public_key, COMMIT_TX_NUM};
 use goat_bridge::transactions::{
-    base::{Input, CROWDFUNDING_AMOUNT}, 
-    signing::generate_taproot_leaf_schnorr_signature,
+    base::{Input, CROWDFUNDING_AMOUNT, BaseTransaction}, 
     pre_signed::PreSignedTransaction,
     pre_signed_musig2::PreSignedMusig2Transaction,
-    peg_in::{
-        peg_in_deposit::PegInDepositTransactionGeneral,
-        peg_in_refund::PegInRefundTransaction,
-        peg_in_confirm::PegInConfirmTransaction,
-    },
+    peg_in::peg_in::PegInTransaction,
     peg_out_confirm::PreKickoffTransaction,
     kick_off::KickOffTransaction,
     take_1::Take1Transaction,
     challenge::ChallengeTransaction,
     assert::utils::{
-        split_pubkeys, merge_to_connector_c_commits_public_key, 
-        AssertCommit1ConnectorsE, AssertCommit2ConnectorsE, AssertCommitConnectorsF,
+        AllCommitConnectorsE, AssertCommitConnectorsF,
     },
     assert::assert_initial::AssertInitialTransaction,
-    assert::assert_commit_1::AssertCommit1Transaction,
-    assert::assert_commit_2::AssertCommit2Transaction,
+    assert::assert_commit::AssertCommitTransactionSet,
     assert::assert_final::AssertFinalTransaction,
     take_2::Take2Transaction,
     disprove::DisproveTransaction,
@@ -63,18 +52,15 @@ use goat_bridge::connectors::{
     connector_b::ConnectorB,
     connector_c::ConnectorC,
     connector_d::ConnectorD,
-    connector_e::ConnectorE,
-    connector_f_1::ConnectorF1,
-    connector_f_2::ConnectorF2,
-    connector_z::ConnectorZ,
 };
 use goat_bridge::contexts::{
     base::{generate_n_of_n_public_key, generate_keys_from_secret},
     verifier::VerifierContext,
+    operator::OperatorContext,
 };
 use sha2::{Sha256, Digest};
 use bitcoin::{
-    Amount, OutPoint, PublicKey, Sequence, TapSighashType, Witness, XOnlyPublicKey
+    Address, Amount, OutPoint, PublicKey, Witness, XOnlyPublicKey
 };
 use musig2::SecNonce;
 use std::collections::HashMap;
@@ -83,6 +69,7 @@ use std::fs::File;
 use std::io::BufReader;
 
 pub(crate) fn handle_generate_disprove_scripts(conf: Config) {
+    println!("\n----------------generate-disprove-scripts----------------");
     println!("\nloading vkey ...");
     assert!(file_exists(&conf.general.vkey_file), "vkey is not provided");
     let ark_vkey = load_groth16_vk(&conf.general.vkey_file);
@@ -106,9 +93,12 @@ pub(crate) fn handle_generate_disprove_scripts(conf: Config) {
     let disprove_scripts = api_generate_full_tapscripts(pubkeys.1, &partial_scripts);
     write_scripts_to_file(&conf.general.disprove_scripts_file, disprove_scripts);
     println!("\ndisprove scripts was written to {}", &conf.general.disprove_scripts_file);
+
+    println!("-------------------done-------------------------");
 } 
 
 pub(crate) fn handle_generate_wots_keys(conf: Config, seed: &str) {
+    println!("\n----------------generate-wots-keys-------------------");
     let secrets = seed_to_secrets(seed);
     let pubkeys = secrets_to_pubkeys(&secrets);
     write_wots_seckeys(&conf.operator.operator_wots_seckey_file, secrets);
@@ -117,19 +107,21 @@ pub(crate) fn handle_generate_wots_keys(conf: Config, seed: &str) {
         "public keys was written to {}\nsecret was keys written to {}",
         &conf.general.operator_wots_pubkey_file,
         &conf.operator.operator_wots_seckey_file,
-    )
+    );
+    println!("-------------------done-------------------------");
 }
 
 pub(crate) fn handle_sign_proof(conf: Config, skip_validation: bool) {
+    println!("\n----------------sign-proof---------------------");
     println!("\nloading vkey ...");
     assert!(file_exists(&conf.general.vkey_file), "vkey not provided");
     let ark_vkey = load_groth16_vk(&conf.general.vkey_file);
 
-    println!("\nloading groth16 proof ...");
+    println!("loading groth16 proof ...");
     assert!(file_exists(&conf.general.proof_file), "proof not provided");
     let ark_proof = load_groth16_proof(&conf.general.proof_file);
 
-    println!("\nloading public-inputs ...");
+    println!("loading public-inputs ...");
     assert!(file_exists(&conf.general.pubin_file), "public-inputs not provided");
     let ark_pubin = load_groth16_pubin(&conf.general.pubin_file);
 
@@ -144,9 +136,11 @@ pub(crate) fn handle_sign_proof(conf: Config, skip_validation: bool) {
     };
     write_signed_assertions_to_file(&conf.general.signed_assertions_file, proof_sigs);
     println!("signed assertions was written to {}", &conf.general.signed_assertions_file);
+    println!("-------------------done-------------------------");
 }   
 
 pub(crate) fn handle_verify_proof(conf: Config) {
+    println!("\n----------------verify-proof--------------------");
     println!("\nloading vkey ...");
     assert!(file_exists(&conf.general.vkey_file), "vkey not provided");
     let ark_vkey = load_groth16_vk(&conf.general.vkey_file);
@@ -173,9 +167,11 @@ pub(crate) fn handle_verify_proof(conf: Config) {
             println!("\nProof is Ok.");
         }
     };
+    println!("-------------------done-------------------------");
 }
 
-pub(crate) fn handle_generate_pegin_txns(conf: Config, input_oupoint: OutPoint, input_sequence: Sequence, amount: Amount) {
+pub(crate) fn handle_generate_pegin_tx(conf: Config, inputs: Vec<Input>, deposit_amount: Amount, fee_amount: Amount, change_address: Address) {
+    println!("\n--------------generate-pegin-------------------");
     println!("\nloading config...");
     let network = match_network(&conf.general.network).unwrap();
 
@@ -187,89 +183,37 @@ pub(crate) fn handle_generate_pegin_txns(conf: Config, input_oupoint: OutPoint, 
         .map(|str| PublicKey::from_str(&str).expect("invalid federation_pubkey {str}"))
         .collect();
 
-    let depositor_pubkey = &conf.depositor.depositor_pubkey.expect("depositor_pubkey is not provided in the configuration file");
-    let depositor_pubkey = PublicKey::from_str(depositor_pubkey).expect("invalid depositor_pubkey");
-    let depositor_taproot_public_key = XOnlyPublicKey::from(depositor_pubkey);
-
     let depositor_evm_address = conf.depositor.depositor_evm_address.expect("depositor_evm_address is not provided in the configuration file");
+    let depositor_evm_address = hex::decode(depositor_evm_address.trim_start_matches("0x")).expect("fail to decode depositor evm address");
+    let depositor_evm_address: [u8; 20] = depositor_evm_address.try_into().expect("invalid evm address length");
 
     let (_,aggregated_federation_taproot_pubkey) = generate_n_of_n_public_key(&federation_pubkeys);
     assert_eq!(aggregated_federation_taproot_pubkey, federation_taproot_pubkey, "federation_taproot_pubkey is not aggregated from federation_pubkeys");
 
-    let connector_z = ConnectorZ::new(
-        network,
-        &depositor_evm_address,
-        &depositor_taproot_public_key,
-        &federation_taproot_pubkey,
-    );
     let connector_0 = Connector0::new(
         network,
         &federation_taproot_pubkey,
     );
 
-    // pegin deposit
-    let fund_input = Input {
-        outpoint: input_oupoint,
-        amount,
-    };
-    let pegin_deposit_tx = PegInDepositTransactionGeneral::new_unsigned(
-        &connector_z, 
-        fund_input,
-        input_sequence,
-    );
-    let pegin_deposit_txid = pegin_deposit_tx.tx().compute_txid();
-
-    // pegin refund
-    let refund_output_index = 0;
-    let refund_input = Input {
-        outpoint: OutPoint {
-            txid: pegin_deposit_txid,
-            vout: refund_output_index,
-        },
-        amount: pegin_deposit_tx.tx().output[refund_output_index as usize].value,
-    };
-    let pegin_refund_tx = PegInRefundTransaction::new_for_validation(
-        network, 
-        &depositor_pubkey, 
-        &connector_z, 
-        refund_input,
-    );
-
-    // pegin confirm
-    let confirm_output_index = 0;
-    let confirm_input = Input {
-        outpoint: OutPoint {
-            txid: pegin_deposit_txid,
-            vout: confirm_output_index,
-        },
-        amount: pegin_deposit_tx.tx().output[confirm_output_index as usize].value,
-    };
-    let pegin_confirm_tx = PegInConfirmTransaction::new_for_validation(
+    // pegin 
+    println!("\ngenerating pegin_tx...");
+    let pegin_tx = PegInTransaction::new_for_validation(
         &connector_0, 
-        &connector_z, 
-        confirm_input, 
-        federation_pubkeys,
+        inputs, 
+        deposit_amount, 
+        fee_amount, 
+        change_address,
+        depositor_evm_address.to_vec(),
     );
-
-    let pegin_deposit_tx_bytes = serde_json::to_vec_pretty(&pegin_deposit_tx).unwrap();
-    let pegin_deposit_tx_file = format!("{}{}", &conf.general.txns_dir, PEGIN_DEPOSIT_FILE_NAME);
-    write_bytes_to_file(&pegin_deposit_tx_bytes, &pegin_deposit_tx_file);
-
-    let pegin_refund_tx_bytes = serde_json::to_vec_pretty(&pegin_refund_tx).unwrap();
-    let pegin_refund_tx_file = format!("{}{}", &conf.general.txns_dir, PEGIN_REFUND_FILE_NAME);
-    write_bytes_to_file(&pegin_refund_tx_bytes, &pegin_refund_tx_file);
-
-    let pegin_confirm_tx_bytes = serde_json::to_vec_pretty(&pegin_confirm_tx).unwrap();
-    let pegin_confirm_tx_file = format!("{}{}", &conf.general.txns_dir, PEGIN_CONFIRM_FILE_NAME);
-    write_bytes_to_file(&pegin_confirm_tx_bytes, &pegin_confirm_tx_file);
-
-    println!(
-        "pegin_deposit_tx was written to {}\npegin_refund_tx written to {}\npegin_confirm_tx written to {}",
-        pegin_deposit_tx_file, pegin_refund_tx_file, pegin_confirm_tx_file,
-    )
+    let pegin_tx_bytes = serde_json::to_vec_pretty(&pegin_tx).unwrap();
+    let pegin_tx_file = format!("{}{}", &conf.general.txns_dir, PEGIN_FILE_NAME);
+    write_bytes_to_file(&pegin_tx_bytes, &pegin_tx_file);
+    println!("\npegin_tx was written to {}", pegin_tx_file);
+    println!("-------------------done-------------------------");
 }
 
-pub(crate) fn handle_generate_prekickoff_tx(conf: Config, input_oupoint: OutPoint, input_sequence: Sequence, amount: Amount) {
+pub(crate) fn handle_generate_prekickoff_tx(conf: Config, inputs: Vec<Input>, stake_amount: Amount, fee_amount: Amount, change_address: Address) {
+    println!("\n--------------generate-prekickoff-------------------");
     println!("\nloading config...");
     let network = match_network(&conf.general.network).unwrap();
 
@@ -284,27 +228,28 @@ pub(crate) fn handle_generate_prekickoff_tx(conf: Config, input_oupoint: OutPoin
     let connector_6 = Connector6::new(
         network, 
         &operator_taproot_pubkey, 
-        &kickoff_wots_commitment_keys
+        &kickoff_wots_commitment_keys,
     );
 
-    let fund_input = Input {
-        outpoint: input_oupoint,
-        amount,
-    };
+    // prekickoff 
+    println!("generating prekickoff tx...");
     let prekickoff_tx = PreKickoffTransaction::new_unsigned(
         &connector_6, 
-        fund_input,
-        input_sequence,
+        inputs,
+        stake_amount,
+        fee_amount,
+        change_address,
     );
 
     let prekickoff_tx_bytes = serde_json::to_vec_pretty(&prekickoff_tx).unwrap();
     let prekickoff_tx_file = format!("{}{}", &conf.general.txns_dir, PRE_KICKOFF_FILE_NAME);
     write_bytes_to_file(&prekickoff_tx_bytes, &prekickoff_tx_file);
-
-    println!("\npre_kickoff_tx was written to {}", prekickoff_tx_file)
+    println!("\npre_kickoff_tx was written to {}", prekickoff_tx_file);
+    println!("-------------------done-------------------------");
 }
 
 pub(crate) fn handle_generate_bitvm_instance(conf: Config) {
+    println!("\n--------------generate-bitvm-instance-------------------");
     println!("\nloading config...");
     let network = match_network(&conf.general.network).unwrap();
 
@@ -320,13 +265,13 @@ pub(crate) fn handle_generate_bitvm_instance(conf: Config) {
     let operator_pubkey = PublicKey::from_str(operator_pubkey).expect("invalid operator_pubkey");
     let operator_taproot_pubkey = XOnlyPublicKey::from(operator_pubkey);
 
-    println!("loading pegin-confirm-tx...");
-    let pegin_confirm_file = format!("{}{}", &conf.general.txns_dir, PEGIN_CONFIRM_FILE_NAME);
-    assert!(file_exists(&pegin_confirm_file), "pegin-confirm tx not provided");
-    let file = File::open(pegin_confirm_file.clone()).expect(&format!("fail to open {:?}", pegin_confirm_file));
+    println!("loading pegin-tx...");
+    let pegin_file = format!("{}{}", &conf.general.txns_dir, PEGIN_FILE_NAME);
+    assert!(file_exists(&pegin_file), "pegin tx not provided");
+    let file = File::open(pegin_file.clone()).expect(&format!("fail to open {:?}", pegin_file));
     let reader = BufReader::new(file);
-    let pegin_confirm_tx: PegInConfirmTransaction = serde_json::from_reader(reader).unwrap();
-    let pegin_confirm_txid = pegin_confirm_tx.tx().compute_txid();
+    let pegin_tx: PegInTransaction = serde_json::from_reader(reader).unwrap();
+    let pegin_txid = pegin_tx.tx().compute_txid();
 
     println!("loading pre-kickoff-tx...");
     let pre_kickoff_file = format!("{}{}", &conf.general.txns_dir, PRE_KICKOFF_FILE_NAME);
@@ -340,11 +285,8 @@ pub(crate) fn handle_generate_bitvm_instance(conf: Config) {
     assert!(file_exists(&conf.general.operator_wots_pubkey_file), "operator wots public key not provided");
     let operator_wots_pubkeys = load_wots_pubkeys(&conf.general.operator_wots_pubkey_file);
     let kickoff_wots_commitment_keys = CommitmentMessageId::pubkey_map_for_kickoff(&operator_wots_pubkeys.0);
-    let (connector_e1_commitment_public_keys, connector_e2_commitment_public_keys) = split_pubkeys(&operator_wots_pubkeys.1);
-    let assert_commitment_public_keys = merge_to_connector_c_commits_public_key(
-        &connector_e1_commitment_public_keys,
-        &connector_e2_commitment_public_keys,
-    );
+    let assert_wots_pubkeys = &operator_wots_pubkeys.1;
+    let assert_wots_commitment_keys = convert_to_connector_c_commits_public_key(assert_wots_pubkeys);
 
     println!("loading disprove scripts...");
     assert!(file_exists(&conf.general.disprove_scripts_file), "disprove scripts not provided");
@@ -400,12 +342,12 @@ pub(crate) fn handle_generate_bitvm_instance(conf: Config) {
     let take1_input_0_vout: usize = 0;
     let take1_input_0 = Input {
         outpoint: OutPoint {
-            txid: pegin_confirm_txid,
+            txid: pegin_txid,
             vout: take1_input_0_vout as u32,
         },
-        amount: pegin_confirm_tx.tx().output[take1_input_0_vout].value,
+        amount: pegin_tx.tx().output[take1_input_0_vout].value,
     };
-    let take1_input_1_vout: usize = 0;
+    let take1_input_1_vout: usize = 1;
     let take1_input_1 = Input {
         outpoint: OutPoint {
             txid: kickoff_txid,
@@ -413,7 +355,7 @@ pub(crate) fn handle_generate_bitvm_instance(conf: Config) {
         },
         amount: kickoff_tx.tx().output[take1_input_1_vout].value,
     };
-    let take1_input_2_vout: usize = 1;
+    let take1_input_2_vout: usize = 0;
     let take1_input_2 = Input {
         outpoint: OutPoint {
             txid: kickoff_txid,
@@ -464,30 +406,11 @@ pub(crate) fn handle_generate_bitvm_instance(conf: Config) {
         network,
         &federation_taproot_pubkey,
     );
-    let assert_commit1_connectors_e = AssertCommit1ConnectorsE {
-        connectors_e: connector_e1_commitment_public_keys
-            .iter()
-            .map(|x| {
-                ConnectorE::new(
-                    network,
-                    &operator_pubkey,
-                    x,
-                )
-            })
-            .collect(),
-    };
-    let assert_commit2_connectors_e = AssertCommit2ConnectorsE {
-        connectors_e: connector_e2_commitment_public_keys
-            .iter()
-            .map(|x| {
-                ConnectorE::new(
-                    network,
-                    &operator_pubkey,
-                    x,
-                )
-            })
-            .collect(),
-    };
+    let all_assert_commit_connectors_e = AllCommitConnectorsE::new(
+        network,
+        &operator_pubkey,
+        &assert_wots_pubkeys,
+    );
     let assert_init_input_0_vout: usize = 2;
     let assert_init_input_0 = Input {
         outpoint: OutPoint {
@@ -499,8 +422,7 @@ pub(crate) fn handle_generate_bitvm_instance(conf: Config) {
     let assert_init_tx = AssertInitialTransaction::new_for_validation(
         &connector_b, 
         &connector_d, 
-        &assert_commit1_connectors_e, 
-        &assert_commit2_connectors_e, 
+        &all_assert_commit_connectors_e, 
         assert_init_input_0,
     );
     let assert_init_tx_bytes = serde_json::to_vec_pretty(&assert_init_tx).unwrap();
@@ -509,14 +431,14 @@ pub(crate) fn handle_generate_bitvm_instance(conf: Config) {
     println!("assert_init_tx was written to {}", assert_init_tx_file);
     let assert_init_txid = assert_init_tx.tx().compute_txid();
 
-    // assert-commit1
-    println!("\ngenerating assert-commit-1 tx...");
-    let connector_f_1 = ConnectorF1::new(
+    // assert-commit
+    println!("\ngenerating assert-commit txns...");
+    let connectors_f = AssertCommitConnectorsF::new(
         network,
         &operator_pubkey,
     );
     let vout_base: usize = 1;
-    let assert_commit1_inputs = (0..assert_commit1_connectors_e.connectors_num())
+    let assert_commit_inputs = (0..all_assert_commit_connectors_e.connectors_num())
         .map(|idx| Input {
             outpoint: OutPoint {
                 txid: assert_init_txid,
@@ -525,47 +447,18 @@ pub(crate) fn handle_generate_bitvm_instance(conf: Config) {
             amount: assert_init_tx.tx().output[idx + vout_base].value,
         })
         .collect();
-    let assert_commit1_tx = AssertCommit1Transaction::new_for_validation(
-        &assert_commit1_connectors_e, 
-        &connector_f_1, 
-        assert_commit1_inputs,
+    let assert_commit_txns = AssertCommitTransactionSet::new(
+        &all_assert_commit_connectors_e, 
+        &connectors_f, 
+        assert_commit_inputs,
     );
-    let assert_commit1_tx_bytes = serde_json::to_vec_pretty(&assert_commit1_tx).unwrap();
-    let assert_commit1_tx_file = format!("{}{}", &conf.general.txns_dir, ASSERT_COMMIT_1_FILE_NAME);
-    write_bytes_to_file(&assert_commit1_tx_bytes, &assert_commit1_tx_file);
-    println!("assert_commit1_tx was written to {}", assert_commit1_tx_file);
-    let assert_commit1_txid = assert_commit1_tx.tx().compute_txid();
-
-    // assert-commit2
-    println!("\ngenerating assert-commit-2 tx...");
-    let connector_f_2 = ConnectorF2::new(
-        network,
-        &operator_pubkey,
-    );
-    let vout_base: usize = 1 + assert_commit1_connectors_e.connectors_num();
-    let assert_commit2_inputs = (0..assert_commit2_connectors_e.connectors_num())
-        .map(|idx| Input {
-            outpoint: OutPoint {
-                txid: assert_init_txid,
-                vout: (idx + vout_base) as u32,
-            },
-            amount: assert_init_tx.tx().output[idx + vout_base].value,
-        })
-        .collect();
-    let assert_commit2_tx = AssertCommit2Transaction::new_for_validation(
-        &assert_commit2_connectors_e, 
-        &connector_f_2, 
-        assert_commit2_inputs,
-    );
-    let assert_commit2_tx_bytes = serde_json::to_vec_pretty(&assert_commit2_tx).unwrap();
-    let assert_commit2_tx_file = format!("{}{}", &conf.general.txns_dir, ASSERT_COMMIT_2_FILE_NAME);
-    write_bytes_to_file(&assert_commit2_tx_bytes, &assert_commit2_tx_file);
-    println!("assert_commit2_tx was written to {}", assert_commit2_tx_file);
-    let assert_commit2_txid = assert_commit2_tx.tx().compute_txid();
+    let assert_commit_tx_bytes = serde_json::to_vec_pretty(&assert_commit_txns).unwrap();
+    let assert_commit_tx_file = format!("{}{}", &conf.general.txns_dir, ASSERT_COMMIT_FILE_NAME);
+    write_bytes_to_file(&assert_commit_tx_bytes, &assert_commit_tx_file);
+    println!("assert_commit_tx was written to {}", assert_commit_tx_file);
 
     // assert-final
     println!("\ngenerating assert-final tx...");
-    let assert_commit_connectors_f = AssertCommitConnectorsF {connector_f_1,connector_f_2};
     let connector_4 = Connector4::new(
         network,
         &operator_pubkey,
@@ -577,7 +470,7 @@ pub(crate) fn handle_generate_bitvm_instance(conf: Config) {
     let connector_c = ConnectorC::new_from_scripts(
         network,
         &operator_taproot_pubkey,
-        assert_commitment_public_keys,
+        assert_wots_commitment_keys,
         disprove_scripts_bytes,
     );
     let assert_final_input_0_vout: usize = 0;
@@ -588,31 +481,25 @@ pub(crate) fn handle_generate_bitvm_instance(conf: Config) {
         },
         amount: assert_init_tx.tx().output[assert_final_input_0_vout].value,
     };
-    let assert_final_input_1_vout: usize = 0;
-    let assert_final_input_1 = Input {
-        outpoint: OutPoint {
-            txid: assert_commit1_txid,
-            vout: assert_final_input_1_vout as u32,
-        },
-        amount: assert_commit1_tx.tx().output[assert_final_input_1_vout].value,
-    };
-    let assert_final_input_2_vout: usize = 0;
-    let assert_final_input_2 = Input {
-        outpoint: OutPoint {
-            txid: assert_commit2_txid,
-            vout: assert_final_input_2_vout as u32,
-        },
-        amount: assert_commit2_tx.tx().output[assert_final_input_2_vout].value,
-    };
+    let assert_final_input_f_vout: usize = 0;
+    let assert_final_inputs_f: [Input; COMMIT_TX_NUM] = (0..COMMIT_TX_NUM)
+        .map(|i| {
+            Input {
+                outpoint: OutPoint {
+                    txid: assert_commit_txns.commit_txns[i].tx().compute_txid(),
+                    vout: assert_final_input_f_vout as u32,
+                },
+                amount: assert_commit_txns.commit_txns[i].tx().output[assert_final_input_f_vout].value,
+            }
+        }).collect::<Vec<Input>>().try_into().unwrap_or_else(|_e| panic!("impossible"));
     let assert_final_tx = AssertFinalTransaction::new_for_validation(
         &connector_4, 
         &connector_5, 
         &connector_c, 
         &connector_d, 
-        &assert_commit_connectors_f, 
+        &connectors_f, 
         assert_final_input_0, 
-        assert_final_input_1, 
-        assert_final_input_2,
+        assert_final_inputs_f,
     );
     let assert_final_tx_bytes = serde_json::to_vec_pretty(&assert_final_tx).unwrap();
     let assert_final_tx_file = format!("{}{}", &conf.general.txns_dir, ASSERT_FINAL_FILE_NAME);
@@ -625,10 +512,10 @@ pub(crate) fn handle_generate_bitvm_instance(conf: Config) {
     let take2_input_0_vout: usize = 0;
     let take2_input_0 = Input {
         outpoint: OutPoint {
-            txid: pegin_confirm_txid,
+            txid: pegin_txid,
             vout: take2_input_0_vout as u32,
         },
-        amount: pegin_confirm_tx.tx().output[take2_input_0_vout].value,
+        amount: pegin_tx.tx().output[take2_input_0_vout].value,
     };
     let take2_input_1_vout: usize = 0;
     let take2_input_1 = Input {
@@ -700,22 +587,16 @@ pub(crate) fn handle_generate_bitvm_instance(conf: Config) {
     let disprove_tx_file = format!("{}{}", &conf.general.txns_dir, DISPROVE_FILE_NAME);
     write_bytes_to_file(&disprove_tx_bytes, &disprove_tx_file);
     println!("disprove_tx was written to {}", disprove_tx_file);
-
-
+    println!("-------------------done-------------------------");
 }
 
 pub(crate) fn handle_federation_presign(conf: Config) {
+    println!("\n--------------federation-presign--------------------");
     println!("\nloading config...");
     let network = match_network(&conf.general.network).unwrap();
 
     let federation_taproot_pubkey = &conf.general.federation_taproot_pubkey.expect("federation_taproot_pubkey is not provided in the configuration file");
     let federation_taproot_pubkey = XOnlyPublicKey::from_str(federation_taproot_pubkey).expect("invalid federation_taproot_pubkey");
-      
-    let depositor_pubkey = &conf.depositor.depositor_pubkey.expect("depositor_pubkey is not provided in the configuration file");
-    let depositor_pubkey = PublicKey::from_str(depositor_pubkey).expect("invalid depositor_pubkey");
-    let depositor_taproot_public_key = XOnlyPublicKey::from(depositor_pubkey);
-
-    let depositor_evm_address = conf.depositor.depositor_evm_address.expect("depositor_evm_address is not provided in the configuration file");
 
     let federation_seckeys = &conf.federation.federation_seckeys.expect("federation_seckeys not provided");
     let federation_pubkeys: Vec<PublicKey> = federation_seckeys.iter()
@@ -733,36 +614,6 @@ pub(crate) fn handle_federation_presign(conf: Config) {
             VerifierContext::new(network, sec, &federation_pubkeys)  
         })
         .collect();
-
-    'pegin_confirm: {   // pegin-confirm pre-sign
-        println!("\nloading pegin-confirm-tx...");
-        let pegin_confirm_file = format!("{}{}", &conf.general.txns_dir, PEGIN_CONFIRM_FILE_NAME);
-        assert!(file_exists(&pegin_confirm_file), "pegin-confirm tx not provided");
-        let file = File::open(pegin_confirm_file.clone()).expect(&format!("fail to open {:?}", pegin_confirm_file));
-        let reader = BufReader::new(file);
-        let mut pegin_confirm_tx: PegInConfirmTransaction = serde_json::from_reader(reader).unwrap();
-        if pegin_confirm_tx.has_all_signatures() {
-            println!("pegin-confirm already pre-signed");
-            break 'pegin_confirm;
-        }
-        println!("pre-signing pegin-confirm-tx...");
-        let connector_z = ConnectorZ::new(
-            network,
-            &depositor_evm_address,
-            &depositor_taproot_public_key,
-            &federation_taproot_pubkey,
-        );
-        let pegin_confirm_sec_nonces: Vec<(&VerifierContext, HashMap<usize, SecNonce>)> = signer_contexts.iter()
-            .map(|context| {
-                (context, pegin_confirm_tx.push_nonces(&context))
-            }).collect();
-        for (context, sec_nonce_map) in pegin_confirm_sec_nonces {
-            pegin_confirm_tx.pre_sign(context, &connector_z, &sec_nonce_map);
-        };
-        let pegin_confirm_tx_bytes = serde_json::to_vec_pretty(&pegin_confirm_tx).unwrap();
-        write_bytes_to_file(&pegin_confirm_tx_bytes, &pegin_confirm_file);
-        println!("pre-signed pegin_confirm_tx was written back to {}", pegin_confirm_file);
-    }
 
     'take_1: {   // take-1 pre-sign
         println!("\nloading take1-tx...");
@@ -851,9 +702,11 @@ pub(crate) fn handle_federation_presign(conf: Config) {
         write_bytes_to_file(&take2_tx_bytes, &take2_file);
         println!("pre-signed take-2-tx was written back to {}", take2_file);
     }
+    println!("-------------------done-------------------------");
 }
 
 pub(crate) fn handle_operator_presign(conf: Config) {
+    println!("\n--------------operator-presign---------------------");
     println!("\nloading config...");
     let network = match_network(&conf.general.network).unwrap();
        
@@ -896,73 +749,11 @@ pub(crate) fn handle_operator_presign(conf: Config) {
         write_bytes_to_file(&challenge_tx_bytes, &challenge_file);
         println!("challenge_tx was written to {}", challenge_file);
     }
+    println!("-------------------done-------------------------");
 }
 
-pub(crate) fn handle_depositor_sign_pegin_confirm(conf: Config) {
-    println!("\nloading config...");
-    let network = match_network(&conf.general.network).unwrap();
- 
-    let federation_taproot_pubkey = &conf.general.federation_taproot_pubkey.expect("federation_taproot_pubkey is not provided in the configuration file");
-    let federation_taproot_pubkey = XOnlyPublicKey::from_str(federation_taproot_pubkey).expect("invalid federation_taproot_pubkey");
-      
-    let federation_pubkeys = conf.general.federation_pubkeys.expect("federation_pubkeys is not provided in the configuration file");
-    let federation_pubkeys: Vec<PublicKey> = federation_pubkeys.into_iter()
-        .map(|str| PublicKey::from_str(&str).expect("invalid federation_pubkey {str}"))
-        .collect();
-
-    let depositor_seckey = conf.depositor.depositor_seckey.expect("depositor_seckey not provided");
-    let depositor_pubkey = conf.depositor.depositor_pubkey.expect("depositor_pubkey not provided");
-    let depositor_pubkey = PublicKey::from_str(&depositor_pubkey).expect("invalid depositor_pubkey");
-    let depositor_context = DepositorContext::new(
-        network, 
-        &depositor_seckey, 
-        &federation_pubkeys,
-    );
-    let depositor_taproot_public_key = XOnlyPublicKey::from(depositor_context.depositor_public_key);
-    assert_eq!(depositor_context.depositor_public_key, depositor_pubkey, "depositor_seckey & depositor_pubkey not match");
-    assert_eq!(federation_taproot_pubkey, depositor_context.n_of_n_taproot_public_key, "federation_taproot_pubkey is not aggregated from federation_pubkeys");
-
-    let depositor_evm_address = &conf.depositor.depositor_evm_address.expect("depositor_evm_address is not provided in the configuration file");
-
-    println!("loading pegin-confirm-tx...");
-    let pegin_confirm_file = format!("{}{}", &conf.general.txns_dir, PEGIN_CONFIRM_FILE_NAME);
-    assert!(file_exists(&pegin_confirm_file), "pegin-confirm tx not provided");
-    let file = File::open(pegin_confirm_file.clone()).expect(&format!("fail to open {:?}", pegin_confirm_file));
-    let reader = BufReader::new(file);
-    let mut pegin_confirm_tx: PegInConfirmTransaction = serde_json::from_reader(reader).unwrap();
-    assert!(pegin_confirm_tx.musig2_signatures().len() != 0, "pegin_confirm_tx not presigned");
-
-    println!("signing pegin-confirm-tx...");
-    let connector_z = ConnectorZ::new(
-        network,
-        &depositor_evm_address,
-        &depositor_taproot_public_key,
-        &federation_taproot_pubkey,
-    );
-    let signing_input_index = 0;
-    let prev_outs = pegin_confirm_tx.prev_outs().clone();
-    let use_script = pegin_confirm_tx.prev_scripts()[signing_input_index].clone();
-    let depositor_signature = generate_taproot_leaf_schnorr_signature(
-        pegin_confirm_tx.tx_mut(), 
-        &prev_outs, 
-        signing_input_index, 
-        TapSighashType::All, 
-        &use_script, 
-        &depositor_context.depositor_keypair,
-    );
-    pegin_confirm_tx.try_finalize_input_0(
-        &depositor_context, 
-        &connector_z, 
-        depositor_signature,
-    );
-
-    let signed_pegin_confirm_tx_bytes =  serde_json::to_vec_pretty(&SignedTransaction::new(pegin_confirm_tx.finalize())).unwrap();
-    let signed_pegin_confirm_tx_file = format!("{}{}", &conf.general.signed_txns_dir, PEGIN_CONFIRM_FILE_NAME);
-    write_bytes_to_file(&signed_pegin_confirm_tx_bytes, &signed_pegin_confirm_tx_file);
-    println!("signed pegin_confirm_tx written to {}", signed_pegin_confirm_tx_file)
-}
-
-pub(crate) fn handle_operator_sign_kickoff(conf: Config, evm_txid: &str) {
+pub(crate) fn handle_operator_sign_kickoff(conf: Config, evm_txid: [u8; 32]) {
+    println!("\n----------------sign-kickoff-------------------");
     println!("\nloading config...");
     let network = match_network(&conf.general.network).unwrap();
 
@@ -1006,7 +797,7 @@ pub(crate) fn handle_operator_sign_kickoff(conf: Config, evm_txid: &str) {
         &kickoff_wots_commitment_keys,
     );
     let evm_txid_inputs = WinternitzSigningInputs {
-        message: evm_txid.as_bytes(),
+        message: &evm_txid.to_vec(),
         signing_key: &wots_sec.0[0],
     };
     kickoff_tx.sign(
@@ -1018,10 +809,12 @@ pub(crate) fn handle_operator_sign_kickoff(conf: Config, evm_txid: &str) {
     let signed_kickoff_tx_bytes =  serde_json::to_vec_pretty(&SignedTransaction::new(kickoff_tx.finalize())).unwrap();
     let signed_kickoff_tx_file = format!("{}{}", &conf.general.signed_txns_dir, KICKOFF_FILE_NAME);
     write_bytes_to_file(&signed_kickoff_tx_bytes, &signed_kickoff_tx_file);
-    println!("signed kickoff_tx written to {}", signed_kickoff_tx_file)
+    println!("signed kickoff_tx written to {}", signed_kickoff_tx_file);
+    println!("-------------------done-------------------------");
 }
 
 pub(crate) fn handle_operator_sign_take1(conf: Config) {
+    println!("\n----------------sign-take1---------------------");
     println!("\nloading config...");
     let network = match_network(&conf.general.network).unwrap();
 
@@ -1068,9 +861,11 @@ pub(crate) fn handle_operator_sign_take1(conf: Config) {
     let signed_take1_tx_file = format!("{}{}", &conf.general.signed_txns_dir, TAKE1_FILE_NAME);
     write_bytes_to_file(&signed_take1_tx_bytes, &signed_take1_tx_file);
     println!("take1_tx was written to {}", signed_take1_tx_file);
+    println!("-------------------done-------------------------");
 }
 
 pub(crate) fn handle_operator_sign_assert(conf: Config) {
+    println!("\n----------------sign-assert--------------------");
     println!("\nloading config...");
     let network = match_network(&conf.general.network).unwrap();
 
@@ -1094,14 +889,12 @@ pub(crate) fn handle_operator_sign_assert(conf: Config) {
     println!("loading operator wots public-keys...");
     assert!(file_exists(&conf.general.operator_wots_pubkey_file), "operator wots public key not provided");
     let operator_wots_pubkeys = load_wots_pubkeys(&conf.general.operator_wots_pubkey_file);
-    let (connector_e1_commitment_public_keys, connector_e2_commitment_public_keys) = split_pubkeys(&operator_wots_pubkeys.1);
+    let assert_wots_pubkeys = &operator_wots_pubkeys.1;
 
     println!("loading proof signatures ...");
     assert!(file_exists(&conf.general.proof_file), "proof-sigs not provided");
     let proof_sigs = load_signed_assertions_from_file(&conf.general.signed_assertions_file);
     let assert_commit_witness = utils_raw_witnesses_from_signatures(&proof_sigs);
-    let assert_commit1_witness = assert_commit_witness[0..MAX_CONNECTORS_E_PER_TX].to_vec();
-    let assert_commit2_witness = assert_commit_witness[MAX_CONNECTORS_E_PER_TX..].to_vec();
 
     {   // assert-inital
         println!("\nloading assert-inital-tx...");
@@ -1126,64 +919,31 @@ pub(crate) fn handle_operator_sign_assert(conf: Config) {
         println!("assert_init_tx was written to {}", signed_assert_init_tx_file);
     }
 
-    {   // assert-commit1
-        println!("\nloading assert-commit1-tx...");
-        let assert_commit1_file = format!("{}{}", &conf.general.txns_dir, ASSERT_COMMIT_1_FILE_NAME);
-        assert!(file_exists(&assert_commit1_file), "assert_commit1_file tx not provided");
-        let file = File::open(assert_commit1_file.clone()).expect(&format!("fail to open {:?}", assert_commit1_file));
+    {   // assert-commit
+        println!("\nloading assert-commit-txns...");
+        let assert_commit_file = format!("{}{}", &conf.general.txns_dir, ASSERT_COMMIT_FILE_NAME);
+        assert!(file_exists(&assert_commit_file), "assert_commit_file tx not provided");
+        let file = File::open(assert_commit_file.clone()).expect(&format!("fail to open {:?}", assert_commit_file));
         let reader = BufReader::new(file);
-        let mut assert_commit1_tx: AssertCommit1Transaction = serde_json::from_reader(reader).unwrap();
-        println!("signing assert-commit1-tx...");
-        let assert_commit1_connectors_e = AssertCommit1ConnectorsE {
-            connectors_e: connector_e1_commitment_public_keys
-                .iter()
-                .map(|x| {
-                    ConnectorE::new(
-                        network,
-                        &operator_pubkey,
-                        x,
-                    )
-                })
-                .collect(),
-        };
-        assert_commit1_tx.sign(
-            &assert_commit1_connectors_e, 
-            assert_commit1_witness,
+        let mut assert_commit_txns: AssertCommitTransactionSet = serde_json::from_reader(reader).unwrap();
+        println!("signing assert-commit-tx...");
+        let all_assert_commit_connectors_e = AllCommitConnectorsE::new(
+            network,
+            &operator_pubkey,
+            &assert_wots_pubkeys,
         );
-        let signed_assert_commit1_tx_bytes =  serde_json::to_vec_pretty(&SignedTransaction::new(assert_commit1_tx.finalize())).unwrap();
-        let signed_assert_commit1_tx_file = format!("{}{}", &conf.general.signed_txns_dir, ASSERT_COMMIT_1_FILE_NAME);
-        write_bytes_to_file(&signed_assert_commit1_tx_bytes, &signed_assert_commit1_tx_file);
-        println!("assert_commit1_tx was written to {}", signed_assert_commit1_tx_file);
-    }
-
-    {   // assert-commit2
-        println!("\nloading assert-commit2-tx...");
-        let assert_commit2_file = format!("{}{}", &conf.general.txns_dir, ASSERT_COMMIT_2_FILE_NAME);
-        assert!(file_exists(&assert_commit2_file), "assert_commit2_file tx not provided");
-        let file = File::open(assert_commit2_file.clone()).expect(&format!("fail to open {:?}", assert_commit2_file));
-        let reader = BufReader::new(file);
-        let mut assert_commit2_tx: AssertCommit2Transaction = serde_json::from_reader(reader).unwrap();
-        println!("signing assert-commit2-tx...");
-        let assert_commit2_connectors_e = AssertCommit2ConnectorsE {
-            connectors_e: connector_e2_commitment_public_keys
-                .iter()
-                .map(|x| {
-                    ConnectorE::new(
-                        network,
-                        &operator_pubkey,
-                        x,
-                    )
-                })
-                .collect(),
-        };
-        assert_commit2_tx.sign(
-            &assert_commit2_connectors_e, 
-            assert_commit2_witness,
+        assert_commit_txns.sign(
+            &all_assert_commit_connectors_e, 
+            assert_commit_witness,
         );
-        let signed_assert_commit2_tx_bytes =  serde_json::to_vec_pretty(&SignedTransaction::new(assert_commit2_tx.finalize())).unwrap();
-        let signed_assert_commit2_tx_file = format!("{}{}", &conf.general.signed_txns_dir, ASSERT_COMMIT_2_FILE_NAME);
-        write_bytes_to_file(&signed_assert_commit2_tx_bytes, &signed_assert_commit2_tx_file);
-        println!("assert_commit2_tx was written to {}", signed_assert_commit2_tx_file);
+        let pure_txns: Vec<SignedTransaction> = assert_commit_txns.commit_txns.iter()
+            .map(|tx| {
+                SignedTransaction::new(tx.finalize())
+            }).collect();
+        let signed_assert_commit_txns_bytes =  serde_json::to_vec_pretty(&pure_txns).unwrap();
+        let signed_assert_commit_txns_file = format!("{}{}", &conf.general.signed_txns_dir, ASSERT_COMMIT_FILE_NAME);
+        write_bytes_to_file(&signed_assert_commit_txns_bytes, &signed_assert_commit_txns_file);
+        println!("assert_commit_txns was written to {}", signed_assert_commit_txns_file);
     }
 
     {   // assert-final
@@ -1202,9 +962,11 @@ pub(crate) fn handle_operator_sign_assert(conf: Config) {
         write_bytes_to_file(&signed_assert_final_tx_bytes, &signed_assert_final_tx_file);
         println!("assert_final_tx was written to {}", signed_assert_final_tx_file);
     }
+    println!("-------------------done-------------------------");
 }
 
 pub(crate) fn handle_operator_sign_take2(conf: Config) {
+    println!("\n----------------sign-take2---------------------");
     println!("\nloading config...");
     let network = match_network(&conf.general.network).unwrap();
 
@@ -1228,11 +990,8 @@ pub(crate) fn handle_operator_sign_take2(conf: Config) {
     println!("loading operator wots public-keys...");
     assert!(file_exists(&conf.general.operator_wots_pubkey_file), "operator wots public key not provided");
     let operator_wots_pubkeys = load_wots_pubkeys(&conf.general.operator_wots_pubkey_file);
-    let (connector_e1_commitment_public_keys, connector_e2_commitment_public_keys) = split_pubkeys(&operator_wots_pubkeys.1);
-    let assert_commitment_public_keys = merge_to_connector_c_commits_public_key(
-        &connector_e1_commitment_public_keys,
-        &connector_e2_commitment_public_keys,
-    );
+    let assert_wots_pubkeys = &operator_wots_pubkeys.1;
+    let assert_wots_commitment_keys = convert_to_connector_c_commits_public_key(assert_wots_pubkeys);
 
     println!("loading disprove scripts...");
     assert!(file_exists(&conf.general.disprove_scripts_file), "disprove scripts not provided");
@@ -1253,7 +1012,7 @@ pub(crate) fn handle_operator_sign_take2(conf: Config) {
     let connector_c = ConnectorC::new_from_scripts(
         network,
         &operator_taproot_pubkey,
-        assert_commitment_public_keys,
+        assert_wots_commitment_keys,
         disprove_scripts_bytes,
     );
     take2_tx.sign_input_3(
@@ -1265,7 +1024,10 @@ pub(crate) fn handle_operator_sign_take2(conf: Config) {
     let signed_take2_tx_file = format!("{}{}", &conf.general.signed_txns_dir, TAKE2_FILE_NAME);
     write_bytes_to_file(&signed_take2_tx_bytes, &signed_take2_tx_file);
     println!("assert_take2_tx was written to {}", signed_take2_tx_file);
+    println!("-------------------done-------------------------");
 }
+
+// pub(crate) fn handle_challenger_sign_disprove(conf: Config) { }
 
 pub(crate) fn secrets_to_pubkeys(secrets: &WotsSecretKeys) -> WotsPublicKeys {
     let mut pubins = vec![];

@@ -1,23 +1,65 @@
 use bitcoin::{absolute, consensus, Amount, ScriptBuf, Transaction, TxOut};
+use bitvm::{chunk::api::type_conversion_utils::RawWitness, execute_raw_script_with_inputs};
 use serde::{Deserialize, Serialize};
 
-use bitvm::{ 
-    chunk::api::type_conversion_utils::RawWitness, execute_raw_script_with_inputs
-};
-
-use crate::transactions::signing::populate_taproot_input_witness;
+use crate::transactions::{assert::utils::MAX_CONNECTORS_E_PER_TX, signing::populate_taproot_input_witness};
 
 use super::{
     super::{
-        super::connectors::{base::*, connector_f_2::ConnectorF2},
+        super::connectors::{base::*, connector_f::ConnectorF},
         base::*,
         pre_signed::*,
     },
-    utils::AssertCommit2ConnectorsE,
+    utils::{
+        AllCommitConnectorsE, SingleCommitConnectorsE, AssertCommitConnectorsF, COMMIT_TX_NUM,
+    },
 };
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct AssertCommit2Transaction {
+pub struct AssertCommitTransactionSet {
+    pub commit_txns: [AssertCommitTransaction; COMMIT_TX_NUM]
+}
+impl AssertCommitTransactionSet {
+    pub fn new(
+        all_connectors_e: &AllCommitConnectorsE,
+        connectors_f: &AssertCommitConnectorsF,
+        tx_inputs: Vec<Input>,
+    ) -> Self {
+        assert_eq!(
+            tx_inputs.len(),
+            all_connectors_e.connectors_num(),
+            "inputs and connectors e don't match"
+        );
+
+        let mut commit_txns = vec![];
+        for (i, inputs) in (0..COMMIT_TX_NUM).zip(tx_inputs.chunks(MAX_CONNECTORS_E_PER_TX)) {
+            commit_txns.push(AssertCommitTransaction::new(
+                &all_connectors_e.commit_connectors_e_vec[i],
+                &connectors_f.connectors_f[i],
+                inputs.to_vec(),
+            ));
+        }
+        AssertCommitTransactionSet {
+            commit_txns: commit_txns.try_into().unwrap_or_else(|_e| panic!("impossible")),
+        }
+    }
+
+    pub fn sign(
+        &mut self, 
+        all_connectors_e: &AllCommitConnectorsE, 
+        all_witnesses: Vec<RawWitness>,
+    ) {
+        for (i, witness) in (0..COMMIT_TX_NUM).zip(all_witnesses.chunks(MAX_CONNECTORS_E_PER_TX)) {
+            self.commit_txns[i].sign(
+                &all_connectors_e.commit_connectors_e_vec[i],
+                witness.to_vec(),
+            );
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub struct AssertCommitTransaction {
     #[serde(with = "consensus::serde::With::<consensus::serde::Hex>")]
     tx: Transaction,
     #[serde(with = "consensus::serde::With::<consensus::serde::Hex>")]
@@ -25,7 +67,7 @@ pub struct AssertCommit2Transaction {
     prev_scripts: Vec<ScriptBuf>,
 }
 
-impl PreSignedTransaction for AssertCommit2Transaction {
+impl PreSignedTransaction for AssertCommitTransaction {
     fn tx(&self) -> &Transaction { &self.tx }
 
     fn tx_mut(&mut self) -> &mut Transaction { &mut self.tx }
@@ -35,10 +77,10 @@ impl PreSignedTransaction for AssertCommit2Transaction {
     fn prev_scripts(&self) -> &Vec<ScriptBuf> { &self.prev_scripts }
 }
 
-impl AssertCommit2Transaction {
+impl AssertCommitTransaction {
     pub fn new(
-        connectors_e: &AssertCommit2ConnectorsE,
-        connector_f_2: &ConnectorF2,
+        connectors_e: &SingleCommitConnectorsE,
+        connector_f: &ConnectorF,
         tx_inputs: Vec<Input>,
     ) -> Self {
         assert_eq!(
@@ -47,12 +89,12 @@ impl AssertCommit2Transaction {
             "inputs and connectors e don't match"
         );
 
-        Self::new_for_validation(connectors_e, connector_f_2, tx_inputs)
+        Self::new_for_validation(connectors_e, connector_f, tx_inputs)
     }
 
     pub fn new_for_validation(
-        connectors_e: &AssertCommit2ConnectorsE,
-        connector_f_2: &ConnectorF2,
+        connectors_e: &SingleCommitConnectorsE,
+        connector_f_1: &ConnectorF,
         tx_inputs: Vec<Input>,
     ) -> Self {
         let mut inputs = vec![];
@@ -72,14 +114,14 @@ impl AssertCommit2Transaction {
             prev_scripts.push(connector_e.generate_taproot_leaf_script(0));
             total_output_amount += input.amount;
         }
-        total_output_amount -= Amount::from_sat(MIN_RELAY_FEE_ASSERT_COMMIT2);
+        total_output_amount -= Amount::from_sat(MIN_RELAY_FEE_ASSERT_COMMIT);
 
         let _output_0 = TxOut {
             value: total_output_amount,
-            script_pubkey: connector_f_2.generate_address().script_pubkey(),
+            script_pubkey: connector_f_1.generate_address().script_pubkey(),
         };
 
-        AssertCommit2Transaction {
+        AssertCommitTransaction {
             tx: Transaction {
                 version: bitcoin::transaction::Version(2),
                 lock_time: absolute::LockTime::ZERO,
@@ -91,7 +133,7 @@ impl AssertCommit2Transaction {
         }
     }
 
-    pub fn sign(&mut self, connectors_e: &AssertCommit2ConnectorsE, witnesses: Vec<RawWitness>) {
+    pub fn sign(&mut self, connectors_e: &SingleCommitConnectorsE, witnesses: Vec<RawWitness>) {
         assert_eq!(witnesses.len(), connectors_e.connectors_num());
         for (input_index, witness) in (0..connectors_e.connectors_num()).zip(witnesses) {
             let taproot_spend_info = connectors_e
@@ -119,13 +161,10 @@ impl AssertCommit2Transaction {
             );
         }
     }
-
-    pub fn merge(&mut self, assert_commit_2: &AssertCommit2Transaction) {
-        merge_transactions(&mut self.tx, &assert_commit_2.tx);
-    }
 }
 
-impl BaseTransaction for AssertCommit2Transaction {
+impl BaseTransaction for AssertCommitTransaction {
     fn finalize(&self) -> Transaction { self.tx.clone() }
-    fn name(&self) -> &'static str { "AssertCommit2" }
+    fn name(&self) -> &'static str { "AssertCommit" }
 }
+

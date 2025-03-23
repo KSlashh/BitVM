@@ -83,7 +83,7 @@ pub fn write_signed_assertions_to_file(file: &str, sigs: Groth16WotsSignatures) 
 pub fn load_signed_assertions_from_file(file: &str) -> Groth16WotsSignatures {
     let sigs_map = read_map_from_file(file).expect(&format!("fail to open {:?}", file));
     const W256_LEN: u32 = wots256::N_DIGITS * 2;
-    const W160_LEN: u32 = wots_hash::N_DIGITS * 2;
+    const WHASH_LEN: u32 = wots_hash::N_DIGITS * 2;
 
     let mut psig = vec![];
     let (min, max) = (0, NUM_PUBS);
@@ -123,9 +123,9 @@ pub fn load_signed_assertions_from_file(file: &str) -> Groth16WotsSignatures {
     let (min, max) = (max, max + NUM_HASH);
     for i in min..max {
         let v = sigs_map.get(&(i as u32)).unwrap();
-        assert!(v.len() == W160_LEN as usize, "Invalid wots siganture length");
+        assert!(v.len() == WHASH_LEN as usize, "Invalid wots siganture length");
         let mut res: Vec<([u8; 20], u8)> = Vec::new();
-        let sig_len = W160_LEN / 2;
+        let sig_len = WHASH_LEN / 2;
         for i in 0..sig_len {
             res.push((
                 v[(2*i) as usize].clone().try_into().unwrap(), 
@@ -213,7 +213,7 @@ pub fn write_wots_pubkeys(file: &str, pubkeys: WotsPublicKeys) {
 pub fn load_wots_pubkeys(file: &str) -> WotsPublicKeys {
     let pubkeys_map = read_map_from_file(file).expect(&format!("fail to open {:?}", file));
     const W256_LEN: u32 = wots256::N_DIGITS;
-    const W160_LEN: u32 = wots_hash::N_DIGITS;
+    const WHASH_LEN: u32 = wots_hash::N_DIGITS;
 
     let mut pk0 = vec![];
     let (min, max) = (0, NUM_PUBS);
@@ -247,9 +247,9 @@ pub fn load_wots_pubkeys(file: &str) -> WotsPublicKeys {
     let (min, max) = (max, max + NUM_HASH);
     for i in min..max {
         let v = pubkeys_map.get(&(i as u32)).unwrap();
-        assert!(v.len() == W160_LEN as usize, "Invalid wots public-key length");
+        assert!(v.len() == WHASH_LEN as usize, "Invalid wots public-key length");
         let mut res: Vec<[u8; 20]> = Vec::new();
-        for i in 0..W160_LEN {
+        for i in 0..WHASH_LEN {
             res.push(v[i as usize].clone().try_into().unwrap());
         }
         let sig: wots_hash::PublicKey = res.try_into().unwrap();

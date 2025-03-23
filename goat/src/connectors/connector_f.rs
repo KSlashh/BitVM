@@ -6,22 +6,22 @@ use super::{
     base::*,
 };
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct ConnectorF2 {
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Copy)]
+pub struct ConnectorF {
     pub network: Network,
     pub operator_public_key: PublicKey,
 }
 
-impl ConnectorF2 {
+impl ConnectorF {
     pub fn new(network: Network, operator_public_key: &PublicKey) -> Self {
-        ConnectorF2 {
+        ConnectorF {
             network,
             operator_public_key: *operator_public_key,
         }
     }
 }
 
-impl P2wshConnector for ConnectorF2 {
+impl P2wshConnector for ConnectorF {
     fn generate_script(&self) -> ScriptBuf {
         generate_pay_to_pubkey_script(&self.operator_public_key)
     }

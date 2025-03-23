@@ -48,3 +48,6 @@ lto = true
 [profile.profiling]
 inherits = "release"
 debug = true
+
+[[bin]]
+name = "goat-bridge"
