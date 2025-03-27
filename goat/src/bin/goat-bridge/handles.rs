@@ -6,17 +6,18 @@ use crate::config::{
     TAKE2_FILE_NAME, DISPROVE_FILE_NAME, PEGIN_FILE_NAME
 };
 use crate::files::{
-    file_exists, load_groth16_proof, load_groth16_pubin, load_groth16_vk, load_scripts_bytes_from_file, load_scripts_from_file, load_signed_assertions_from_file, load_wots_pubkeys, load_wots_seckeys, write_bytes_to_file, write_disprove_witness, write_scripts_to_file, write_signed_assertions_to_file, write_wots_pubkeys, write_wots_seckeys 
+    file_exists, load_disprove_witness, load_groth16_proof, load_groth16_pubin, load_groth16_vk, load_scripts_bytes_from_file, load_scripts_from_file, load_signed_assertions_from_file, load_wots_pubkeys, load_wots_seckeys, write_bytes_to_file, write_disprove_witness, write_scripts_to_file, write_signed_assertions_to_file, write_wots_pubkeys, write_wots_seckeys 
 };
-use crate::files::{WotsSecretKeys, WotsPublicKeys, SignedTransaction};
-use bitvm::chunk::api::type_conversion_utils::utils_raw_witnesses_from_signatures;
+use crate::files::{WotsSecretKeys, WotsPublicKeys, SignedTransaction, Groth16WotsSecretKeys};
+use bitvm::chunk::api::type_conversion_utils::{script_to_witness, utils_raw_witnesses_from_signatures};
 use bitvm::chunk::api::{
     api_generate_full_tapscripts, api_generate_partial_script, 
     generate_signatures, generate_signatures_lit, validate_assertions, 
     NUM_PUBS, NUM_HASH, NUM_U256, PublicKeys as Groth16WotsPublicKeys,
+    Signatures as Groth16WotsSignatures,
 };
 use bitvm::signatures::{
-    wots_api::{wots256, wots_hash},
+    wots_api::{wots256, wots_hash, HASH_LEN},
     signing_winternitz::{
         WinternitzPublicKey, WinternitzSecret, LOG_D, WinternitzSigningInputs,
     },
@@ -111,7 +112,7 @@ pub(crate) fn handle_generate_wots_keys(conf: Config, seed: &str) {
     println!("-------------------done-------------------------");
 }
 
-pub(crate) fn handle_sign_proof(conf: Config, skip_validation: bool) {
+pub(crate) fn handle_sign_proof(conf: Config, _skip_validation: bool) {
     println!("\n----------------sign-proof---------------------");
     println!("\nloading vkey ...");
     assert!(file_exists(&conf.general.vkey_file), "vkey not provided");
@@ -129,6 +130,7 @@ pub(crate) fn handle_sign_proof(conf: Config, skip_validation: bool) {
     assert!(file_exists(&conf.operator.operator_wots_seckey_file), "operator_wots_seckey_file not provided");
     let wots_sec = load_wots_seckeys(&conf.operator.operator_wots_seckey_file);
 
+    let skip_validation = true;
     let proof_sigs = if skip_validation {
         generate_signatures_lit(ark_proof, ark_pubin, &ark_vkey, wots_sec.1.to_vec()).unwrap()
     } else {
@@ -209,6 +211,7 @@ pub(crate) fn handle_generate_pegin_tx(conf: Config, inputs: Vec<Input>, deposit
     let pegin_tx_file = format!("{}{}", &conf.general.txns_dir, PEGIN_FILE_NAME);
     write_bytes_to_file(&pegin_tx_bytes, &pegin_tx_file);
     println!("\npegin_tx was written to {}", pegin_tx_file);
+    println!("pegin_txid: {:?}", pegin_tx.tx().compute_txid().to_string());
     println!("-------------------done-------------------------");
 }
 
@@ -245,6 +248,7 @@ pub(crate) fn handle_generate_prekickoff_tx(conf: Config, inputs: Vec<Input>, st
     let prekickoff_tx_file = format!("{}{}", &conf.general.txns_dir, PRE_KICKOFF_FILE_NAME);
     write_bytes_to_file(&prekickoff_tx_bytes, &prekickoff_tx_file);
     println!("\npre_kickoff_tx was written to {}", prekickoff_tx_file);
+    println!("pre_kickoff_txid: {:?}", prekickoff_tx.tx().compute_txid().to_string());
     println!("-------------------done-------------------------");
 }
 
@@ -702,6 +706,34 @@ pub(crate) fn handle_federation_presign(conf: Config) {
         write_bytes_to_file(&take2_tx_bytes, &take2_file);
         println!("pre-signed take-2-tx was written back to {}", take2_file);
     }
+
+    'disprove: {   // disprove pre-sign
+        println!("\nloading disprove-tx...");
+        let disprove_file = format!("{}{}", &conf.general.txns_dir, DISPROVE_FILE_NAME);
+        assert!(file_exists(&disprove_file), "disprove tx not provided");
+        let file = File::open(disprove_file.clone()).expect(&format!("fail to open {:?}", disprove_file));
+        let reader = BufReader::new(file);
+        let mut disprove_tx: DisproveTransaction = serde_json::from_reader(reader).unwrap();
+        if disprove_tx.musig2_signatures().len() != 0 {
+            println!("disprove_tx already pre-signed");
+            break 'disprove;
+        }
+        println!("pre-signing disprove-tx...");
+        let connector_5 = Connector5::new(
+            network,
+            &federation_taproot_pubkey,
+        );
+        let disprove_sec_nonces: Vec<(&VerifierContext, HashMap<usize, SecNonce>)> = signer_contexts.iter()
+            .map(|context| {
+                (context, disprove_tx.push_nonces(&context))
+            }).collect();
+        for (context, sec_nonce_map) in disprove_sec_nonces {
+            disprove_tx.pre_sign(context, &connector_5, &sec_nonce_map);
+        };
+        let disprove_tx_bytes = serde_json::to_vec_pretty(&disprove_tx).unwrap();
+        write_bytes_to_file(&disprove_tx_bytes, &disprove_file);
+        println!("pre-signed disprove-tx was written back to {}", disprove_file);
+    }
     println!("-------------------done-------------------------");
 }
 
@@ -993,10 +1025,6 @@ pub(crate) fn handle_operator_sign_take2(conf: Config) {
     let assert_wots_pubkeys = &operator_wots_pubkeys.1;
     let assert_wots_commitment_keys = convert_to_connector_c_commits_public_key(assert_wots_pubkeys);
 
-    println!("loading disprove scripts...");
-    assert!(file_exists(&conf.general.disprove_scripts_file), "disprove scripts not provided");
-    let disprove_scripts_bytes = load_scripts_bytes_from_file(&conf.general.disprove_scripts_file);
-
     println!("\nloading take2-tx...");
     let take2_file = format!("{}{}", &conf.general.txns_dir, TAKE2_FILE_NAME);
     assert!(file_exists(&take2_file), "take-2 tx not provided");
@@ -1009,6 +1037,9 @@ pub(crate) fn handle_operator_sign_take2(conf: Config) {
     take2_tx.sign_input_1(
         &operator_context,
     );
+    println!("loading disprove scripts...");
+    assert!(file_exists(&conf.general.disprove_scripts_file), "disprove scripts not provided");
+    let disprove_scripts_bytes = load_scripts_bytes_from_file(&conf.general.disprove_scripts_file);
     let connector_c = ConnectorC::new_from_scripts(
         network,
         &operator_taproot_pubkey,
@@ -1023,11 +1054,73 @@ pub(crate) fn handle_operator_sign_take2(conf: Config) {
     let signed_take2_tx_bytes =  serde_json::to_vec_pretty(&SignedTransaction::new(take2_tx.finalize())).unwrap();
     let signed_take2_tx_file = format!("{}{}", &conf.general.signed_txns_dir, TAKE2_FILE_NAME);
     write_bytes_to_file(&signed_take2_tx_bytes, &signed_take2_tx_file);
-    println!("assert_take2_tx was written to {}", signed_take2_tx_file);
+    println!("take2_tx was written to {}", signed_take2_tx_file);
     println!("-------------------done-------------------------");
 }
 
-// pub(crate) fn handle_challenger_sign_disprove(conf: Config) { }
+pub(crate) fn handle_challenger_sign_disprove(conf: Config, reward_address: Address) { 
+    println!("\n----------------sign-disprove---------------------");
+    println!("\nloading config...");
+    let network = match_network(&conf.general.network).unwrap();
+
+    let federation_taproot_pubkey = &conf.general.federation_taproot_pubkey.expect("federation_taproot_pubkey is not provided in the configuration file");
+    let federation_taproot_pubkey = XOnlyPublicKey::from_str(federation_taproot_pubkey).expect("invalid federation_taproot_pubkey");
+        
+    let federation_pubkeys = conf.general.federation_pubkeys.expect("federation_pubkeys is not provided in the configuration file");
+    let federation_pubkeys: Vec<PublicKey> = federation_pubkeys.into_iter()
+        .map(|str| PublicKey::from_str(&str).expect("invalid federation_pubkey {str}"))
+        .collect();
+
+    let operator_seckey = &conf.operator.operator_seckey.expect("operator_seckey not provided");
+    let operator_pubkey = &conf.general.operator_pubkey.expect("operator_pubkey is not provided in the configuration file");
+    let operator_pubkey = PublicKey::from_str(operator_pubkey).expect("invalid operator_pubkey");
+    let operator_taproot_pubkey = XOnlyPublicKey::from(operator_pubkey);
+    let (_,pubkey_from_sec) = generate_keys_from_secret(network, operator_seckey);
+    assert_eq!(pubkey_from_sec, operator_pubkey, "operatot_seckey & operator_pubkey not match");
+    let operator_context = OperatorContext::new(network, operator_seckey, &federation_pubkeys);
+    assert_eq!(operator_context.n_of_n_taproot_public_key, federation_taproot_pubkey, "federation_taproot_pubkey not aggregated from federation_pubkeys");
+
+    println!("loading operator wots public-keys...");
+    assert!(file_exists(&conf.general.operator_wots_pubkey_file), "operator wots public key not provided");
+    let operator_wots_pubkeys = load_wots_pubkeys(&conf.general.operator_wots_pubkey_file);
+    let assert_wots_pubkeys = &operator_wots_pubkeys.1;
+    let assert_wots_commitment_keys = convert_to_connector_c_commits_public_key(assert_wots_pubkeys);
+
+    println!("loading disprove witness...");
+    assert!(file_exists(&conf.challenger.disprove_witness_file), "disprove witness not provided, please verify proof first");
+    let (input_script_index, input_script_witness) = load_disprove_witness(&conf.challenger.disprove_witness_file);
+
+    println!("\nloading disprove-tx...");
+    let disprove_file = format!("{}{}", &conf.general.txns_dir, DISPROVE_FILE_NAME);
+    assert!(file_exists(&disprove_file), "disprove_file tx not provided");
+    let file = File::open(disprove_file.clone()).expect(&format!("fail to open {:?}", disprove_file));
+    let reader = BufReader::new(file);
+    let mut disprove_tx: DisproveTransaction = serde_json::from_reader(reader).unwrap();
+    assert!(disprove_tx.tx().input[0].witness != Witness::default(), "disprove_tx not pre-signed");
+    println!("signing disprove-tx...");
+    println!("loading disprove scripts...");
+    assert!(file_exists(&conf.general.disprove_scripts_file), "disprove scripts not provided");
+    let disprove_scripts_bytes = load_scripts_bytes_from_file(&conf.general.disprove_scripts_file);
+
+    let connector_c = ConnectorC::new_from_scripts(
+        network,
+        &operator_taproot_pubkey,
+        assert_wots_commitment_keys,
+        disprove_scripts_bytes,
+    );
+    disprove_tx.add_input_output(
+        &connector_c, 
+        input_script_index as u32, 
+        script_to_witness(input_script_witness),
+        reward_address.script_pubkey()
+    );
+
+    let signed_disprove_tx_bytes =  serde_json::to_vec_pretty(&SignedTransaction::new(disprove_tx.finalize())).unwrap();
+    let signed_disprove_tx_file = format!("{}{}", &conf.general.signed_txns_dir, DISPROVE_FILE_NAME);
+    write_bytes_to_file(&signed_disprove_tx_bytes, &signed_disprove_tx_file);
+    println!("disprove_tx was written to {}", signed_disprove_tx_file);
+    println!("-------------------done-------------------------");
+}
 
 pub(crate) fn secrets_to_pubkeys(secrets: &WotsSecretKeys) -> WotsPublicKeys {
     let mut pubins = vec![];
@@ -1094,3 +1187,27 @@ fn sha256_with_id(input: &str, idx: usize) -> String {
     sha256(&format!("{:x}{:04x}", hasher.finalize(), idx))
 }
 
+#[allow(dead_code)]
+pub(crate) fn corrupt(proof_sigs: &mut Groth16WotsSignatures, wots_sec: &Groth16WotsSecretKeys, index: usize) {
+    let mut scramble: [u8; 32] = [1u8; 32];
+    scramble[16] = 37;
+    let mut scramble2: [u8; HASH_LEN as usize] = [1u8; HASH_LEN as usize];
+    scramble2[HASH_LEN as usize / 2] = 37;
+    println!("corrupted assertion at index {}", index);
+    if index < NUM_PUBS {
+        let i = index;
+        let assn = scramble;
+        let sig = wots256::get_signature(&wots_sec[index], &assn);
+        proof_sigs.0[i] = sig;
+    } else if index < NUM_PUBS + NUM_U256 {
+        let i = index - NUM_PUBS;
+        let assn = scramble;
+        let sig = wots256::get_signature(&wots_sec[index], &assn);
+        proof_sigs.1[i] = sig;
+    } else if index < NUM_PUBS + NUM_U256 + NUM_HASH {
+        let i = index - NUM_PUBS - NUM_U256;
+        let assn = scramble2;
+        let sig = wots_hash::get_signature(&wots_sec[index], &assn);
+        proof_sigs.2[i] = sig;
+    }
+}

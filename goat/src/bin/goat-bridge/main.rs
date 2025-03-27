@@ -7,10 +7,10 @@ use core::str::FromStr;
 use bitcoin::{OutPoint, Txid, Amount, Address};
 use clap::{arg, command, Parser};
 use commands::Commands;
-use config::load_config;
+use config::{load_config, match_network};
 use goat_bridge::transactions::base::Input;
 use handles::{
-    handle_federation_presign, handle_generate_bitvm_instance, handle_generate_disprove_scripts, handle_generate_pegin_tx, handle_generate_prekickoff_tx, handle_generate_wots_keys, handle_operator_presign, handle_operator_sign_assert, handle_operator_sign_kickoff, handle_operator_sign_take1, handle_operator_sign_take2, handle_sign_proof, handle_verify_proof
+    handle_challenger_sign_disprove, handle_federation_presign, handle_generate_bitvm_instance, handle_generate_disprove_scripts, handle_generate_pegin_tx, handle_generate_prekickoff_tx, handle_generate_wots_keys, handle_operator_presign, handle_operator_sign_assert, handle_operator_sign_kickoff, handle_operator_sign_take1, handle_operator_sign_take2, handle_sign_proof, handle_verify_proof
 };
 
 #[derive(Parser)]
@@ -68,6 +68,7 @@ async fn main() {
         },
         Commands::GeneratePeginTx { tx_inputs, deposit_amount, fee_amount, change_address } => {
             let conf = load_config(&cli.config_file);
+            let network = match_network(&conf.general.network).unwrap();
             let inputs = tx_inputs.iter()
                 .map(|input| {
                     let txin = TxInputValue::from_str(input).expect("fail to parse tx inputs");
@@ -81,11 +82,13 @@ async fn main() {
                 }).collect();
             let deposit_amount = Amount::from_sat(*deposit_amount);
             let fee_amount = Amount::from_sat(*fee_amount);
-            let change_address = Address::from_str(change_address).expect("fail to parse change address").assume_checked();
+            let change_address = Address::from_str(change_address).expect("fail to parse change address")
+                .require_network(network).expect("address failed the network check");
             handle_generate_pegin_tx(conf, inputs, deposit_amount, fee_amount, change_address);
         },
         Commands::GeneratePrekickoffTx { tx_inputs, stake_amount, fee_amount, change_address } => {
             let conf = load_config(&cli.config_file);
+            let network = match_network(&conf.general.network).unwrap();
             let inputs = tx_inputs.iter()
                 .map(|input| {
                     let txin = TxInputValue::from_str(input).expect("fail to parse tx inputs");
@@ -99,7 +102,8 @@ async fn main() {
                 }).collect();
             let stake_amount = Amount::from_sat(*stake_amount);
             let fee_amount = Amount::from_sat(*fee_amount);
-            let change_address = Address::from_str(change_address).expect("fail to parse change address").assume_checked();
+            let change_address = Address::from_str(change_address).expect("fail to parse change address")
+                .require_network(network).expect("address fail to pass network check");
             handle_generate_prekickoff_tx(conf, inputs, stake_amount, fee_amount, change_address);
         },
         Commands::GenerateBitvmInstanace {} => {
@@ -131,8 +135,14 @@ async fn main() {
             if *take_2 {
                 handle_operator_sign_take2(conf);
             }
+        },
+        Commands::Disprove { reward_address } => {
+            let conf = load_config(&cli.config_file);
+            let network = match_network(&conf.general.network).unwrap();
+            let reward_address = Address::from_str(reward_address).expect("fail to parse reward address")
+                .require_network(network).expect("address fail to pass network check");
+            handle_challenger_sign_disprove(conf, reward_address);
         }
-        _ => {}
     }
 }
 
@@ -189,4 +199,74 @@ fn generate_test_keys() {
     // dbg!(VERIFIER_1_SECRET);
 
 }
+
+#[test]
+#[ignore]
+fn generate_corrupt_proof() {
+    let conf_file = "./src/bin/goat-bridge/example.config.toml";
+    let conf = load_config(&conf_file);
+    // let target_script_index: u32 = 8;
+    let target_bitcom_index: usize = 8;
+
+    println!("loading operator wots secret keys ...");
+    assert!(files::file_exists(&conf.operator.operator_wots_seckey_file), "operator_wots_seckey_file not provided");
+    let wots_sec = files::load_wots_seckeys(&conf.operator.operator_wots_seckey_file);
+
+    println!("loading proof signatures ...");
+    assert!(files::file_exists(&conf.general.proof_file), "proof-sigs not provided");
+    let mut proof_sigs = files::load_signed_assertions_from_file(&conf.general.signed_assertions_file);
+    
+    handles::corrupt(&mut proof_sigs, &wots_sec.1, target_bitcom_index);
+
+    println!("loading vkey ...");
+    assert!(files::file_exists(&conf.general.vkey_file), "vkey not provided");
+    let ark_vkey = files::load_groth16_vk(&conf.general.vkey_file);
+    
+    println!("loading operator wots public-key...");
+    assert!(files::file_exists(&conf.general.operator_wots_pubkey_file), "operator wots public key is not provided");
+    let pubkey = files::load_wots_pubkeys(&conf.general.operator_wots_pubkey_file);
+
+    println!("loading disprove scripts...");
+    assert!(files::file_exists(&conf.general.disprove_scripts_file), "disprove scripts is not provided");
+    let disprove_scripts = files::load_scripts_from_file(&conf.general.disprove_scripts_file).try_into().unwrap();
+
+    let res = bitvm::chunk::api::validate_assertions(&ark_vkey, proof_sigs, pubkey.1, &disprove_scripts);
+    match res {
+        Some((index,witness)) => {
+            files::write_disprove_witness(&conf.challenger.disprove_witness_file, index, witness);
+            println!("\nProof is invalid! Disprove witness is written to: {}", &conf.challenger.disprove_witness_file);
+        },
+        _ => {
+            println!("\nProof is Ok.");
+        }
+    };
+    
+}   
+
+#[test]
+#[ignore]
+fn test_disprove_scripts_size() {
+    let conf_file = "./src/bin/goat-bridge/example.config.toml";
+    let conf = load_config(&conf_file);
+    
+    assert!(files::file_exists(&conf.general.disprove_scripts_file), "disprove scripts not provided");
+    let disprove_scripts_bytes = files::load_scripts_bytes_from_file(&conf.general.disprove_scripts_file);
+
+    let scr_num = disprove_scripts_bytes.len();
+    let mut sum_bytes = 0;
+    let mut min_scr = (0, 10000000000);
+    for i in 0..disprove_scripts_bytes.len() {
+        let scr_len = disprove_scripts_bytes[i].len();
+        min_scr = if min_scr.1 > scr_len {
+            (i, scr_len)
+        } else {
+            min_scr
+        };
+        sum_bytes += scr_len;
+        println!("script {i} size: {scr_len}");
+    }
+    println!("total {scr_num} scripts");
+    println!("total {sum_bytes} bytes");
+    println!("min script: {:?} , size: {:?}", min_scr.0, min_scr.1);
+}   
 

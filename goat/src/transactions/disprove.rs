@@ -79,7 +79,7 @@ impl DisproveTransaction {
     }
 
     pub fn new_for_validation(
-        network: Network,
+        _network: Network,
         connector_5: &Connector5,
         connector_c: &ConnectorC,
         input_0: Input,
@@ -93,10 +93,10 @@ impl DisproveTransaction {
         let total_output_amount =
             input_0.amount + input_1.amount - Amount::from_sat(MIN_RELAY_FEE_DISPROVE);
 
-        let output_0_amount = total_output_amount / 2;
+        let output_0_amount = Amount::from_sat(0);
         let _output_0 = TxOut {
             value: output_0_amount,
-            script_pubkey: generate_burn_script_address(network).script_pubkey(),
+            script_pubkey: generate_opreturn_script("challenge success".into()),
         };
 
         let reward_output_amount = total_output_amount - output_0_amount;

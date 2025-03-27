@@ -202,8 +202,16 @@ pub fn convert_to_connector_c_commits_public_key(
     raw_pubkeys: &ApiPublicKeys,
 ) -> BTreeMap<CommitmentMessageId, WinternitzPublicKey> {
     let commitment_pubkeys = CommitmentMessageId::pubkey_map_for_assert(raw_pubkeys);
-    let mut connector_c_commitment_public_keys = BTreeMap::new();
+    let mut pubkeys_vec = vec![];
     for (message_id, pubkey) in commitment_pubkeys.iter() {
+        if let CommitmentMessageId::Groth16IntermediateValues((name, _)) = message_id {
+            let index = u32::from_str_radix(name, 10).unwrap();
+            pubkeys_vec.push((index, (message_id, pubkey)));
+        }
+    }
+    pubkeys_vec.sort_by(|a, b| a.0.cmp(&b.0));
+    let mut connector_c_commitment_public_keys = BTreeMap::new();
+    for (_, (message_id, pubkey)) in pubkeys_vec {
         connector_c_commitment_public_keys.insert(message_id.clone(), pubkey.clone());
     };
     connector_c_commitment_public_keys

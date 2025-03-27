@@ -373,6 +373,7 @@ mod test {
 
     use crate::chunk::api::generate_signatures_for_any_proof;
 
+    use crate::chunk::api_compiletime_utils::generate_segments_using_mock_vk_and_mock_proof;
     use crate::chunk::wrap_hasher::BLAKE3_HASH_LENGTH;
     use crate::chunk::wrap_wots::{byte_array_to_wots256_sig, byte_array_to_wots_hash_sig};
     use crate::signatures::wots_api::{wots256, wots_hash};
@@ -1354,5 +1355,22 @@ mod test {
                 assert!(res.success);
             }
         }
+    }
+
+    #[test]
+    #[ignore]
+    fn test_get_bitcom_by_script_index() {
+        let scr_ids = 0..24;
+        let mock_segs = generate_segments_using_mock_vk_and_mock_proof();
+        for i in scr_ids {
+            let mut index_of_bitcommitted_msg: Vec<u32> = vec![];
+            let seg = &mock_segs[i];
+            let sec_in: Vec<u32> = seg.parameter_ids.iter().rev().map(|(k, _)| *k).collect();
+            index_of_bitcommitted_msg.extend_from_slice(&sec_in);
+            if !seg.scr_type.is_final_script() {
+                index_of_bitcommitted_msg.push(seg.id);
+            }
+            println!("script {i} bitcoms: {:?}", index_of_bitcommitted_msg);
+        };
     }
 }

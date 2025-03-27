@@ -88,7 +88,7 @@ impl AssertInitialTransaction {
                 txouts.push(TxOut {
                     value: Amount::from_sat(amount),
                     script_pubkey: assert_commit_i_connectors_e
-                        .get_connector_e(i)
+                        .get_connector_e(j)
                         .generate_taproot_address()
                         .script_pubkey(),
                 });

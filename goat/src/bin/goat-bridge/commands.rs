@@ -31,10 +31,6 @@ pub(crate) enum Commands {
         tx_inputs: Vec<String>,
     },
 
-    /// -DEPOSITOR--: sign pegin-confirm or pegin-refund
-    DepositorSign {
-    },
-
     /// -FEDERATION-: push federation members' pre-signature for necessary txns, include: pegin_comfirm, take_1, take_2, assert_final, disprove
     FederationPresign {
     },
@@ -104,6 +100,13 @@ pub(crate) enum Commands {
     /// -CHALLENGER-: check if the groth16-proof(bitcommitments) is valid 
     VerifyProof {
     },
+
+    /// -CHALLENGER-: send disprove tx
+    Disprove {
+        /// address that will receive challenger success reward
+        reward_address: String,
+    },
+
 
     /* 
     /// -FEDERATION-: generate psbt for federation members

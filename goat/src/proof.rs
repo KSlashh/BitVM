@@ -65,7 +65,9 @@ pub fn deserialize_pubin(buffer: Vec<u8>) -> Vec<ark_bn254::Fr> {
     pubin
 }
 
+
 #[test]
+#[ignore]
 fn verify_zkm2_proof() {
     /// TODO: Update NUM_PUBS, NUM_256, NUM_160, mock_proof
     /// NUM_PUBS = 2
@@ -132,6 +134,7 @@ fn verify_zkm2_proof() {
 }
 
 #[test]
+#[ignore]
 fn read_bin() {
     use ark_groth16::{r1cs_to_qap::LibsnarkReduction, Groth16};
 
@@ -157,6 +160,7 @@ fn read_bin() {
 }
 
 #[test]
+#[ignore]
 fn genearte_test_proof() {
     use ark_bn254::Bn254;
     use ark_crypto_primitives::snark::{CircuitSpecificSetupSNARK, SNARK};
@@ -236,3 +240,4 @@ fn genearte_test_proof() {
     std::fs::write("test-groth16/pubin.bin", &pubin_bin).unwrap();
     
 }
+

@@ -149,19 +149,21 @@ pub(crate) fn match_network(network: &str) -> Result<Network, String> {
     match network {
         "Mainnet" => Ok(Network::Bitcoin),
         "Bitcoin" => Ok(Network::Bitcoin),
-        "Tesnet" => Ok(Network::Testnet),
-        "Tesnet4" => Ok(Network::Testnet4),
+        "Testnet" => Ok(Network::Testnet),
+        "Testnet3" => Ok(Network::Testnet),
+        "Testnet4" => Ok(Network::Testnet4),
         "Regtest" => Ok(Network::Regtest),
         "Signet" => Ok(Network::Signet),
 
         "mainnet" => Ok(Network::Bitcoin),
         "bitcoin" => Ok(Network::Bitcoin),
-        "tesnet" => Ok(Network::Testnet),
-        "tesnet4" => Ok(Network::Testnet4),
+        "testnet" => Ok(Network::Testnet),
+        "testnet3" => Ok(Network::Testnet),
+        "testnet4" => Ok(Network::Testnet4),
         "regtest" => Ok(Network::Regtest),
         "signet" => Ok(Network::Signet),
 
-        _ => Err("unknow network: {network}, please choose from: Mainnet, Tesnet, Tesnet4, Regtest, Signet".to_string()),
+        _ => Err("unknow network: {network}, please choose from: Mainnet, Testne3, Testnet4, Regtest, Signet".to_string()),
     }
 }
 fn default_network() -> String {

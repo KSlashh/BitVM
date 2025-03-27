@@ -47,7 +47,7 @@ pub const MIN_RELAY_FEE_PEG_OUT_CONFIRM: u64 = relay_fee(122);
 pub const MIN_RELAY_FEE_ASSERT: u64 = relay_fee(232);
 pub const MIN_RELAY_FEE_ASSERT_INITIAL: u64 = relay_fee(48953);
 pub const MIN_RELAY_FEE_ASSERT_COMMIT: u64 = relay_fee(739137);
-pub const MIN_RELAY_FEE_ASSERT_FINAL: u64 = relay_fee(352);
+pub const MIN_RELAY_FEE_ASSERT_FINAL: u64 = relay_fee(490);
 pub const MIN_RELAY_FEE_CHALLENGE: u64 = relay_fee(317);
 pub const MIN_RELAY_FEE_DISPROVE: u64 = relay_fee(1000000);
 
