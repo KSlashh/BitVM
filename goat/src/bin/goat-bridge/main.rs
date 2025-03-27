@@ -8,7 +8,7 @@ use bitcoin::{OutPoint, Txid, Amount, Address};
 use clap::{arg, command, Parser};
 use commands::Commands;
 use config::{load_config, match_network};
-use goat_bridge::transactions::base::Input;
+use goat::transactions::base::Input;
 use handles::{
     handle_challenger_sign_disprove, handle_federation_presign, handle_generate_bitvm_instance, handle_generate_disprove_scripts, handle_generate_pegin_tx, handle_generate_prekickoff_tx, handle_generate_wots_keys, handle_operator_presign, handle_operator_sign_assert, handle_operator_sign_kickoff, handle_operator_sign_take1, handle_operator_sign_take2, handle_sign_proof, handle_verify_proof
 };
@@ -148,7 +148,7 @@ async fn main() {
 
 #[test]
 fn generate_test_keys() {
-    use goat_bridge::contexts::{
+    use goat::contexts::{
         base::generate_keys_from_secret,
         depositor::DepositorContext,
         operator::OperatorContext,

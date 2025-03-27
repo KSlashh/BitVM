@@ -23,9 +23,9 @@ use bitvm::signatures::{
     },
     winternitz::Parameters, 
 };
-use goat_bridge::commitments::{NUM_KICKOFF, KICKOFF_MSG_SIZE, CommitmentMessageId};
-use goat_bridge::transactions::assert::utils::{convert_to_connector_c_commits_public_key, COMMIT_TX_NUM};
-use goat_bridge::transactions::{
+use goat::commitments::{NUM_KICKOFF, KICKOFF_MSG_SIZE, CommitmentMessageId};
+use goat::transactions::assert::utils::{convert_to_connector_c_commits_public_key, COMMIT_TX_NUM};
+use goat::transactions::{
     base::{Input, CROWDFUNDING_AMOUNT, BaseTransaction}, 
     pre_signed::PreSignedTransaction,
     pre_signed_musig2::PreSignedMusig2Transaction,
@@ -43,7 +43,7 @@ use goat_bridge::transactions::{
     take_2::Take2Transaction,
     disprove::DisproveTransaction,
 };
-use goat_bridge::connectors::{
+use goat::connectors::{
     connector_0::Connector0,
     connector_3::Connector3,
     connector_4::Connector4,
@@ -54,7 +54,7 @@ use goat_bridge::connectors::{
     connector_c::ConnectorC,
     connector_d::ConnectorD,
 };
-use goat_bridge::contexts::{
+use goat::contexts::{
     base::{generate_n_of_n_public_key, generate_keys_from_secret},
     verifier::VerifierContext,
     operator::OperatorContext,
