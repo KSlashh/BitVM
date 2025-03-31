@@ -18,7 +18,7 @@ use super::{
     base::*,
     pre_signed::*,
     pre_signed_musig2::*,
-    signing::populate_p2tr_key_spend_witness,
+    signing::*,
 };
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
@@ -255,6 +255,52 @@ impl Take2Transaction {
             merkle_root,
             &context.operator_keypair,
         );
+    }
+
+    pub fn push_pre_sigs(
+        &mut self,
+        connector_0: &Connector0,
+        connector_5: &Connector5,
+        input_0_sig: bitcoin::taproot::Signature,
+        input_2_sig: bitcoin::taproot::Signature,
+    ) {
+        {   // input_0: connector_0
+            let input_index = 0;
+            let script = self.prev_scripts()[input_index].clone();
+            let spend_info = connector_0.generate_taproot_spend_info();
+            let tx_mut = self.tx_mut();
+            // Push signature to witness
+            tx_mut.input[input_index]
+                .witness
+                .push(input_0_sig.serialize());
+
+            // Push script + control block
+            push_taproot_leaf_script_and_control_block_to_witness(
+                tx_mut,
+                input_index,
+                &spend_info,
+                &script,
+            );
+        }
+
+        {   // input_2: connector_5
+            let input_index = 2;
+            let script = self.prev_scripts()[input_index].clone();
+            let spend_info = connector_5.generate_taproot_spend_info();
+            let tx_mut = self.tx_mut();
+            // Push signature to witness
+            tx_mut.input[input_index]
+                .witness
+                .push(input_2_sig.serialize());
+
+            // Push script + control block
+            push_taproot_leaf_script_and_control_block_to_witness(
+                tx_mut,
+                input_index,
+                &spend_info,
+                &script,
+            );
+        }
     }
 
     pub fn pre_sign(

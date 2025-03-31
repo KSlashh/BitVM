@@ -165,6 +165,29 @@ impl DisproveTransaction {
         );
     }
 
+    pub fn push_pre_sigs(
+        &mut self,
+        connector_5: &Connector5,
+        input_0_sig: bitcoin::taproot::Signature,
+    ) {
+        let input_index = 0;
+        let script = self.prev_scripts()[input_index].clone();
+        let spend_info = connector_5.generate_taproot_spend_info();
+        let tx_mut = self.tx_mut();
+        // Push signature to witness
+        tx_mut.input[input_index]
+            .witness
+            .push(input_0_sig.serialize());
+
+        // Push script + control block
+        push_taproot_leaf_script_and_control_block_to_witness(
+            tx_mut,
+            input_index,
+            &spend_info,
+            &script,
+        );
+    }
+
     pub fn pre_sign(
         &mut self,
         context: &VerifierContext,

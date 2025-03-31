@@ -1,13 +1,13 @@
 #![allow(clippy::too_many_arguments)]
 use bitcoin::{
     sighash::{Prevouts, SighashCache},
-    taproot::LeafVersion,
+    taproot::LeafVersion, 
     Script, TapLeafHash, TapSighashType, Transaction, TxOut,
 };
 use musig2::{
     aggregate_partial_signatures,
     errors::{SigningError, VerifyError},
-    secp::{MaybeScalar, Point},
+    secp::{MaybeScalar, Point}, 
     sign_partial, AggNonce, KeyAggContext, LiftedSignature, PartialSignature, PubNonce, SecNonce,
 };
 
@@ -90,7 +90,4 @@ pub fn generate_taproot_aggregated_signature(
     )
 }
 
-// TODO: This is currently unused and can be removed. If the conversion at the start of the above functions is incorrect, try this approach.
-// pub fn to_point(public_key: PublicKey) -> Point {
-//     Point::from_slice(&public_key.to_bytes()).unwrap() // TODO: Add error handling. Also, verify this method is correct (otherwise see conversion via secp256k1::PublicKey).
-// }
+
