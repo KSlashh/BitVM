@@ -1,6 +1,6 @@
 use bitcoin::{
     absolute, consensus, Amount, EcdsaSighashType, Network, PublicKey, ScriptBuf, TapSighashType,
-    Transaction, TxOut,
+    Transaction, TxOut, TapNodeHash,
 };
 use musig2::{secp256k1::schnorr::Signature, PartialSignature, PubNonce, SecNonce};
 use serde::{Deserialize, Serialize};
@@ -239,6 +239,20 @@ impl Take2Transaction {
             input_index,
             TapSighashType::All,
             connector_5.generate_taproot_spend_info(),
+        );
+    }
+
+    pub fn sign_input_3_lit(&mut self, context: &OperatorContext, connector_c_taproot_merkle_root: TapNodeHash) {
+        let input_index = 3;
+        let prev_outs = &self.prev_outs().clone();
+
+        populate_p2tr_key_spend_witness(
+            self.tx_mut(),
+            input_index,
+            prev_outs,
+            TapSighashType::All,
+            Some(connector_c_taproot_merkle_root),
+            &context.operator_keypair,
         );
     }
 
