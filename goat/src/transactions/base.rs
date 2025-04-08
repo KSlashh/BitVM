@@ -7,7 +7,7 @@ use itertools::Itertools;
 use musig2::{secp256k1::schnorr::Signature, PubNonce};
 use std::collections::HashMap;
 
-pub const CROWDFUNDING_AMOUNT: u64 = 100_000_000; //1 btc
+pub const CROWDFUNDING_AMOUNT: u64 = 100_000; // 0.001 btc
 pub const FEE_AMOUNT: u64 = 10_000;
 // for commonly used type in codebase - p2wsh txout
 // 67 = (32 + 4 + 1 + (107 / WITNESS_SCALE_FACTOR) + 4) for segwit TxOut

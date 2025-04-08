@@ -270,3 +270,167 @@ fn test_disprove_scripts_size() {
     println!("min script: {:?} , size: {:?}", min_scr.0, min_scr.1);
 }   
 
+#[test]
+#[ignore]
+fn generate_test_fund_address() {
+    use goat::contexts::base::generate_keys_from_secret;
+    use goat::scripts::generate_pay_to_pubkey_script_address;
+
+    let conf_file = "./src/bin/goat-bridge/example.config.toml";
+    let conf = load_config(&conf_file);
+    let network = match_network(&conf.general.network).unwrap();
+    let fund_address_sec = conf.operator.operator_seckey.unwrap();
+    let (_,fund_address_pub) = generate_keys_from_secret(network, &fund_address_sec);
+    let fund_address = generate_pay_to_pubkey_script_address(network, &fund_address_pub);
+    let pegin_fund_amount = Amount::from_sat(100_000); 
+    let kickoff_fund_amount = Amount::from_sat(5_000_000); 
+    let challenge_fund_amount = Amount::from_sat(100_000); 
+    println!("Pegin Fund Address: {fund_address} Amount: {} btc", pegin_fund_amount.to_btc());
+    println!("Kickoff Fund Address: {fund_address} Amount: {} btc", kickoff_fund_amount.to_btc());
+    println!("Challenge Fund Address: {fund_address} Amount: {} btc", challenge_fund_amount.to_btc());
+}
+
+#[test]
+#[ignore]
+#[allow(unused_imports)]
+fn sign_test_fund_tx() {
+    use goat::contexts::base::generate_keys_from_secret;
+    use goat::scripts::{generate_pay_to_pubkey_script_address, generate_pay_to_pubkey_script};
+    use goat::transactions::signing::populate_p2wsh_witness;
+    use bitcoin::{PublicKey, Network, Amount, Transaction, consensus, Txid, Wtxid, ScriptBuf, EcdsaSighashType};
+    use bitcoin::secp256k1::Keypair;
+    use std::io::BufReader;
+    use files::*;
+    use config::*;
+    use std::fs::File;
+    use goat::transactions::{
+        pre_signed::PreSignedTransaction,
+        peg_in::peg_in::PegInTransaction,
+        peg_out_confirm::PreKickoffTransaction,
+    };
+
+    fn sign_p2wsh_tx(
+        tx_mut: &mut Transaction, 
+        input_index: usize, 
+        script: ScriptBuf, 
+        value: Amount,
+        sighash_type:  EcdsaSighashType,
+        keypairs: &Vec<&Keypair>,
+    ) {
+        populate_p2wsh_witness(
+            tx_mut,
+            input_index,
+            sighash_type,
+            &script,
+            value,
+            keypairs,
+        );
+    }
+    
+    let conf_file = "./src/bin/goat-bridge/example.config.toml";
+    let conf = load_config(&conf_file);
+    let network = match_network(&conf.general.network).unwrap();
+    let pegin_fund_amount = Amount::from_sat(100_000); 
+    let kickoff_fund_amount = Amount::from_sat(5_000_000); 
+    // let challenge_fund_amount = Amount::from_sat(100_000); 
+    let fund_address_sec = conf.operator.operator_seckey.unwrap();
+    let (keypair, fund_address_pub) = generate_keys_from_secret(network, &fund_address_sec);
+    let fund_script = generate_pay_to_pubkey_script(&fund_address_pub);
+
+    {
+        let pegin_file = format!("{}{}", &conf.general.txns_dir, PEGIN_FILE_NAME);
+        if file_exists(&pegin_file) {
+            let file = File::open(&pegin_file).expect(&format!("fail to open {:?}", pegin_file));
+            let reader = BufReader::new(file);
+            let mut pegin_tx: PegInTransaction = serde_json::from_reader(reader).unwrap();
+            sign_p2wsh_tx(
+                pegin_tx.tx_mut(), 
+                0, 
+                fund_script.clone(), 
+                pegin_fund_amount, 
+                EcdsaSighashType::All, 
+                &vec![&keypair],
+            );
+            let signed_pegin_tx_bytes =  serde_json::to_vec_pretty(&SignedTransaction::new(pegin_tx.tx().clone())).unwrap();
+            let signed_pegin_tx_file = format!("{}{}", &conf.general.signed_txns_dir, PEGIN_FILE_NAME);
+            write_bytes_to_file(&signed_pegin_tx_bytes, &signed_pegin_tx_file);
+            println!("signed pegin tx written to {}", signed_pegin_tx_file);
+        } else {
+            println!("pegin tx not provided, skipped")
+        };
+    }
+
+    {
+        let pre_kickoff_file = format!("{}{}", &conf.general.txns_dir, PRE_KICKOFF_FILE_NAME);
+        if file_exists(&pre_kickoff_file) {
+            let file = File::open(&pre_kickoff_file).expect(&format!("fail to open {:?}", pre_kickoff_file));
+            let reader = BufReader::new(file);
+            let mut pre_kickoff_tx: PreKickoffTransaction = serde_json::from_reader(reader).unwrap();
+            sign_p2wsh_tx(
+                pre_kickoff_tx.tx_mut(), 
+                0, 
+                fund_script, 
+                kickoff_fund_amount, 
+                EcdsaSighashType::All, 
+                &vec![&keypair],
+            );
+            let signed_prekickoff_tx_bytes =  serde_json::to_vec_pretty(&SignedTransaction::new(pre_kickoff_tx.tx().clone())).unwrap();
+            let signed_prekickoff_tx_file = format!("{}{}", &conf.general.signed_txns_dir, PRE_KICKOFF_FILE_NAME);
+            write_bytes_to_file(&signed_prekickoff_tx_bytes, &signed_prekickoff_tx_file);
+            println!("signed pre-kickoff tx written to {}", signed_prekickoff_tx_file);
+        } else {
+            println!("pre-kickoff tx not provided, skipped")
+        };
+    }
+}
+
+#[test]
+#[ignore]
+#[allow(unused_imports)]
+fn sign_test_challenge_tx() {
+    use goat::contexts::base::generate_keys_from_secret;
+    use goat::scripts::{generate_pay_to_pubkey_script_address, generate_pay_to_pubkey_script};
+    use goat::transactions::signing::populate_p2wsh_witness;
+    use bitcoin::{PublicKey, Network, Amount, Transaction, consensus, Txid, Wtxid, ScriptBuf, EcdsaSighashType};
+    use bitcoin::secp256k1::Keypair;
+    use std::io::BufReader;
+    use files::*;
+    use config::*;
+    use std::fs::File;
+    use goat::transactions::{
+        base::InputWithScript,
+        pre_signed::PreSignedTransaction,
+        challenge::ChallengeTransaction,
+    };
+    
+    let conf_file = "./src/bin/goat-bridge/example.config.toml";
+    let conf = load_config(&conf_file);
+    let network = match_network(&conf.general.network).unwrap();
+    let challenge_fund_amount = Amount::from_sat(100_000); 
+    let fund_address_sec = conf.operator.operator_seckey.unwrap();
+    let (keypair, fund_address_pub) = generate_keys_from_secret(network, &fund_address_sec);
+    let fund_script = generate_pay_to_pubkey_script(&fund_address_pub);
+    let fund_address = generate_pay_to_pubkey_script_address(network, &fund_address_pub);
+
+    let challenge_file = format!("{}{}", &conf.general.txns_dir, CHALLENGE_FILE_NAME);
+    if file_exists(&challenge_file) {
+        let file = File::open(&challenge_file).expect(&format!("fail to open {:?}", challenge_file));
+        let reader = BufReader::new(file);
+        let mut challenge_tx: ChallengeTransaction = serde_json::from_reader(reader).unwrap();
+        let challenge_input = InputWithScript {
+            outpoint: OutPoint { 
+                txid: Txid::from_str("TODO").unwrap(), 
+                vout: 0, 
+            },
+            amount: challenge_fund_amount,
+            script: &fund_script,
+        };
+        challenge_tx.add_inputs_and_output(&vec![challenge_input], &keypair, fund_address.script_pubkey());
+        let signed_challenge_tx_bytes =  serde_json::to_vec_pretty(&SignedTransaction::new(challenge_tx.tx().clone())).unwrap();
+        let signed_challenge_tx_file = format!("{}{}", &conf.general.signed_txns_dir, CHALLENGE_FILE_NAME);
+        write_bytes_to_file(&signed_challenge_tx_bytes, &signed_challenge_tx_file);
+        println!("signed challenge tx written to {}", signed_challenge_tx_file);
+    } else {
+        println!("challenge tx not provided, skipped")
+    };
+}

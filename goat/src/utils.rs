@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 use bitcode::{Decode, Encode};
 use bitcoin::Network;
 
-const NUM_BLOCKS_REGTEST: u32 = 2;
-const NUM_BLOCKS_TESTNET: u32 = 2;
+const NUM_BLOCKS_REGTEST: u32 = 1;
+const NUM_BLOCKS_TESTNET: u32 = 1;
 
 pub fn num_blocks_per_network(network: Network, mainnet_num_blocks: u32) -> u32 {
     match network {

@@ -1,5 +1,5 @@
 [general]
-network = "regtest"
+network = "testnet3"
 federation_pubkeys = [
     "026cc14f56ad7e8fdb323378287895c6c0bcdbb37714c74fba175a0c5f0cd0d56f",
     "02452556ed6dbac394cbb7441fbaf06c446d1321467fa5a138895c6c9e246793dd",
