@@ -8,7 +8,6 @@ use musig2::{secp256k1::schnorr::Signature, PubNonce};
 use std::collections::HashMap;
 
 pub const CROWDFUNDING_AMOUNT: u64 = 100_000; // 0.001 btc
-pub const FEE_AMOUNT: u64 = 10_000;
 // for commonly used type in codebase - p2wsh txout
 // 67 = (32 + 4 + 1 + (107 / WITNESS_SCALE_FACTOR) + 4) for segwit TxOut
 // TODO: Use lower dust amount for other txout types
@@ -36,20 +35,21 @@ pub const PEG_IN_FEE: u64 =
 pub const fn max(a: u64, b: u64) -> u64 { [a, b][(a < b) as usize] }
 
 // TODO: set to larger value to be compatible with future tx modifications
-pub const RELAY_FEE_BUFFER_MULTIPLIER: f32 = 1.0;
-pub const MIN_RELAY_FEE_KICK_OFF: u64 = relay_fee(6231);
-pub const MIN_RELAY_FEE_TAKE_1: u64 = relay_fee(380);
+// TODO: consider use CPFP to avoid uncertainty
+pub const RELAY_FEE_BUFFER_MULTIPLIER: f32 = 2.0;
+pub const MIN_RELAY_FEE_KICK_OFF: u64 = relay_fee(3212);
+pub const MIN_RELAY_FEE_TAKE_1: u64 = relay_fee(288);
 pub const MIN_RELAY_FEE_TAKE_2: u64 = relay_fee(347);
 pub const MIN_RELAY_FEE_PEG_IN_DEPOSIT: u64 = relay_fee(122);
 pub const MIN_RELAY_FEE_PEG_IN_CONFIRM: u64 = relay_fee(173);
 pub const MIN_RELAY_FEE_PEG_IN_REFUND: u64 = relay_fee(138);
 pub const MIN_RELAY_FEE_PEG_OUT_CONFIRM: u64 = relay_fee(122);
 pub const MIN_RELAY_FEE_ASSERT: u64 = relay_fee(232);
-pub const MIN_RELAY_FEE_ASSERT_INITIAL: u64 = relay_fee(48953);
-pub const MIN_RELAY_FEE_ASSERT_COMMIT: u64 = relay_fee(739137);
+pub const MIN_RELAY_FEE_ASSERT_INITIAL: u64 = relay_fee(16380);
+pub const MIN_RELAY_FEE_ASSERT_COMMIT: u64 = relay_fee(983500);
 pub const MIN_RELAY_FEE_ASSERT_FINAL: u64 = relay_fee(490);
 pub const MIN_RELAY_FEE_CHALLENGE: u64 = relay_fee(317);
-pub const MIN_RELAY_FEE_DISPROVE: u64 = relay_fee(1000000);
+pub const MIN_RELAY_FEE_DISPROVE: u64 = relay_fee(400000);
 
 #[derive(Clone)]
 pub struct Input {
