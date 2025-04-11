@@ -1,11 +1,12 @@
 use super::assert::utils::COMMIT_TX_NUM;
 use super::pre_signed_musig2::{verify_public_nonce, PreSignedMusig2Transaction};
-use bitcoin::{Amount, OutPoint, PublicKey, Script, Transaction, Txid, XOnlyPublicKey};
+use bitcoin::{Amount, OutPoint, PublicKey, Script, Transaction, Txid, XOnlyPublicKey, consensus};
 use bitcoin::policy::{DEFAULT_MIN_RELAY_TX_FEE, DUST_RELAY_TX_FEE};
 use core::cmp;
 use itertools::Itertools;
 use musig2::{secp256k1::schnorr::Signature, PubNonce};
 use std::collections::HashMap;
+use serde::{Serialize, Deserialize};
 
 pub const CROWDFUNDING_AMOUNT: u64 = 100_000; // 0.001 btc
 // for commonly used type in codebase - p2wsh txout
@@ -51,9 +52,11 @@ pub const MIN_RELAY_FEE_ASSERT_FINAL: u64 = relay_fee(490);
 pub const MIN_RELAY_FEE_CHALLENGE: u64 = relay_fee(317);
 pub const MIN_RELAY_FEE_DISPROVE: u64 = relay_fee(400000);
 
-#[derive(Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Input {
+    #[serde(with = "consensus::serde::With::<consensus::serde::Hex>")]
     pub outpoint: OutPoint,
+    #[serde(with = "consensus::serde::With::<consensus::serde::Hex>")]
     pub amount: Amount,
 }
 
