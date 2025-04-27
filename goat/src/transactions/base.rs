@@ -37,7 +37,7 @@ pub const fn max(a: u64, b: u64) -> u64 { [a, b][(a < b) as usize] }
 
 // TODO: set to larger value to be compatible with future tx modifications
 // TODO: consider use CPFP to avoid uncertainty
-pub const RELAY_FEE_BUFFER_MULTIPLIER: f32 = 2.0;
+pub const RELAY_FEE_BUFFER_MULTIPLIER: f32 = 1.2;
 pub const MIN_RELAY_FEE_KICK_OFF: u64 = relay_fee(3212);
 pub const MIN_RELAY_FEE_TAKE_1: u64 = relay_fee(288);
 pub const MIN_RELAY_FEE_TAKE_2: u64 = relay_fee(347);
@@ -47,7 +47,7 @@ pub const MIN_RELAY_FEE_PEG_IN_REFUND: u64 = relay_fee(138);
 pub const MIN_RELAY_FEE_PEG_OUT_CONFIRM: u64 = relay_fee(122);
 pub const MIN_RELAY_FEE_ASSERT: u64 = relay_fee(232);
 pub const MIN_RELAY_FEE_ASSERT_INITIAL: u64 = relay_fee(16380);
-pub const MIN_RELAY_FEE_ASSERT_COMMIT: u64 = relay_fee(983500);
+pub const MIN_RELAY_FEE_ASSERT_COMMIT: u64 = relay_fee(98350);
 pub const MIN_RELAY_FEE_ASSERT_FINAL: u64 = relay_fee(490);
 pub const MIN_RELAY_FEE_CHALLENGE: u64 = relay_fee(317);
 pub const MIN_RELAY_FEE_DISPROVE: u64 = relay_fee(400000);
