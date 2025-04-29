@@ -52,7 +52,7 @@ pub const MIN_RELAY_FEE_ASSERT_FINAL: u64 = relay_fee(490);
 pub const MIN_RELAY_FEE_CHALLENGE: u64 = relay_fee(317);
 pub const MIN_RELAY_FEE_DISPROVE: u64 = relay_fee(0); // let Challenger pay for disprove-tx
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct Input {
     #[serde(with = "consensus::serde::With::<consensus::serde::Hex>")]
     pub outpoint: OutPoint,
