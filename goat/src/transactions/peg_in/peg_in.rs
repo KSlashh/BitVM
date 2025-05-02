@@ -16,7 +16,7 @@ pub struct PegInTransaction {
     tx: Transaction,
     #[serde(with = "consensus::serde::With::<consensus::serde::Hex>")]
     fee_amount: Amount,
-    input_amounts: Vec<Amount>,
+    pub input_amounts: Vec<Amount>,
 }
 
 impl PegInTransaction {
