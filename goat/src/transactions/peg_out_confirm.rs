@@ -20,6 +20,7 @@ pub struct PreKickoffTransaction {
     tx: Transaction,
     #[serde(with = "consensus::serde::With::<consensus::serde::Hex>")]
     fee_amount: Amount,
+    input_amounts: Vec<Amount>,
 }
 
 impl PreKickoffTransaction {
@@ -31,6 +32,7 @@ impl PreKickoffTransaction {
         change_address: Address, 
     ) -> Self {
         let mut total_input_amount = Amount::ZERO;
+        let input_amounts: Vec<Amount> = inputs.iter().map(|input| input.amount).collect();
         let txins: Vec<TxIn> = inputs.iter()
             .map(|input| {
                 total_input_amount += input.amount;
@@ -59,6 +61,7 @@ impl PreKickoffTransaction {
                 output: txouts,
             },
             fee_amount,
+            input_amounts,
         }
     }
 
