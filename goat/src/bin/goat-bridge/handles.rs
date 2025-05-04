@@ -1112,7 +1112,8 @@ pub(crate) fn handle_challenger_sign_disprove(conf: Config, reward_address: Addr
         &connector_c, 
         input_script_index as u32, 
         script_to_witness(input_script_witness),
-        reward_address.script_pubkey()
+        reward_address.script_pubkey(),
+        1.0
     );
 
     let signed_disprove_tx_bytes =  serde_json::to_vec_pretty(&SignedTransaction::new(disprove_tx.finalize())).unwrap();

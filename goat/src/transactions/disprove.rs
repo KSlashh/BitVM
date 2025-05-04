@@ -90,8 +90,9 @@ impl DisproveTransaction {
 
         let _input_1 = generate_default_tx_in(&input_1);
 
-        let total_output_amount =
-            input_0.amount + input_1.amount - Amount::from_sat(MIN_RELAY_FEE_DISPROVE);
+        // Since the final transaction size cannot be determined at the time of construction，
+        // relay fee will be calculated and deducted at the time of disprove
+        let total_output_amount = input_0.amount + input_1.amount;
 
         let output_0_amount = Amount::from_sat(0);
         let _output_0 = TxOut {
@@ -198,12 +199,14 @@ impl DisproveTransaction {
         self.sign_input_0(context, connector_5, &secret_nonces[&input_index]);
     }
 
+    // The relay fee for Disprove transaction will be deducted from the reward
     pub fn add_input_output(
         &mut self,
         connector_c: &ConnectorC,
         input_script_index: u32,
         input_script_witness: RawWitness,
         output_script_pubkey: ScriptBuf,
+        fee_rate: f64,
     ) {
         // Add output
         let output_index = 1;
@@ -225,6 +228,11 @@ impl DisproveTransaction {
             &taproot_spend_info,
             &script,
         );
+
+        // Deduct relay fee
+        let fee_amount = Amount::from_sat((self.tx.weight().to_vbytes_ceil() as f64 * fee_rate).ceil() as u64);
+        assert!(fee_amount <= self.tx.output[output_index].value, "reward does not cover relay fee");
+        self.tx.output[output_index].value -= fee_amount;
     }
 
     pub fn merge(&mut self, disprove: &DisproveTransaction) {
