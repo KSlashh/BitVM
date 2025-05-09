@@ -47,12 +47,15 @@ impl PegInTransaction {
             script_pubkey: generate_opreturn_script(message),
         };
         txouts.push(output_1);
+        let mut fee_amount = fee_amount;
         if change_amount > Amount::from_sat(DUST_AMOUNT) {
             let output_2 = TxOut {
                 value: change_amount,
                 script_pubkey: change_address.script_pubkey(),
             };
             txouts.push(output_2);
+        } else {
+            fee_amount += change_amount;
         }
 
         PegInTransaction { 

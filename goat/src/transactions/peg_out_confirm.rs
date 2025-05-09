@@ -45,12 +45,15 @@ impl PreKickoffTransaction {
             script_pubkey: connector_6.generate_taproot_address().script_pubkey(),
         };
         txouts.push(output_0);
+        let mut fee_amount = fee_amount;
         if change_amount > Amount::from_sat(DUST_AMOUNT) {
             let output_1 = TxOut {
                 value: change_amount,
                 script_pubkey: change_address.script_pubkey(),
             };
             txouts.push(output_1);
+        } else {
+            fee_amount += change_amount;
         }
 
         PreKickoffTransaction {
