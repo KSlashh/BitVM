@@ -228,9 +228,9 @@ fn generate_corrupt_proof() {
 
     println!("loading disprove scripts...");
     assert!(files::file_exists(&conf.general.disprove_scripts_file), "disprove scripts is not provided");
-    let disprove_scripts = files::load_scripts_from_file(&conf.general.disprove_scripts_file).try_into().unwrap();
+    let disprove_scripts_bytes = files::load_scripts_bytes_from_file(&conf.general.disprove_scripts_file);
 
-    let res = bitvm::chunk::api::validate_assertions(&ark_vkey, proof_sigs, pubkey.1, &disprove_scripts);
+    let res = bitvm::chunk::api::validate_assertions(&ark_vkey, proof_sigs, pubkey.1, &disprove_scripts_bytes.try_into().unwrap());
     match res {
         Some((index,witness)) => {
             files::write_disprove_witness(&conf.challenger.disprove_witness_file, index, witness);

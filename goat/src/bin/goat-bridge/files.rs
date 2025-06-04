@@ -1,6 +1,6 @@
 use bitvm::treepp::*;
 use bitvm::chunk::api::{Signatures as Groth16WotsSignatures, PublicKeys as Groth16WotsPublicKeys, NUM_PUBS, NUM_HASH, NUM_U256};
-use bitvm::signatures::wots_api::{wots256, wots_hash};
+use bitvm::signatures::{Wots16, Wots32, Wots};
 use bitvm::signatures::signing_winternitz::{WinternitzPublicKey, WinternitzSecret};
 use ark_bn254::Bn254;
 use bitcoin::{ScriptBuf, Transaction, Txid, consensus, Wtxid};
@@ -53,27 +53,24 @@ pub fn write_signed_assertions_to_file(file: &str, sigs: Groth16WotsSignatures) 
     let mut index = 0;
     for ss in *sigs.0 {
         let mut v: Vec<Vec<u8>> = Vec::new();
-        for (s, d) in ss {
+        for s in ss {
             v.push(s.to_vec());
-            v.push(vec![d]);
         }
         sigs_map.insert(index, v);
         index += 1;
     }
     for ss in *sigs.1 {
         let mut v: Vec<Vec<u8>> = Vec::new();
-        for (s, d) in ss {
+        for s in ss {
             v.push(s.to_vec());
-            v.push(vec![d]);
         }
         sigs_map.insert(index, v);
         index += 1;
     }
     for ss in *sigs.2 {
         let mut v: Vec<Vec<u8>> = Vec::new();
-        for (s, d) in ss {
+        for s in ss {
             v.push(s.to_vec());
-            v.push(vec![d]);
         }
         sigs_map.insert(index, v);
         index += 1;
@@ -82,59 +79,53 @@ pub fn write_signed_assertions_to_file(file: &str, sigs: Groth16WotsSignatures) 
 }
 pub fn load_signed_assertions_from_file(file: &str) -> Groth16WotsSignatures {
     let sigs_map = read_map_from_file(file).expect(&format!("fail to open {:?}", file));
-    const W256_LEN: u32 = wots256::N_DIGITS * 2;
-    const WHASH_LEN: u32 = wots_hash::N_DIGITS * 2;
+    const W256_LEN: u32 = Wots32::TOTAL_DIGIT_LEN ;
+    const WHASH_LEN: u32 = Wots16::TOTAL_DIGIT_LEN ;
 
     let mut psig = vec![];
     let (min, max) = (0, NUM_PUBS);
     for i in min..max {
         let v = sigs_map.get(&(i as u32)).unwrap();
         assert!(v.len() == W256_LEN as usize, "Invalid wots siganture length");
-        let mut res: Vec<([u8; 20], u8)> = Vec::new();
-        let sig_len = W256_LEN / 2;
+        let mut res: Vec<[u8; 21]> = Vec::new();
+        let sig_len = W256_LEN;
         for i in 0..sig_len {
-            res.push((
-                v[(2*i) as usize].clone().try_into().unwrap(), 
-                v[(2*i+1) as usize][0]));
+            res.push(v[i as usize].clone().try_into().unwrap());
         }
-        let sig: wots256::Signature = res.try_into().unwrap();
+        let sig: <Wots32 as Wots>::Signature = res.try_into().unwrap();
         psig.push(sig);
     }
-    let psig: [wots256::Signature; NUM_PUBS] = psig.try_into().unwrap();
+    let psig: [<Wots32 as Wots>::Signature; NUM_PUBS] = psig.try_into().unwrap();
 
     let mut fsig = vec![];
     let (min, max) = (max, max + NUM_U256);
     for i in min..max {
         let v = sigs_map.get(&(i as u32)).unwrap();
         assert!(v.len() == W256_LEN as usize, "Invalid wots siganture length");
-        let mut res: Vec<([u8; 20], u8)> = Vec::new();
-        let sig_len = W256_LEN / 2;
+        let mut res: Vec<[u8; 21]> = Vec::new();
+        let sig_len = W256_LEN;
         for i in 0..sig_len {
-            res.push((
-                v[(2*i) as usize].clone().try_into().unwrap(), 
-                v[(2*i+1) as usize][0]));
+            res.push(v[i as usize].clone().try_into().unwrap());
         }
-        let sig: wots256::Signature = res.try_into().unwrap();
+        let sig: <Wots32 as Wots>::Signature = res.try_into().unwrap();
         fsig.push(sig);
     }
-    let fsig: [wots256::Signature; NUM_U256] = fsig.try_into().unwrap();
+    let fsig: [<Wots32 as Wots>::Signature; NUM_U256] = fsig.try_into().unwrap();
 
     let mut hsig = vec![];
     let (min, max) = (max, max + NUM_HASH);
     for i in min..max {
         let v = sigs_map.get(&(i as u32)).unwrap();
         assert!(v.len() == WHASH_LEN as usize, "Invalid wots siganture length");
-        let mut res: Vec<([u8; 20], u8)> = Vec::new();
-        let sig_len = WHASH_LEN / 2;
+        let mut res: Vec<[u8; 21]> = Vec::new();
+        let sig_len = WHASH_LEN;
         for i in 0..sig_len {
-            res.push((
-                v[(2*i) as usize].clone().try_into().unwrap(), 
-                v[(2*i+1) as usize][0]));
+            res.push(v[i as usize].clone().try_into().unwrap());
         }
-        let sig: wots_hash::Signature = res.try_into().unwrap();
+        let sig: <Wots16 as Wots>::Signature = res.try_into().unwrap();
         hsig.push(sig);
     }
-    let hsig: [wots_hash::Signature; NUM_HASH] = hsig.try_into().unwrap();
+    let hsig: [<Wots16 as Wots>::Signature; NUM_HASH] = hsig.try_into().unwrap();
 
     let res = (Box::new(psig), Box::new(fsig), Box::new(hsig));
     res
@@ -212,8 +203,8 @@ pub fn write_wots_pubkeys(file: &str, pubkeys: WotsPublicKeys) {
 }
 pub fn load_wots_pubkeys(file: &str) -> WotsPublicKeys {
     let pubkeys_map = read_map_from_file(file).expect(&format!("fail to open {:?}", file));
-    const W256_LEN: u32 = wots256::N_DIGITS;
-    const WHASH_LEN: u32 = wots_hash::N_DIGITS;
+    const W256_LEN: u32 = Wots32::TOTAL_DIGIT_LEN;
+    const WHASH_LEN: u32 = Wots16::TOTAL_DIGIT_LEN;
 
     let mut pk0 = vec![];
     let (min, max) = (0, NUM_PUBS);
@@ -224,10 +215,10 @@ pub fn load_wots_pubkeys(file: &str) -> WotsPublicKeys {
         for i in 0..W256_LEN {
             res.push(v[i as usize].clone().try_into().unwrap());
         }
-        let sig: wots256::PublicKey = res.try_into().unwrap();
+        let sig: <Wots32 as Wots>::PublicKey = res.try_into().unwrap();
         pk0.push(sig);
     }
-    let pk0: [wots256::PublicKey; NUM_PUBS] = pk0.try_into().unwrap();
+    let pk0: [<Wots32 as Wots>::PublicKey; NUM_PUBS] = pk0.try_into().unwrap();
 
     let mut pk1 = vec![];
     let (min, max) = (max, max + NUM_U256);
@@ -238,10 +229,10 @@ pub fn load_wots_pubkeys(file: &str) -> WotsPublicKeys {
         for i in 0..W256_LEN {
             res.push(v[i as usize].clone().try_into().unwrap());
         }
-        let sig: wots256::PublicKey = res.try_into().unwrap();
+        let sig: <Wots32 as Wots>::PublicKey = res.try_into().unwrap();
         pk1.push(sig);
     }
-    let pk1: [wots256::PublicKey; NUM_U256] = pk1.try_into().unwrap();
+    let pk1: [<Wots32 as Wots>::PublicKey; NUM_U256] = pk1.try_into().unwrap();
 
     let mut pk2 = vec![];
     let (min, max) = (max, max + NUM_HASH);
@@ -252,10 +243,10 @@ pub fn load_wots_pubkeys(file: &str) -> WotsPublicKeys {
         for i in 0..WHASH_LEN {
             res.push(v[i as usize].clone().try_into().unwrap());
         }
-        let sig: wots_hash::PublicKey = res.try_into().unwrap();
+        let sig: <Wots16 as Wots>::PublicKey = res.try_into().unwrap();
         pk2.push(sig);
     }
-    let pk2: [wots_hash::PublicKey; NUM_HASH] = pk2.try_into().unwrap();
+    let pk2: [<Wots16 as Wots>::PublicKey; NUM_HASH] = pk2.try_into().unwrap();
 
     let mut pk_kickoff: Vec<WinternitzPublicKey> = vec![];
     let (min, max) = (max, max + NUM_KICKOFF);
@@ -279,25 +270,24 @@ pub fn load_wots_pubkeys(file: &str) -> WotsPublicKeys {
 
 pub fn write_scripts_to_file(file: &str, scripts: Vec<Script>) {
     create_necessary_dir(file);
-    let scripts_bytes: Vec<Vec<u8>> = scripts.into_iter().map(|x| x.compile().to_bytes()).collect();
-    let json = serde_json::to_vec_pretty(&scripts_bytes).unwrap();
+    let scripts_bytes: Vec<ScriptBuf> = scripts.into_iter().map(|x| x.compile()).collect();
+    write_scripts_bytes_to_file(file, scripts_bytes);
+}
+pub fn write_scripts_bytes_to_file(file: &str, scripts: Vec<ScriptBuf>) {
+    create_necessary_dir(file);
+    let json = serde_json::to_vec_pretty(&scripts).unwrap();
     let mut file = File::create(file).unwrap();
     file.write_all(&json).unwrap();
 }
 pub fn load_scripts_from_file(file: &str) -> Vec<Script> {
     let scripts_bytes = load_scripts_bytes_from_file(file);
     scripts_bytes.into_iter()
-        .map(|x| {
-            let sc = script! {};
-            let bf = ScriptBuf::from_bytes(x);
-            let sc = sc.push_script(bf);
-            sc
-        }).collect()
+        .map(|x| script! {}.push_script(x)).collect()
 }
-pub fn load_scripts_bytes_from_file(file: &str) -> Vec<Vec<u8>> {
+pub fn load_scripts_bytes_from_file(file: &str) -> Vec<ScriptBuf> {
     let file = File::open(file).expect(&format!("fail to open {:?}", file));
     let reader = BufReader::new(file);
-    let scripts_bytes: Vec<Vec<u8>> = serde_json::from_reader(reader).unwrap();
+    let scripts_bytes: Vec<ScriptBuf> = serde_json::from_reader(reader).unwrap();
     scripts_bytes
 }
 

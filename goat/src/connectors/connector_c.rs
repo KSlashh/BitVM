@@ -30,14 +30,13 @@ use serde::{
 };
 
 use bitvm::{
-    chunk::api::{
-        api_generate_full_tapscripts, api_generate_partial_script, 
+    chunk::api::{ 
         type_conversion_utils::{
-            script_to_witness, utils_signatures_from_raw_witnesses, utils_typed_pubkey_from_raw, RawProof, RawWitness
+            script_to_witness, utils_signatures_from_raw_witnesses, utils_typed_pubkey_from_raw, RawWitness
         }, 
-        validate_assertions, PublicKeys,
+        validate_assertions, 
     }, 
-    signatures::signing_winternitz::WinternitzPublicKey,
+    signatures::{signing_winternitz::WinternitzPublicKey, winternitz},
 };
 
 // Specialized for assert leaves currently.
@@ -136,11 +135,12 @@ impl<'de> Deserialize<'de> for ConnectorC {
                     }
                 }
 
-                match (network, operator_taproot_public_key, commitment_public_keys) {
+                match (network, operator_taproot_public_key, commitment_public_keys, lock_scripts_cache_id) {
                     (
                         Some(network),
                         Some(operator_taproot_public_key),
                         Some(commitment_public_keys),
+                        Some(lock_scripts_cache_id),
                     ) => Ok(ConnectorC::new(
                         network,
                         &operator_taproot_public_key,
@@ -170,25 +170,22 @@ impl ConnectorC {
         network: Network,
         operator_taproot_public_key: &XOnlyPublicKey,
         commitment_public_keys: &BTreeMap<CommitmentMessageId, WinternitzPublicKey>,
-        lock_scripts_cache_id: Option<String>,
+        lock_scripts_cache_id: String,
     ) -> Self {
-        let lock_scripts_cache = lock_scripts_cache_id.and_then(|cache_id| {
-            let file_path = get_lock_scripts_cache_path(&cache_id);
-            read_cache(&file_path)
-                .inspect_err(|e| {
-                    eprintln!(
-                        "Failed to read lock scripts cache from expected location: {}",
-                        e
-                    );
-                })
-                .ok()
-        });
+        let file_path = get_lock_scripts_cache_path(&lock_scripts_cache_id);
+        let lock_scripts_cache = read_cache(&file_path)
+            .inspect_err(|e| {
+                eprintln!(
+                    "Failed to read lock scripts cache from expected location: {}",
+                    e
+                );
+            })
+            .ok();
 
         ConnectorC {
             network,
             operator_taproot_public_key: *operator_taproot_public_key,
-            lock_scripts_bytes: lock_scripts_cache
-                .unwrap_or_else(|| generate_assert_leaves(commitment_public_keys)),
+            lock_scripts_bytes: lock_scripts_cache.unwrap(),
             commitment_public_keys: commitment_public_keys.clone(),
         }
     }
@@ -197,8 +194,9 @@ impl ConnectorC {
         network: Network,
         operator_taproot_public_key: &XOnlyPublicKey,
         commitment_public_keys: BTreeMap<CommitmentMessageId, WinternitzPublicKey>,
-        lock_scripts_bytes: Vec<Vec<u8>>,
+        lock_scripts_bytes: Vec<ScriptBuf>,
     ) -> Self {
+        let lock_scripts_bytes = lock_scripts_bytes.into_iter().map(|v| v.to_bytes()).collect();
         ConnectorC {
             network,
             operator_taproot_public_key: *operator_taproot_public_key,
@@ -225,15 +223,21 @@ impl ConnectorC {
                 }
             });
         sorted_pks.sort_by(|a, b| a.0.cmp(&b.0));
-        let sorted_pks = sorted_pks.iter().map(|f| &f.1).collect::<Vec<&WinternitzPublicKey>>();
-
+        let sorted_pks = sorted_pks
+            .iter()
+            .map(|f| &f.1.public_key)
+            .collect::<Vec<&winternitz::PublicKey>>();
         
         let mut commit_witness = commit_1_witness.clone();
         commit_witness.extend_from_slice(&commit_2_witness);
         
         let sigs = utils_signatures_from_raw_witnesses(&commit_witness);
         let pubs = utils_typed_pubkey_from_raw(sorted_pks);
-        let locs: Vec<bitcoin_script::builder::StructuredScript> = self.lock_scripts_bytes.clone().into_iter().map(|f| bitcoin_script::builder::StructuredScript::new("").push_script(ScriptBuf::from_bytes(f))).collect();
+        // TODO: avoid clone()
+        let locs: Vec<ScriptBuf> = self.lock_scripts_bytes.clone()
+            .into_iter()
+            .map(|f| ScriptBuf::from_bytes(f))
+            .collect();
         let locs = locs.try_into().unwrap();
         let exec_res = validate_assertions(vk, sigs, pubs, &locs);
         if exec_res.is_some() {
@@ -346,33 +350,6 @@ impl TaprootConnector for ConnectorC {
     fn generate_taproot_address(&self) -> Address {
         Address::p2tr_tweaked(self.taproot_output_key(), self.network)
     }
-}
-
-pub fn generate_assert_leaves(
-    commits_public_keys: &BTreeMap<CommitmentMessageId, WinternitzPublicKey>,
-) -> Vec<Vec<u8>> {
-    println!("Generating new lock scripts...");
-    // hash map to btree map
-    let mut sorted_pks: Vec<(u32, WinternitzPublicKey)> = vec![];
-    commits_public_keys
-        .clone()
-        .into_iter()
-        .for_each(|(k, v)| {
-            if let CommitmentMessageId::Groth16IntermediateValues((name, _)) = k {
-                let index = u32::from_str_radix(&name, 10).unwrap();
-                sorted_pks.push((index, v));
-            }
-        });
-    
-    sorted_pks.sort_by(|a, b| a.0.cmp(&b.0));
-    let sorted_pks = sorted_pks.iter().map(|f| &f.1).collect::<Vec<&WinternitzPublicKey>>();
-
-    let default_proof = RawProof::default(); // mock a default proof to generate scripts
-    let partial_scripts = api_generate_partial_script(&default_proof.vk);
-    let pks: PublicKeys = utils_typed_pubkey_from_raw(sorted_pks);
-    let locks= api_generate_full_tapscripts(pks, &partial_scripts);
-    let locks = locks.into_iter().map(|f| f.compile().into_bytes()).collect();
-    locks
 }
 
 pub fn get_commit_from_assert_commit_tx(assert_commit_tx: &Transaction) -> Vec<RawWitness> {

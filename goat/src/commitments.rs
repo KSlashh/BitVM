@@ -7,7 +7,7 @@ use bitvm::{
     chunk::api::{
         PublicKeys as ApiPublicKeys, NUM_HASH, NUM_PUBS, NUM_U256
     }, 
-    signatures::{signing_winternitz::{WinternitzPublicKey, WinternitzSecret, LOG_D}, winternitz::Parameters, wots_api::HASH_LEN}
+    signatures::{signing_winternitz::{WinternitzPublicKey, WinternitzSecret, LOG_D}, winternitz::Parameters, HASH_LEN}
 };
 
 use super::constants::EVM_TXID_LENGTH;
@@ -104,7 +104,7 @@ impl CommitmentMessageId {
                 CommitmentMessageId::Groth16IntermediateValues((format!("{}", i + NUM_PUBS + NUM_U256), HASH_LEN as usize)),
                 WinternitzPublicKey {
                     public_key: raw_pubkeys.2[i].to_vec(),
-                    parameters: Parameters::new_by_bit_length(8 * HASH_LEN, LOG_D),
+                    parameters: Parameters::new_by_bit_length(8 * HASH_LEN as u32, LOG_D),
                 }
             );
         }

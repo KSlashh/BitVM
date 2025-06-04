@@ -68,6 +68,7 @@ pub fn deserialize_pubin(buffer: Vec<u8>) -> Vec<ark_bn254::Fr> {
 
 #[test]
 #[ignore]
+#[allow(deprecated)]
 fn verify_zkm2_proof() {
     /// TODO: Update NUM_PUBS, NUM_256, NUM_160, mock_proof
     /// NUM_PUBS = 2
@@ -79,20 +80,20 @@ fn verify_zkm2_proof() {
         api_generate_partial_script, api_generate_full_tapscripts,
         generate_signatures, validate_assertions,
     };
-    use bitvm::signatures::wots_api::{wots_hash, wots256};
+    use bitvm::signatures::{Wots16, Wots32, Wots};
     fn get_pubkeys(secret_key: Vec<String>) -> PublicKeys {
         let mut pubins = vec![];
         for i in 0..NUM_PUBS {
-            pubins.push(wots256::generate_public_key(secret_key[i].as_str()));
+            pubins.push(Wots32::generate_public_key(&Wots32::secret_from_str(secret_key[i].as_str())));
         }
         let mut fq_arr = vec![];
         for i in 0..NUM_U256 {
-            let p256 = wots256::generate_public_key(secret_key[i+NUM_PUBS].as_str());
+            let p256 = Wots32::generate_public_key(&Wots32::secret_from_str(secret_key[i+NUM_PUBS].as_str()));
             fq_arr.push(p256);
         }
         let mut h_arr = vec![];
         for i in 0..NUM_HASH {
-            let p160 = wots_hash::generate_public_key(secret_key[i+NUM_PUBS+NUM_U256].as_str());
+            let p160 = Wots16::generate_public_key(&Wots16::secret_from_str(secret_key[i+NUM_PUBS+NUM_U256].as_str()));
             h_arr.push(p160);
         }
         let wotspubkey: PublicKeys = (

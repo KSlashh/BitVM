@@ -332,7 +332,7 @@ fn generate_p2tr_key_spend_schnorr_signature(
     // If secp256k1 is updated to 0.30.0, the following line can be replaced with
     // let signature = keypair.sign_schnorr_no_aux_rand(&Message::from(sighash));
     let signature =
-        SECP256K1.sign_schnorr_no_aux_rand(&Message::from(sighash), &tweak_keypair.to_inner());
+        SECP256K1.sign_schnorr_no_aux_rand(&Message::from(sighash), &tweak_keypair.to_keypair());
 
     bitcoin::taproot::Signature {
         signature,

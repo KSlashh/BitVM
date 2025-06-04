@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 use crate::config::{
     match_network, Config,
     PRE_KICKOFF_FILE_NAME, KICKOFF_FILE_NAME, TAKE1_FILE_NAME,
@@ -6,7 +7,7 @@ use crate::config::{
     TAKE2_FILE_NAME, DISPROVE_FILE_NAME, PEGIN_FILE_NAME
 };
 use crate::files::{
-    file_exists, load_disprove_witness, load_groth16_proof, load_groth16_pubin, load_groth16_vk, load_scripts_bytes_from_file, load_scripts_from_file, load_signed_assertions_from_file, load_wots_pubkeys, load_wots_seckeys, write_bytes_to_file, write_disprove_witness, write_scripts_to_file, write_signed_assertions_to_file, write_wots_pubkeys, write_wots_seckeys 
+    file_exists, load_disprove_witness, load_groth16_proof, load_groth16_pubin, load_groth16_vk, load_scripts_bytes_from_file, load_signed_assertions_from_file, load_wots_pubkeys, load_wots_seckeys, write_bytes_to_file, write_disprove_witness, write_scripts_bytes_to_file, write_signed_assertions_to_file, write_wots_pubkeys, write_wots_seckeys 
 };
 use crate::files::{WotsSecretKeys, WotsPublicKeys, SignedTransaction, Groth16WotsSecretKeys};
 use bitvm::chunk::api::type_conversion_utils::{script_to_witness, utils_raw_witnesses_from_signatures};
@@ -17,7 +18,7 @@ use bitvm::chunk::api::{
     Signatures as Groth16WotsSignatures,
 };
 use bitvm::signatures::{
-    wots_api::{wots256, wots_hash, HASH_LEN},
+    Wots, Wots16, Wots32, HASH_LEN,
     signing_winternitz::{
         WinternitzPublicKey, WinternitzSecret, LOG_D, WinternitzSigningInputs,
     },
@@ -81,18 +82,18 @@ pub(crate) fn handle_generate_disprove_scripts(conf: Config) {
 
     let partial_scripts = if file_exists(&conf.general.partial_scripts_file) {
         println!("\nloading existing partial scripts from {}...", &conf.general.partial_scripts_file);
-        load_scripts_from_file(&conf.general.partial_scripts_file)
+        load_scripts_bytes_from_file(&conf.general.partial_scripts_file)
     } else {
         println!("\ngenerating partial scripts...");
         let scrs = api_generate_partial_script(&ark_vkey);
-        write_scripts_to_file(&conf.general.partial_scripts_file, scrs.clone());
+        write_scripts_bytes_to_file(&conf.general.partial_scripts_file, scrs.clone());
         println!("\npartial scripts was written to {}", &conf.general.partial_scripts_file);
         scrs
     };
 
     println!("\ngenerating disprove scripts...");
     let disprove_scripts = api_generate_full_tapscripts(pubkeys.1, &partial_scripts);
-    write_scripts_to_file(&conf.general.disprove_scripts_file, disprove_scripts);
+    write_scripts_bytes_to_file(&conf.general.disprove_scripts_file, disprove_scripts);
     println!("\ndisprove scripts was written to {}", &conf.general.disprove_scripts_file);
 
     println!("-------------------done-------------------------");
@@ -157,9 +158,9 @@ pub(crate) fn handle_verify_proof(conf: Config) {
 
     println!("\nloading disprove scripts...");
     assert!(file_exists(&conf.general.disprove_scripts_file), "disprove scripts is not provided");
-    let disprove_scripts = load_scripts_from_file(&conf.general.disprove_scripts_file).try_into().unwrap();
+    let disprove_scripts_bytes = load_scripts_bytes_from_file(&conf.general.disprove_scripts_file);
 
-    let res = validate_assertions(&ark_vkey, proof_sigs, pubkey.1, &disprove_scripts);
+    let res = validate_assertions(&ark_vkey, proof_sigs, pubkey.1, &disprove_scripts_bytes.try_into().unwrap());
     match res {
         Some((index,witness)) => {
             write_disprove_witness(&conf.challenger.disprove_witness_file, index, witness);
@@ -1126,16 +1127,19 @@ pub(crate) fn handle_challenger_sign_disprove(conf: Config, reward_address: Addr
 pub(crate) fn secrets_to_pubkeys(secrets: &WotsSecretKeys) -> WotsPublicKeys {
     let mut pubins = vec![];
     for i in 0..NUM_PUBS {
-        pubins.push(wots256::generate_public_key(&secrets.1[i]));
+        let secret = Wots32::secret_from_str(&secrets.1[i]);
+        pubins.push(Wots32::generate_public_key(&secret));
     }
     let mut fq_arr = vec![];
     for i in 0..NUM_U256 {
-        let p256 = wots256::generate_public_key(&secrets.1[i+NUM_PUBS]);
+        let secret = Wots32::secret_from_str(&secrets.1[i+NUM_PUBS]);
+        let p256 = Wots32::generate_public_key(&secret);
         fq_arr.push(p256);
     }
     let mut h_arr = vec![];
     for i in 0..NUM_HASH {
-        let p160 = wots_hash::generate_public_key(&secrets.1[i+NUM_PUBS+NUM_U256]);
+        let secret = Wots16::secret_from_str(&secrets.1[i+NUM_PUBS+NUM_U256]);
+        let p160 = Wots16::generate_public_key(&secret);
         h_arr.push(p160);
     }
     let g16_wotspubkey: Groth16WotsPublicKeys = (
@@ -1188,7 +1192,7 @@ fn sha256_with_id(input: &str, idx: usize) -> String {
     sha256(&format!("{:x}{:04x}", hasher.finalize(), idx))
 }
 
-#[allow(dead_code)]
+#[allow(dead_code, deprecated)]
 pub(crate) fn corrupt(proof_sigs: &mut Groth16WotsSignatures, wots_sec: &Groth16WotsSecretKeys, index: usize) {
     let mut scramble: [u8; 32] = [1u8; 32];
     scramble[16] = 37;
@@ -1198,17 +1202,20 @@ pub(crate) fn corrupt(proof_sigs: &mut Groth16WotsSignatures, wots_sec: &Groth16
     if index < NUM_PUBS {
         let i = index;
         let assn = scramble;
-        let sig = wots256::get_signature(&wots_sec[index], &assn);
+        let secret = Wots32::secret_from_str(&wots_sec[index]);
+        let sig = Wots32::sign(&secret, &assn);
         proof_sigs.0[i] = sig;
     } else if index < NUM_PUBS + NUM_U256 {
         let i = index - NUM_PUBS;
         let assn = scramble;
-        let sig = wots256::get_signature(&wots_sec[index], &assn);
+        let secret = Wots32::secret_from_str(&wots_sec[index]);
+        let sig = Wots32::sign(&secret, &assn);
         proof_sigs.1[i] = sig;
     } else if index < NUM_PUBS + NUM_U256 + NUM_HASH {
         let i = index - NUM_PUBS - NUM_U256;
         let assn = scramble2;
-        let sig = wots_hash::get_signature(&wots_sec[index], &assn);
+        let secret = Wots16::secret_from_str(&wots_sec[index]);
+        let sig = Wots16::sign(&secret, &assn);
         proof_sigs.2[i] = sig;
     }
 }
