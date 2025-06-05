@@ -50,7 +50,7 @@ pub const MIN_RELAY_FEE_ASSERT_INITIAL: u64 = relay_fee(16380);
 pub const MIN_RELAY_FEE_ASSERT_COMMIT: u64 = relay_fee(98350);
 pub const MIN_RELAY_FEE_ASSERT_FINAL: u64 = relay_fee(490);
 pub const MIN_RELAY_FEE_CHALLENGE: u64 = relay_fee(317);
-pub const MIN_RELAY_FEE_DISPROVE: u64 = relay_fee(0); // let Challenger pay for disprove-tx
+pub const MIN_RELAY_FEE_DISPROVE: u64 = 1_000_000 * MIN_RELAY_FEE_RATE;
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct Input {

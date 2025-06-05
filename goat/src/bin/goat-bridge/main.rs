@@ -206,7 +206,8 @@ fn generate_corrupt_proof() {
     let conf_file = "./src/bin/goat-bridge/example.config.toml";
     let conf = load_config(&conf_file);
     // let target_script_index: u32 = 8;
-    let target_bitcom_index: usize = 8;
+    let target_bitcom_index: usize = 372;
+    println!("target_bitcom_index: {target_bitcom_index}");
 
     println!("loading operator wots secret keys ...");
     assert!(files::file_exists(&conf.operator.operator_wots_seckey_file), "operator_wots_seckey_file not provided");
@@ -229,12 +230,14 @@ fn generate_corrupt_proof() {
     println!("loading disprove scripts...");
     assert!(files::file_exists(&conf.general.disprove_scripts_file), "disprove scripts is not provided");
     let disprove_scripts_bytes = files::load_scripts_bytes_from_file(&conf.general.disprove_scripts_file);
+    let disprove_scripts_bytes = disprove_scripts_bytes.try_into().unwrap();
 
-    let res = bitvm::chunk::api::validate_assertions(&ark_vkey, proof_sigs, pubkey.1, &disprove_scripts_bytes.try_into().unwrap());
+    let res = bitvm::chunk::api::validate_assertions(&ark_vkey, proof_sigs, pubkey.1, &disprove_scripts_bytes);
     match res {
         Some((index,witness)) => {
-            files::write_disprove_witness(&conf.challenger.disprove_witness_file, index, witness);
+            files::write_disprove_witness(&conf.challenger.disprove_witness_file, index, witness.clone());
             println!("\nProof is invalid! Disprove witness is written to: {}", &conf.challenger.disprove_witness_file);
+            println!("\ntapleaf index: {index}, unlock script size: {}, lock script size: {}\n", witness.len(), disprove_scripts_bytes[index].len())
         },
         _ => {
             println!("\nProof is Ok.");
@@ -250,11 +253,13 @@ fn test_disprove_scripts_size() {
     let conf = load_config(&conf_file);
     
     assert!(files::file_exists(&conf.general.disprove_scripts_file), "disprove scripts not provided");
+    println!("loading disprove scripts...");
     let disprove_scripts_bytes = files::load_scripts_bytes_from_file(&conf.general.disprove_scripts_file);
 
     let scr_num = disprove_scripts_bytes.len();
     let mut sum_bytes = 0;
     let mut min_scr = (0, 10000000000);
+    let mut max_scr = (0, 0);
     for i in 0..disprove_scripts_bytes.len() {
         let scr_len = disprove_scripts_bytes[i].len();
         min_scr = if min_scr.1 > scr_len {
@@ -262,12 +267,18 @@ fn test_disprove_scripts_size() {
         } else {
             min_scr
         };
+        max_scr = if max_scr.1 < scr_len {
+            (i, scr_len)
+        } else {
+            max_scr
+        };
         sum_bytes += scr_len;
         println!("script {i} size: {scr_len}");
     }
     println!("total {scr_num} scripts");
     println!("total {sum_bytes} bytes");
     println!("min script: {:?} , size: {:?}", min_scr.0, min_scr.1);
+    println!("max script: {:?} , size: {:?}", max_scr.0, max_scr.1);
 }   
 
 #[test]

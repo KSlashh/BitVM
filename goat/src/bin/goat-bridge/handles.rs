@@ -25,7 +25,9 @@ use bitvm::signatures::{
     winternitz::Parameters, 
 };
 use goat::commitments::{NUM_KICKOFF, KICKOFF_MSG_SIZE, CommitmentMessageId};
+use goat::scripts::generate_burn_script_address;
 use goat::transactions::assert::utils::{convert_to_connector_c_commits_public_key, COMMIT_TX_NUM};
+use goat::transactions::base::DUST_AMOUNT;
 use goat::transactions::{
     base::{Input, CROWDFUNDING_AMOUNT, BaseTransaction}, 
     pre_signed::PreSignedTransaction,
@@ -62,7 +64,7 @@ use goat::contexts::{
 };
 use sha2::{Sha256, Digest};
 use bitcoin::{
-    Address, Amount, OutPoint, PublicKey, Witness, XOnlyPublicKey
+    Address, Amount, OutPoint, PublicKey, TxOut, Witness, XOnlyPublicKey
 };
 use musig2::SecNonce;
 use std::collections::HashMap;
@@ -587,6 +589,10 @@ pub(crate) fn handle_generate_bitvm_instance(conf: Config) {
         &connector_c, 
         disprove_input_0, 
         disprove_input_1,
+        TxOut {
+            script_pubkey: generate_burn_script_address(network).script_pubkey(),
+            value: Amount::from_sat(DUST_AMOUNT),
+        }
     );
     let disprove_tx_bytes = serde_json::to_vec_pretty(&disprove_tx).unwrap();
     let disprove_tx_file = format!("{}{}", &conf.general.txns_dir, DISPROVE_FILE_NAME);
@@ -1109,13 +1115,27 @@ pub(crate) fn handle_challenger_sign_disprove(conf: Config, reward_address: Addr
         assert_wots_commitment_keys,
         disprove_scripts_bytes,
     );
-    disprove_tx.add_input_output(
+    disprove_tx.sign_input_1(
         &connector_c, 
         input_script_index as u32, 
         script_to_witness(input_script_witness),
-        reward_address.script_pubkey(),
-        1.0
     );
+
+    // add reward output
+    disprove_tx.tx_mut().output.push(
+        TxOut {
+            script_pubkey: reward_address.script_pubkey(),
+            value: Amount::from_sat(DUST_AMOUNT),
+        }
+    ); 
+    let fee_rate = 1.1;
+    let fee_amount = Amount::from_sat((disprove_tx.tx().weight().to_vbytes_ceil() as f64 * fee_rate).ceil() as u64);
+    let mut reward_txout = disprove_tx.tx_mut().output.pop().unwrap();
+    let remaining_output_amount = disprove_tx.prev_outs().iter().map(|txout| txout.value).sum::<Amount>() - disprove_tx.tx().output.iter().map(|txout| txout.value).sum();
+    if remaining_output_amount > fee_amount {
+        reward_txout.value += remaining_output_amount - fee_amount;
+        disprove_tx.tx_mut().output.push(reward_txout);
+    } 
 
     let signed_disprove_tx_bytes =  serde_json::to_vec_pretty(&SignedTransaction::new(disprove_tx.finalize())).unwrap();
     let signed_disprove_tx_file = format!("{}{}", &conf.general.signed_txns_dir, DISPROVE_FILE_NAME);

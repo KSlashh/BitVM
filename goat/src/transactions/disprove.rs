@@ -1,5 +1,5 @@
 use bitcoin::{
-    absolute, consensus, Amount, Network, PublicKey, ScriptBuf, TapSighashType, Transaction, TxOut,
+    absolute, consensus, Network, PublicKey, ScriptBuf, TapSighashType, Transaction, TxOut,
 };
 use bitvm::chunk::api::type_conversion_utils::RawWitness;
 use musig2::{secp256k1::schnorr::Signature, PartialSignature, PubNonce, SecNonce};
@@ -11,7 +11,6 @@ use super::{
     super::{
         connectors::{base::*, connector_5::Connector5, connector_c::ConnectorC},
         contexts::{base::BaseContext, operator::OperatorContext, verifier::VerifierContext},
-        scripts::*,
     },
     base::*,
     pre_signed::*,
@@ -26,7 +25,6 @@ pub struct DisproveTransaction {
     #[serde(with = "consensus::serde::With::<consensus::serde::Hex>")]
     prev_outs: Vec<TxOut>,
     prev_scripts: Vec<ScriptBuf>,
-    reward_output_amount: Amount,
 
     musig2_nonces: HashMap<usize, HashMap<PublicKey, PubNonce>>,
     musig2_nonce_signatures: HashMap<usize, HashMap<PublicKey, Signature>>,
@@ -74,8 +72,9 @@ impl DisproveTransaction {
         connector_c: &ConnectorC,
         input_0: Input,
         input_1: Input,
+        fixed_output_0: TxOut,
     ) -> Self {
-        Self::new_for_validation(context.network, connector_5, connector_c, input_0, input_1)
+        Self::new_for_validation(context.network, connector_5, connector_c, input_0, input_1, fixed_output_0)
     }
 
     pub fn new_for_validation(
@@ -84,34 +83,19 @@ impl DisproveTransaction {
         connector_c: &ConnectorC,
         input_0: Input,
         input_1: Input,
+        fixed_output_0: TxOut,
     ) -> Self {
         let input_0_leaf = 1;
         let _input_0 = connector_5.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
 
         let _input_1 = generate_default_tx_in(&input_1);
 
-        // Since the final transaction size cannot be determined at the time of construction，
-        // relay fee will be calculated and deducted at the time of disprove
-        let total_output_amount = input_0.amount + input_1.amount;
-
-        let output_0_amount = Amount::from_sat(0);
-        let _output_0 = TxOut {
-            value: output_0_amount,
-            script_pubkey: generate_opreturn_script("challenge success".into()),
-        };
-
-        let reward_output_amount = total_output_amount - output_0_amount;
-        let _output_1 = TxOut {
-            value: reward_output_amount,
-            script_pubkey: ScriptBuf::default(),
-        };
-
         DisproveTransaction {
             tx: Transaction {
                 version: bitcoin::transaction::Version(2),
                 lock_time: absolute::LockTime::ZERO,
                 input: vec![_input_0, _input_1],
-                output: vec![_output_0, _output_1],
+                output: vec![fixed_output_0],
             },
             prev_outs: vec![
                 TxOut {
@@ -127,7 +111,6 @@ impl DisproveTransaction {
                 connector_5.generate_taproot_leaf_script(input_0_leaf),
                 // `input_1` prev_script is not known at this point
             ],
-            reward_output_amount,
             musig2_nonces: HashMap::new(),
             musig2_nonce_signatures: HashMap::new(),
             musig2_signatures: HashMap::new(),
@@ -199,19 +182,12 @@ impl DisproveTransaction {
         self.sign_input_0(context, connector_5, &secret_nonces[&input_index]);
     }
 
-    // The relay fee for Disprove transaction will be deducted from the reward
-    pub fn add_input_output(
+    pub fn sign_input_1(
         &mut self,
         connector_c: &ConnectorC,
         input_script_index: u32,
         input_script_witness: RawWitness,
-        output_script_pubkey: ScriptBuf,
-        fee_rate: f64,
     ) {
-        // Add output
-        let output_index = 1;
-        self.tx.output[output_index].script_pubkey = output_script_pubkey;
-
         let input_index = 1;
 
         // Push the unlocking witness
@@ -228,11 +204,6 @@ impl DisproveTransaction {
             &taproot_spend_info,
             &script,
         );
-
-        // Deduct relay fee
-        let fee_amount = Amount::from_sat((self.tx.weight().to_vbytes_ceil() as f64 * fee_rate).ceil() as u64);
-        assert!(fee_amount <= self.tx.output[output_index].value, "reward does not cover relay fee");
-        self.tx.output[output_index].value -= fee_amount;
     }
 
     pub fn merge(&mut self, disprove: &DisproveTransaction) {
