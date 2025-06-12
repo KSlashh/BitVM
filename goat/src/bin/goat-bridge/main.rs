@@ -205,8 +205,8 @@ fn generate_test_keys() {
 fn generate_corrupt_proof() {
     let conf_file = "./src/bin/goat-bridge/example.config.toml";
     let conf = load_config(&conf_file);
-    // let target_script_index: u32 = 8;
-    let target_bitcom_index: usize = 372;
+    // let target_script_index: u32 = 12;
+    let target_bitcom_index: usize = 8;
     println!("target_bitcom_index: {target_bitcom_index}");
 
     println!("loading operator wots secret keys ...");
@@ -277,8 +277,8 @@ fn test_disprove_scripts_size() {
     }
     println!("total {scr_num} scripts");
     println!("total {sum_bytes} bytes");
-    println!("min script: {:?} , size: {:?}", min_scr.0, min_scr.1);
-    println!("max script: {:?} , size: {:?}", max_scr.0, max_scr.1);
+    println!("min script: {:?} , size: {:?} bytes", min_scr.0, min_scr.1);
+    println!("max script: {:?} , size: {:?} bytes", max_scr.0, max_scr.1);
 }   
 
 #[test]
