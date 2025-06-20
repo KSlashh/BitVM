@@ -282,6 +282,7 @@ fn test_musig2() {
         connector_0::Connector0,
         connector_3::Connector3,
         connector_a::ConnectorA,
+        connector_b::ConnectorB,
     };
     use super::{
         base::Input,
@@ -326,6 +327,10 @@ fn test_musig2() {
         &operator_context.operator_taproot_public_key,
         &verifier_0_context.n_of_n_taproot_public_key,
     );
+    let connector_b = ConnectorB::new(
+        source_network,
+        &operator_context.operator_taproot_public_key,
+    );
     let mock_input = Input {
         outpoint: OutPoint {
             txid: Txid::from_str("a1075db55d416d3ca199f55b6084e2115b9345e16c5cf302fc80e9d5fbf5d48d").unwrap(),
@@ -340,8 +345,10 @@ fn test_musig2() {
         &connector_0, 
         &connector_3, 
         &connector_a, 
+        &connector_b,
         mock_input.clone(), 
         mock_input.clone(), 
+        mock_input.clone(),
         mock_input.clone(),
     );
     let pre_sign_input_index = 0;

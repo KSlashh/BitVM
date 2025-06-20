@@ -370,15 +370,25 @@ pub(crate) fn handle_generate_bitvm_instance(conf: Config) {
         },
         amount: kickoff_tx.tx().output[take1_input_2_vout].value,
     };
+    let take1_input_3_vout: usize = 2;
+    let take1_input_3 = Input {
+        outpoint: OutPoint {
+            txid: kickoff_txid,
+            vout: take1_input_3_vout as u32,
+        },
+        amount: kickoff_tx.tx().output[take1_input_3_vout].value,
+    };
     let take1_tx = Take1Transaction::new_for_validation(
         network,
         &operator_pubkey,
         &connector_0,
         &connector_3,
         &connector_a,
+        &connector_b,
         take1_input_0,
         take1_input_1,
         take1_input_2,
+        take1_input_3,
     );
     let take1_tx_bytes = serde_json::to_vec_pretty(&take1_tx).unwrap();
     let take1_tx_file = format!("{}{}", &conf.general.txns_dir, TAKE1_FILE_NAME);
