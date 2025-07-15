@@ -214,10 +214,6 @@ impl DisproveTransaction {
 
 impl BaseTransaction for DisproveTransaction {
     fn finalize(&self) -> Transaction {
-        if self.tx.input.len() < 2 || self.tx.output.len() < 2 {
-            panic!("Missing input or output. Call add_input_output before finalizing");
-        }
-
         self.tx.clone()
     }
     fn name(&self) -> &'static str { "Disprove" }
