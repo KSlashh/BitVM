@@ -1,17 +1,16 @@
-use super::assert::utils::COMMIT_TX_NUM;
 use super::pre_signed_musig2::{verify_public_nonce, PreSignedMusig2Transaction};
-use bitcoin::{Amount, OutPoint, PublicKey, Script, Transaction, Txid, XOnlyPublicKey, consensus};
 use bitcoin::policy::{DEFAULT_MIN_RELAY_TX_FEE, DUST_RELAY_TX_FEE};
+use bitcoin::{consensus, Amount, OutPoint, PublicKey, Script, Transaction, Txid, XOnlyPublicKey};
 use core::cmp;
 use itertools::Itertools;
 use musig2::{secp256k1::schnorr::Signature, PubNonce};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use serde::{Serialize, Deserialize};
 
 pub const CROWDFUNDING_AMOUNT: u64 = 100_000; // 0.001 btc
-// for commonly used type in codebase - p2wsh txout
-// 67 = (32 + 4 + 1 + (107 / WITNESS_SCALE_FACTOR) + 4) for segwit TxOut
-// TODO: Use lower dust amount for other txout types
+                                              // for commonly used type in codebase - p2wsh txout
+                                              // 67 = (32 + 4 + 1 + (107 / WITNESS_SCALE_FACTOR) + 4) for segwit TxOut
+                                              // TODO: Use lower dust amount for other txout types
 pub const DUST_AMOUNT: u64 = (43 + 67) * DUST_RELAY_FEE_RATE;
 pub const MIN_RELAY_FEE_RATE: u64 = (DEFAULT_MIN_RELAY_TX_FEE / 1000) as u64;
 pub const DUST_RELAY_FEE_RATE: u64 = (DUST_RELAY_TX_FEE / 1000) as u64;
@@ -20,20 +19,12 @@ pub const DUST_RELAY_FEE_RATE: u64 = (DUST_RELAY_TX_FEE / 1000) as u64;
 pub const REWARD_PRECISION: u64 = 1000;
 pub const REWARD_MULTIPLIER: u64 = 20;
 
-pub const MIN_RELAY_FEE_ASSERT_SET: u64 = MIN_RELAY_FEE_ASSERT_INITIAL
-    + MIN_RELAY_FEE_ASSERT_COMMIT * COMMIT_TX_NUM as u64
-    + MIN_RELAY_FEE_ASSERT_FINAL;
-// use largest fee from each depth
-// assert fee is big enough to cover disprove chain or take 1
-// disprove fee is big enough to cover take 2
-pub const PEG_OUT_FEE: u64 = MIN_RELAY_FEE_PEG_OUT_CONFIRM // depth 0
-    + MIN_RELAY_FEE_KICK_OFF // depth 1
-    + MIN_RELAY_FEE_ASSERT_SET // depth 2
-    + MIN_RELAY_FEE_DISPROVE; // depth 3
 pub const PEG_IN_FEE: u64 =
     MIN_RELAY_FEE_PEG_IN_DEPOSIT + max(MIN_RELAY_FEE_PEG_IN_CONFIRM, MIN_RELAY_FEE_PEG_IN_REFUND);
 
-pub const fn max(a: u64, b: u64) -> u64 { [a, b][(a < b) as usize] }
+pub const fn max(a: u64, b: u64) -> u64 {
+    [a, b][(a < b) as usize]
+}
 
 // TODO: set to larger value to be compatible with future tx modifications
 // TODO: consider use CPFP to avoid uncertainty
