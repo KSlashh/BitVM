@@ -128,7 +128,7 @@ impl PegInRefundTransaction {
     ) -> Self {
         let mut this = Self::new_for_validation(connector_z, input_0, refund_address, fee_amount);
 
-        this.sign_input_0_with_signature(connector_z, signature);
+        this.push_input_0_signature(connector_z, signature);
 
         this
     }
@@ -164,7 +164,7 @@ impl PegInRefundTransaction {
         }
     }
 
-    fn sign_input_0_with_signature(
+    fn push_input_0_signature(
         &mut self,
         connector_z: &ConnectorZ,
         signature: bitcoin::taproot::Signature,
@@ -251,7 +251,7 @@ impl PegInConfirmTransaction {
         }
     }
 
-    pub fn push_pre_sigs(
+    pub fn push_input_0_signature(
         &mut self,
         connector_0: &Connector0,
         input_0_sig: bitcoin::taproot::Signature,

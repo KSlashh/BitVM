@@ -7,28 +7,18 @@ use musig2::{secp256k1::schnorr::Signature, PubNonce};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-pub const CROWDFUNDING_AMOUNT: u64 = 100_000; // 0.001 btc
-                                              // for commonly used type in codebase - p2wsh txout
-                                              // 67 = (32 + 4 + 1 + (107 / WITNESS_SCALE_FACTOR) + 4) for segwit TxOut
-                                              // TODO: Use lower dust amount for other txout types
 pub const DUST_AMOUNT: u64 = (43 + 67) * DUST_RELAY_FEE_RATE;
 pub const MIN_RELAY_FEE_RATE: u64 = (DEFAULT_MIN_RELAY_TX_FEE / 1000) as u64;
 pub const DUST_RELAY_FEE_RATE: u64 = (DUST_RELAY_TX_FEE / 1000) as u64;
-
-// set reward percentage as 2% of peg in deposit
-pub const REWARD_PRECISION: u64 = 1000;
-pub const REWARD_MULTIPLIER: u64 = 20;
-
-pub const PEG_IN_FEE: u64 =
-    MIN_RELAY_FEE_PEG_IN_DEPOSIT + max(MIN_RELAY_FEE_PEG_IN_CONFIRM, MIN_RELAY_FEE_PEG_IN_REFUND);
 
 pub const fn max(a: u64, b: u64) -> u64 {
     [a, b][(a < b) as usize]
 }
 
-// TODO: set to larger value to be compatible with future tx modifications
-// TODO: consider use CPFP to avoid uncertainty
-pub const RELAY_FEE_BUFFER_MULTIPLIER: f32 = 6.0;
+pub const MAX_PEGOUT_COST: u64 = 100_000; // 0.001 BTC
+pub const MIN_RELAY_FEE_WATCHTOWER_CHALLENGE_INIT_FEE: u64 = relay_fee(10000); // TODO
+
+pub const RELAY_FEE_BUFFER_MULTIPLIER: f32 = 1.2;
 pub const ACCELERATE_FEE_MULTIPLIER: u64 = 2;
 pub const MIN_RELAY_FEE_KICK_OFF: u64 = relay_fee(3212) * ACCELERATE_FEE_MULTIPLIER;
 pub const MIN_RELAY_FEE_TAKE_1: u64 = relay_fee(364) * ACCELERATE_FEE_MULTIPLIER;
