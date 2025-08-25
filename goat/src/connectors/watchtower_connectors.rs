@@ -1,8 +1,8 @@
 use bitcoin::{
     taproot::{TaprootBuilder, TaprootSpendInfo},
-    Address, Network, ScriptBuf, TxIn, XOnlyPublicKey,
+    Address, Network, ScriptBuf, TxIn, Witness, XOnlyPublicKey,
 };
-use bitvm::treepp::script;
+use bitvm::{chunk::api::type_conversion_utils::script_to_witness, treepp::*};
 use secp256k1::SECP256K1;
 use serde::{Deserialize, Serialize};
 
@@ -12,7 +12,7 @@ use crate::{
 };
 
 use super::{
-    super::{scripts::*, transactions::base::Input},
+    super::{error::Error, scripts::*, transactions::base::Input},
     base::*,
 };
 
@@ -134,8 +134,22 @@ impl AckConnector {
             OP_HASH160
             { self.hashlock.to_vec() }
             OP_EQUALVERIFY
+            OP_TRUE
         }
         .compile()
+    }
+
+    pub fn generate_leaf_1_witness(&self, preimage: &[u8]) -> Result<Witness, Error> {
+        let witness_script = script! {
+            { preimage.to_vec() }
+        };
+        let witness = script_to_witness(witness_script.clone());
+        let verification_script = witness_script.push_script(self.generate_taproot_leaf_1_script());
+        let exec_result = execute_script(verification_script);
+        match exec_result.success {
+            true => Ok(witness.into()),
+            false => Err(Error::Other("Invalid preimage for ACK connector.")),
+        }
     }
 
     fn generate_taproot_leaf_1_tx_in(&self, input: &Input) -> TxIn {

@@ -1,14 +1,16 @@
 use bitcoin::{
     taproot::{TaprootBuilder, TaprootSpendInfo},
-    Address, Network, ScriptBuf, TxIn, XOnlyPublicKey,
+    Address, Network, ScriptBuf, TxIn, Witness, XOnlyPublicKey,
 };
-use bitvm::signatures::{signing_winternitz::WinternitzPublicKey, CompactWots, Wots, Wots32};
-use bitvm::treepp::script;
+use bitvm::signatures::{
+    signing_winternitz::WinternitzPublicKey, CompactWots, WinternitzSecret, Wots, Wots32,
+};
+use bitvm::treepp::*;
 use secp256k1::SECP256K1;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    super::{scripts::*, transactions::base::Input},
+    super::{error::Error, scripts::*, transactions::base::Input},
     base::*,
 };
 
@@ -51,8 +53,26 @@ impl ConnectorG {
             .unwrap();
         script! {
             { Wots32::compact_checksig_verify_and_clear_stack(&blockhash_wots_pubkey) }
+            OP_TRUE
         }
         .compile()
+    }
+
+    pub fn generate_leaf_0_witness(
+        &self,
+        wots_secret_key: &WinternitzSecret,
+        latest_blockhash: &[u8; 32],
+    ) -> Result<Witness, Error> {
+        let witness = Wots32::compact_sign_to_raw_witness(wots_secret_key, latest_blockhash);
+        let witness_script = script! {
+            { witness.clone() }
+        };
+        let verification_script = witness_script.push_script(self.generate_taproot_leaf_0_script());
+        let exec_result = execute_script(verification_script);
+        match exec_result.success {
+            true => Ok(witness),
+            false => Err(Error::Other("Invalid WOTS secret-key for Connector G.")),
+        }
     }
 
     fn generate_taproot_leaf_0_tx_in(&self, input: &Input) -> TxIn {
