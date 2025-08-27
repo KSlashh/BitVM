@@ -1,7 +1,10 @@
+pub mod assert_connectors;
 pub mod base;
 pub mod connector_0;
 pub mod connector_a;
 pub mod connector_b;
+pub mod connector_c;
+pub mod connector_d;
 pub mod connector_f;
 pub mod connector_g;
 pub mod connector_z;

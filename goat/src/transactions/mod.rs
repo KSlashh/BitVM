@@ -1,3 +1,4 @@
+pub mod assert;
 pub mod base;
 pub mod challenge;
 pub mod pegin;

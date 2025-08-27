@@ -228,7 +228,7 @@ impl WatchtowerChallengeInitTransaction {
         let _input_0 = connector_b.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
 
         let mut total_output_amount =
-            input_0.amount - Amount::from_sat(MIN_RELAY_FEE_WATCHTOWER_CHALLENGE_INIT_FEE);
+            input_0.amount - Amount::from_sat(MIN_RELAY_FEE_WATCHTOWER_CHALLENGE_INIT);
         let mut txouts = vec![];
         for watchtower_connectors in watchtower_connectors_array {
             let challenge_output = TxOut {
@@ -399,7 +399,9 @@ impl WatchtowerChallengeTimeoutTransaction {
         agg_nonce: &AggNonce,
     ) -> Result<PartialSignature, SigningError> {
         let input_index = 1;
-        let sighash_type = TapSighashType::All;
+        // We choose SIGHASH_NONE here, so if the fee_rate is low enough, the operator can replace the
+        // anchor output with an OP_RETURN output carrying 0 amount, eliminating the need for additional CPFP.
+        let sighash_type = TapSighashType::None;
         generate_taproot_partial_signature(
             &context,
             self.tx(),

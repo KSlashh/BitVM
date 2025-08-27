@@ -2,12 +2,12 @@ use bitcoin::{
     taproot::{TaprootBuilder, TaprootSpendInfo},
     Address, Network, ScriptBuf, TxIn, Witness, XOnlyPublicKey,
 };
-use bitvm::signatures::{
-    signing_winternitz::WinternitzPublicKey, CompactWots, WinternitzSecret, Wots, Wots32,
-};
+use bitvm::signatures::{signing_winternitz::WinternitzPublicKey, WinternitzSecret, Wots, Wots32};
 use bitvm::treepp::*;
 use secp256k1::SECP256K1;
 use serde::{Deserialize, Serialize};
+
+use crate::{constants::CONNECTOR_G_TIMELOCK, utils::num_blocks_per_network};
 
 use super::{
     super::{error::Error, scripts::*, transactions::base::Input},
@@ -29,7 +29,6 @@ impl ConnectorG {
         n_of_n_taproot_public_key: &XOnlyPublicKey,
         operator_taproot_public_key: &XOnlyPublicKey,
         blockhash_wots_pubkey: &<Wots32 as Wots>::PublicKey,
-        operator_commit_blocks_timelock: u32,
     ) -> Self {
         let blockhash_wots_pubkey = WinternitzPublicKey {
             public_key: blockhash_wots_pubkey.to_vec(),
@@ -40,7 +39,7 @@ impl ConnectorG {
             n_of_n_taproot_public_key: *n_of_n_taproot_public_key,
             operator_taproot_public_key: *operator_taproot_public_key,
             blockhash_wots_pubkey,
-            operator_commit_blocks_timelock,
+            operator_commit_blocks_timelock: num_blocks_per_network(network, CONNECTOR_G_TIMELOCK),
         }
     }
 
@@ -52,7 +51,7 @@ impl ConnectorG {
             .try_into()
             .unwrap();
         script! {
-            { Wots32::compact_checksig_verify_and_clear_stack(&blockhash_wots_pubkey) }
+            { Wots32::checksig_verify_and_clear_stack(&blockhash_wots_pubkey) }
             OP_TRUE
         }
         .compile()
@@ -63,7 +62,7 @@ impl ConnectorG {
         wots_secret_key: &WinternitzSecret,
         latest_blockhash: &[u8; 32],
     ) -> Result<Witness, Error> {
-        let witness = Wots32::compact_sign_to_raw_witness(wots_secret_key, latest_blockhash);
+        let witness = Wots32::sign_to_raw_witness(wots_secret_key, latest_blockhash);
         let witness_script = script! {
             { witness.clone() }
         };
@@ -124,4 +123,29 @@ impl TaprootConnector for ConnectorG {
             self.network,
         )
     }
+}
+
+#[test]
+fn test_connector_g_leaf_0() {
+    let secp = &SECP256K1;
+    let mut rng = rand::thread_rng();
+    let kp = bitcoin::key::Keypair::new(secp, &mut rng);
+    let (xonly_pk, _) = XOnlyPublicKey::from_keypair(&kp);
+
+    let wots_privkey = Wots32::generate_secret_key();
+    let wots_pubkey = Wots32::generate_public_key(&wots_privkey);
+    let latest_blockhash = [1u8; 32];
+
+    let connector_g = ConnectorG::new(Network::Regtest, &xonly_pk, &xonly_pk, &wots_pubkey);
+
+    let witness = connector_g
+        .generate_leaf_0_witness(&wots_privkey, &latest_blockhash)
+        .unwrap();
+
+    let verification_script = script! {
+        { witness.clone() }
+    }
+    .push_script(connector_g.generate_taproot_leaf_0_script());
+    let exec_result = execute_script(verification_script);
+    assert!(exec_result.success);
 }

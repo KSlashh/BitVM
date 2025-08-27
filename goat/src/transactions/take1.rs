@@ -4,7 +4,10 @@ use bitcoin::{
 use musig2::{errors::SigningError, AggNonce, PartialSignature, SecNonce};
 use serde::{Deserialize, Serialize};
 
-use crate::transactions::signing_musig2::generate_taproot_partial_signature;
+use crate::{
+    connectors::{connector_b::ConnectorB, connector_c::ConnectorC},
+    transactions::signing_musig2::generate_taproot_partial_signature,
+};
 
 use super::{
     super::{
@@ -51,10 +54,14 @@ impl Take1Transaction {
     pub fn new_for_validation(
         connector_0: &Connector0,
         connector_a: &ConnectorA,
+        connector_b: &ConnectorB,
+        connector_c: &ConnectorC,
         guardian_connector: &GuardianConnector,
         input_0: Input,
         input_1: Input,
         input_2: Input,
+        input_3: Input,
+        input_4: Input,
         operator_address: &Address,
     ) -> Self {
         let input_0_leaf = 0;
@@ -64,23 +71,30 @@ impl Take1Transaction {
         let _input_1 = connector_a.generate_taproot_leaf_tx_in(input_1_leaf, &input_1);
 
         let input_2_leaf = 0;
-        let _input_2 = guardian_connector.generate_taproot_leaf_tx_in(input_2_leaf, &input_2);
+        let _input_2 = connector_b.generate_taproot_leaf_tx_in(input_2_leaf, &input_2);
 
-        let total_output_amount = input_0.amount + input_1.amount + input_2.amount
-            - Amount::from_sat(MIN_RELAY_FEE_TAKE_1);
+        let input_3_leaf = 0;
+        let _input_3 = connector_c.generate_taproot_leaf_tx_in(input_3_leaf, &input_3);
 
-        let output_0 = TxOut {
-            value: total_output_amount,
-            script_pubkey: operator_address.script_pubkey(),
-        };
+        let input_4_leaf = 0;
+        let _input_4 = guardian_connector.generate_taproot_leaf_tx_in(input_4_leaf, &input_4);
+
+        let total_output_amount =
+            input_0.amount + input_1.amount + input_2.amount + input_3.amount + input_4.amount
+                - Amount::from_sat(MIN_RELAY_FEE_TAKE_1);
 
         let output_1 = p2a_output();
+
+        let output_0 = TxOut {
+            value: total_output_amount - output_1.value,
+            script_pubkey: operator_address.script_pubkey(),
+        };
 
         Take1Transaction {
             tx: Transaction {
                 version: bitcoin::transaction::Version(2),
                 lock_time: absolute::LockTime::ZERO,
-                input: vec![_input_0, _input_1, _input_2],
+                input: vec![_input_0, _input_1, _input_2, _input_3, _input_4],
                 output: vec![output_0, output_1],
             },
             prev_outs: vec![
@@ -94,6 +108,14 @@ impl Take1Transaction {
                 },
                 TxOut {
                     value: input_2.amount,
+                    script_pubkey: connector_b.generate_taproot_address().script_pubkey(),
+                },
+                TxOut {
+                    value: input_3.amount,
+                    script_pubkey: connector_c.generate_taproot_address().script_pubkey(),
+                },
+                TxOut {
+                    value: input_4.amount,
                     script_pubkey: guardian_connector
                         .generate_taproot_address()
                         .script_pubkey(),
@@ -102,7 +124,9 @@ impl Take1Transaction {
             prev_scripts: vec![
                 connector_0.generate_taproot_leaf_script(input_0_leaf),
                 connector_a.generate_taproot_leaf_script(input_1_leaf),
-                guardian_connector.generate_taproot_leaf_script(input_2_leaf),
+                connector_b.generate_taproot_leaf_script(input_2_leaf),
+                connector_c.generate_taproot_leaf_script(input_3_leaf),
+                guardian_connector.generate_taproot_leaf_script(input_4_leaf),
             ],
         }
     }
@@ -185,12 +209,34 @@ impl Take1Transaction {
         );
     }
 
-    pub fn sign_input_2(
+    pub fn sign_input_2(&mut self, context: &OperatorContext, connector_b: &ConnectorB) {
+        let input_index = 2;
+        pre_sign_taproot_input_default(
+            self,
+            input_index,
+            TapSighashType::All,
+            connector_b.generate_taproot_spend_info(),
+            &vec![&context.operator_keypair],
+        );
+    }
+
+    pub fn sign_input_3(&mut self, context: &OperatorContext, connector_c: &ConnectorC) {
+        let input_index = 3;
+        pre_sign_taproot_input_default(
+            self,
+            input_index,
+            TapSighashType::All,
+            connector_c.generate_taproot_spend_info(),
+            &vec![&context.operator_keypair],
+        );
+    }
+
+    pub fn sign_input_4(
         &mut self,
         context: &OperatorContext,
         guardian_connector: &GuardianConnector,
     ) {
-        let input_index = 2;
+        let input_index = 4;
         pre_sign_taproot_input_default(
             self,
             input_index,

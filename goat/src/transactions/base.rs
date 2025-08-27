@@ -16,7 +16,8 @@ pub const fn max(a: u64, b: u64) -> u64 {
 }
 
 pub const MAX_PEGOUT_COST: u64 = 100_000; // 0.001 BTC
-pub const MIN_RELAY_FEE_WATCHTOWER_CHALLENGE_INIT_FEE: u64 = relay_fee(10000); // TODO
+pub const MIN_RELAY_FEE_WATCHTOWER_CHALLENGE_INIT: u64 = relay_fee(10000); // TODO
+pub const MIN_RELAY_FEE_ASSERT_INIT: u64 = relay_fee(10000); // TODO
 
 pub const RELAY_FEE_BUFFER_MULTIPLIER: f32 = 1.2;
 pub const ACCELERATE_FEE_MULTIPLIER: u64 = 2;
