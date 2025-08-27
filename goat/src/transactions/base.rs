@@ -6,6 +6,7 @@ use itertools::Itertools;
 use musig2::{secp256k1::schnorr::Signature, PubNonce};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use tokio::sync::watch;
 
 pub const DUST_AMOUNT: u64 = (43 + 67) * DUST_RELAY_FEE_RATE;
 pub const MIN_RELAY_FEE_RATE: u64 = (DEFAULT_MIN_RELAY_TX_FEE / 1000) as u64;
@@ -15,25 +16,39 @@ pub const fn max(a: u64, b: u64) -> u64 {
     [a, b][(a < b) as usize]
 }
 
-pub const MAX_PEGOUT_COST: u64 = 100_000; // 0.001 BTC
-pub const MIN_RELAY_FEE_WATCHTOWER_CHALLENGE_INIT: u64 = relay_fee(10000); // TODO
-pub const MIN_RELAY_FEE_ASSERT_INIT: u64 = relay_fee(10000); // TODO
-
+// TODO: accurately calculate the relay fee
 pub const RELAY_FEE_BUFFER_MULTIPLIER: f32 = 1.2;
 pub const ACCELERATE_FEE_MULTIPLIER: u64 = 2;
-pub const MIN_RELAY_FEE_KICK_OFF: u64 = relay_fee(3212) * ACCELERATE_FEE_MULTIPLIER;
-pub const MIN_RELAY_FEE_TAKE_1: u64 = relay_fee(364) * ACCELERATE_FEE_MULTIPLIER;
-pub const MIN_RELAY_FEE_TAKE_2: u64 = relay_fee(347) * ACCELERATE_FEE_MULTIPLIER;
-pub const MIN_RELAY_FEE_PEG_IN_DEPOSIT: u64 = relay_fee(122);
-pub const MIN_RELAY_FEE_PEG_IN_CONFIRM: u64 = relay_fee(173);
-pub const MIN_RELAY_FEE_PEG_IN_REFUND: u64 = relay_fee(138);
-pub const MIN_RELAY_FEE_PEG_OUT_CONFIRM: u64 = relay_fee(122);
-pub const MIN_RELAY_FEE_ASSERT: u64 = relay_fee(232);
-pub const MIN_RELAY_FEE_ASSERT_INITIAL: u64 = relay_fee(16700);
-pub const MIN_RELAY_FEE_ASSERT_COMMIT: u64 = relay_fee(98350);
-pub const MIN_RELAY_FEE_ASSERT_FINAL: u64 = relay_fee(490);
-pub const MIN_RELAY_FEE_CHALLENGE: u64 = relay_fee(317);
+pub const MIN_RELAY_FEE_PRE_KICKOFF: u64 = relay_fee(3212);
+pub const MIN_RELAY_FEE_KICKOFF: u64 = relay_fee(3212);
+pub const MIN_RELAY_FEE_TAKE_1: u64 = relay_fee(364);
+pub const MIN_RELAY_FEE_TAKE_2: u64 = relay_fee(347);
 pub const MIN_RELAY_FEE_DISPROVE: u64 = 1_000_000 * MIN_RELAY_FEE_RATE;
+
+pub const fn min_relay_fee_watchtower_challenge_init(watchtower_num: usize) -> u64 {
+    // TODO
+    1000000
+}
+
+pub const fn min_relay_fee_assert_init(num_asserts: usize) -> u64 {
+    // TODO
+    1000000
+}
+
+pub const fn max_assert_cost(num_assert_commits: usize) -> u64 {
+    // TODO
+    1000000
+}
+
+pub const fn max_watchtower_challenge_cost(num_watchtowers: usize) -> u64 {
+    // TODO
+    1000000
+}
+
+pub const fn max_pegout_cost(num_watchtowers: usize, num_assert_commits: usize) -> u64 {
+    // TODO
+    1000000
+}
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct Input {

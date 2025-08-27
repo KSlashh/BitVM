@@ -4,20 +4,16 @@ use bitcoin::{
 use musig2::{errors::SigningError, AggNonce, PartialSignature, SecNonce};
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    connectors::{connector_b::ConnectorB, connector_c::ConnectorC},
-    error::{Error, TransactionError::InsufficientInputAmount},
-    transactions::signing_musig2::generate_taproot_partial_signature,
-};
-
 use super::{
     super::{
         connectors::{
-            base::*, connector_0::Connector0, connector_a::ConnectorA,
-            kickoff_connectors::GuardianConnector,
+            base::*, connector_0::Connector0, connector_d::ConnectorD, connector_e::ConnectorE,
+            connector_f::ConnectorF, kickoff_connectors::GuardianConnector,
         },
         contexts::{operator::OperatorContext, verifier::VerifierContext},
+        error::{Error, TransactionError::InsufficientInputAmount},
         scripts::*,
+        transactions::signing_musig2::generate_taproot_partial_signature,
     },
     base::*,
     pre_signed::*,
@@ -25,14 +21,15 @@ use super::{
 };
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct Take1Transaction {
+pub struct Take2Transaction {
     #[serde(with = "consensus::serde::With::<consensus::serde::Hex>")]
     tx: Transaction,
     #[serde(with = "consensus::serde::With::<consensus::serde::Hex>")]
     prev_outs: Vec<TxOut>,
     prev_scripts: Vec<ScriptBuf>,
 }
-impl PreSignedTransaction for Take1Transaction {
+
+impl PreSignedTransaction for Take2Transaction {
     fn tx(&self) -> &Transaction {
         &self.tx
     }
@@ -49,12 +46,13 @@ impl PreSignedTransaction for Take1Transaction {
         &self.prev_scripts
     }
 }
-impl Take1Transaction {
+
+impl Take2Transaction {
     pub fn new_for_validation(
         connector_0: &Connector0,
-        connector_a: &ConnectorA,
-        connector_b: &ConnectorB,
-        connector_c: &ConnectorC,
+        connector_d: &ConnectorD,
+        connector_e: &ConnectorE,
+        connector_f: &ConnectorF,
         guardian_connector: &GuardianConnector,
         input_0: Input,
         input_1: Input,
@@ -67,13 +65,12 @@ impl Take1Transaction {
         let _input_0 = connector_0.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
 
         let input_1_leaf = 0;
-        let _input_1 = connector_a.generate_taproot_leaf_tx_in(input_1_leaf, &input_1);
+        let _input_1 = connector_d.generate_taproot_leaf_tx_in(input_1_leaf, &input_1);
 
-        let input_2_leaf = 0;
-        let _input_2 = connector_b.generate_taproot_leaf_tx_in(input_2_leaf, &input_2);
+        let _input_2 = generate_default_tx_in(&input_2);
 
         let input_3_leaf = 0;
-        let _input_3 = connector_c.generate_taproot_leaf_tx_in(input_3_leaf, &input_3);
+        let _input_3 = connector_f.generate_taproot_leaf_tx_in(input_3_leaf, &input_3);
 
         let input_4_leaf = 0;
         let _input_4 = guardian_connector.generate_taproot_leaf_tx_in(input_4_leaf, &input_4);
@@ -81,11 +78,11 @@ impl Take1Transaction {
         let total_input_amount =
             input_0.amount + input_1.amount + input_2.amount + input_3.amount + input_4.amount;
 
-        if total_input_amount < (Amount::from_sat(MIN_RELAY_FEE_TAKE_1 + 2 * DUST_AMOUNT)) {
+        if total_input_amount < (Amount::from_sat(MIN_RELAY_FEE_TAKE_2 + 2 * DUST_AMOUNT)) {
             return Err(Error::Transaction(InsufficientInputAmount));
         }
 
-        let total_output_amount = total_input_amount - Amount::from_sat(MIN_RELAY_FEE_TAKE_1);
+        let total_output_amount = total_input_amount - Amount::from_sat(MIN_RELAY_FEE_TAKE_2);
 
         let output_1 = p2a_output();
 
@@ -94,7 +91,7 @@ impl Take1Transaction {
             script_pubkey: operator_address.script_pubkey(),
         };
 
-        Ok(Take1Transaction {
+        Ok(Take2Transaction {
             tx: Transaction {
                 version: bitcoin::transaction::Version(2),
                 lock_time: absolute::LockTime::ZERO,
@@ -108,15 +105,15 @@ impl Take1Transaction {
                 },
                 TxOut {
                     value: input_1.amount,
-                    script_pubkey: connector_a.generate_taproot_address().script_pubkey(),
+                    script_pubkey: connector_d.generate_taproot_address().script_pubkey(),
                 },
                 TxOut {
                     value: input_2.amount,
-                    script_pubkey: connector_b.generate_taproot_address().script_pubkey(),
+                    script_pubkey: connector_e.generate_taproot_address().script_pubkey(),
                 },
                 TxOut {
                     value: input_3.amount,
-                    script_pubkey: connector_c.generate_taproot_address().script_pubkey(),
+                    script_pubkey: connector_f.generate_taproot_address().script_pubkey(),
                 },
                 TxOut {
                     value: input_4.amount,
@@ -127,9 +124,9 @@ impl Take1Transaction {
             ],
             prev_scripts: vec![
                 connector_0.generate_taproot_leaf_script(input_0_leaf),
-                connector_a.generate_taproot_leaf_script(input_1_leaf),
-                connector_b.generate_taproot_leaf_script(input_2_leaf),
-                connector_c.generate_taproot_leaf_script(input_3_leaf),
+                connector_d.generate_taproot_leaf_script(input_1_leaf),
+                // No `input_2` script - key spend path is used
+                connector_f.generate_taproot_leaf_script(input_3_leaf),
                 guardian_connector.generate_taproot_leaf_script(input_4_leaf),
             ],
         })
@@ -202,35 +199,39 @@ impl Take1Transaction {
         self.push_input_0_signature(connector_0, pre_sigs[0].clone());
     }
 
-    pub fn sign_input_1(&mut self, context: &OperatorContext, connector_a: &ConnectorA) {
+    pub fn sign_input_1(&mut self, context: &OperatorContext, connector_d: &ConnectorD) {
         let input_index = 1;
         pre_sign_taproot_input_default(
             self,
             input_index,
             TapSighashType::All,
-            connector_a.generate_taproot_spend_info(),
+            connector_d.generate_taproot_spend_info(),
             &vec![&context.operator_keypair],
         );
     }
 
-    pub fn sign_input_2(&mut self, context: &OperatorContext, connector_b: &ConnectorB) {
+    pub fn sign_input_2(&mut self, context: &OperatorContext, connector_e: &ConnectorE) {
         let input_index = 2;
-        pre_sign_taproot_input_default(
-            self,
+        let prev_outs = &self.prev_outs().clone();
+        let merkle_root = connector_e.taproot_merkle_root;
+
+        populate_p2tr_key_spend_witness(
+            self.tx_mut(),
             input_index,
+            prev_outs,
             TapSighashType::All,
-            connector_b.generate_taproot_spend_info(),
-            &vec![&context.operator_keypair],
+            merkle_root,
+            &context.operator_keypair,
         );
     }
 
-    pub fn sign_input_3(&mut self, context: &OperatorContext, connector_c: &ConnectorC) {
+    pub fn sign_input_3(&mut self, context: &OperatorContext, connector_f: &ConnectorF) {
         let input_index = 3;
         pre_sign_taproot_input_default(
             self,
             input_index,
             TapSighashType::All,
-            connector_c.generate_taproot_spend_info(),
+            connector_f.generate_taproot_spend_info(),
             &vec![&context.operator_keypair],
         );
     }
@@ -251,11 +252,11 @@ impl Take1Transaction {
     }
 }
 
-impl BaseTransaction for Take1Transaction {
+impl BaseTransaction for Take2Transaction {
     fn finalize(&self) -> Transaction {
         self.tx.clone()
     }
     fn name(&self) -> &'static str {
-        "Take1"
+        "Take2"
     }
 }

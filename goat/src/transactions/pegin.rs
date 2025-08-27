@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     connectors::connector_0::Connector0,
+    error::{Error, TransactionError::InsufficientInputAmount},
     transactions::signing::populate_taproot_input_witness_with_signature,
 };
 
@@ -25,7 +26,6 @@ pub struct PegInDepositTransaction {
     fee_amount: Amount,
     pub input_amounts: Vec<Amount>,
 }
-
 impl PegInDepositTransaction {
     pub fn new_unsigned(
         connector_z: &ConnectorZ,
@@ -33,7 +33,7 @@ impl PegInDepositTransaction {
         deposit_amount: Amount,
         fee_amount: Amount,
         change_address: Address,
-    ) -> Self {
+    ) -> Result<Self, Error> {
         let mut total_input_amount = Amount::ZERO;
         let input_amounts: Vec<Amount> = inputs.iter().map(|input| input.amount).collect();
         let txins: Vec<TxIn> = inputs
@@ -43,6 +43,10 @@ impl PegInDepositTransaction {
                 generate_default_tx_in(input)
             })
             .collect();
+        if total_input_amount < deposit_amount + fee_amount {
+            return Err(Error::Transaction(InsufficientInputAmount));
+        }
+
         let change_amount = total_input_amount - deposit_amount - fee_amount;
         let mut txouts = vec![];
         let output_0 = TxOut {
@@ -61,7 +65,7 @@ impl PegInDepositTransaction {
             fee_amount += change_amount;
         }
 
-        PegInDepositTransaction {
+        Ok(PegInDepositTransaction {
             tx: Transaction {
                 version: bitcoin::transaction::Version(2),
                 lock_time: absolute::LockTime::ZERO,
@@ -70,7 +74,7 @@ impl PegInDepositTransaction {
             },
             fee_amount,
             input_amounts,
-        }
+        })
     }
 
     pub fn tx_mut(&mut self) -> &mut Transaction {
@@ -81,7 +85,6 @@ impl PegInDepositTransaction {
         &self.tx
     }
 }
-
 impl BaseTransaction for PegInDepositTransaction {
     fn finalize(&self) -> Transaction {
         self.tx.clone()
@@ -99,7 +102,6 @@ pub struct PegInRefundTransaction {
     prev_outs: Vec<TxOut>,
     prev_scripts: Vec<ScriptBuf>,
 }
-
 impl PreSignedTransaction for PegInRefundTransaction {
     fn tx(&self) -> &Transaction {
         &self.tx
@@ -117,7 +119,6 @@ impl PreSignedTransaction for PegInRefundTransaction {
         &self.prev_scripts
     }
 }
-
 impl PegInRefundTransaction {
     pub fn new_with_signature(
         connector_z: &ConnectorZ,
@@ -125,12 +126,14 @@ impl PegInRefundTransaction {
         refund_address: &Address,
         fee_amount: Amount,
         signature: bitcoin::taproot::Signature,
-    ) -> Self {
-        let mut this = Self::new_for_validation(connector_z, input_0, refund_address, fee_amount);
-
-        this.push_input_0_signature(connector_z, signature);
-
-        this
+    ) -> Result<Self, Error> {
+        match Self::new_for_validation(connector_z, input_0, refund_address, fee_amount) {
+            Ok(mut this) => {
+                this.push_input_0_signature(connector_z, signature);
+                Ok(this)
+            }
+            Err(e) => Err(e),
+        }
     }
 
     pub fn new_for_validation(
@@ -138,18 +141,21 @@ impl PegInRefundTransaction {
         input_0: Input,
         refund_address: &Address,
         fee_amount: Amount,
-    ) -> Self {
+    ) -> Result<Self, Error> {
         let input_0_leaf = 1;
         let _input_0 = connector_z.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
 
-        let total_output_amount = input_0.amount - fee_amount;
+        if input_0.amount < fee_amount {
+            return Err(Error::Transaction(InsufficientInputAmount));
+        }
 
+        let total_output_amount = input_0.amount - fee_amount;
         let _output_0 = TxOut {
             value: total_output_amount,
             script_pubkey: refund_address.script_pubkey(),
         };
 
-        PegInRefundTransaction {
+        Ok(PegInRefundTransaction {
             tx: Transaction {
                 version: bitcoin::transaction::Version(2),
                 lock_time: absolute::LockTime::ZERO,
@@ -161,7 +167,7 @@ impl PegInRefundTransaction {
                 script_pubkey: connector_z.generate_taproot_address().script_pubkey(),
             }],
             prev_scripts: vec![connector_z.generate_taproot_leaf_script(input_0_leaf)],
-        }
+        })
     }
 
     fn push_input_0_signature(
@@ -191,7 +197,6 @@ impl BaseTransaction for PegInRefundTransaction {
         "PegInRefund"
     }
 }
-
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct PegInConfirmTransaction {
     #[serde(with = "consensus::serde::With::<consensus::serde::Hex>")]
@@ -200,7 +205,6 @@ pub struct PegInConfirmTransaction {
     prev_outs: Vec<TxOut>,
     prev_scripts: Vec<ScriptBuf>,
 }
-
 impl PreSignedTransaction for PegInConfirmTransaction {
     fn tx(&self) -> &Transaction {
         &self.tx
@@ -218,25 +222,27 @@ impl PreSignedTransaction for PegInConfirmTransaction {
         &self.prev_scripts
     }
 }
-
 impl PegInConfirmTransaction {
     pub fn new_for_validation(
         connector_0: &Connector0,
         connector_z: &ConnectorZ,
         input_0: Input,
         fee_amount: Amount,
-    ) -> Self {
+    ) -> Result<Self, Error> {
         let input_0_leaf = 0;
         let _input_0 = connector_z.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
 
-        let total_output_amount = input_0.amount - fee_amount;
+        if input_0.amount < fee_amount {
+            return Err(Error::Transaction(InsufficientInputAmount));
+        }
 
+        let total_output_amount = input_0.amount - fee_amount;
         let _output_0 = TxOut {
             value: total_output_amount,
             script_pubkey: connector_0.generate_taproot_address().script_pubkey(),
         };
 
-        PegInConfirmTransaction {
+        Ok(PegInConfirmTransaction {
             tx: Transaction {
                 version: bitcoin::transaction::Version(2),
                 lock_time: absolute::LockTime::ZERO,
@@ -248,7 +254,7 @@ impl PegInConfirmTransaction {
                 script_pubkey: connector_z.generate_taproot_address().script_pubkey(),
             }],
             prev_scripts: vec![connector_z.generate_taproot_leaf_script(input_0_leaf)],
-        }
+        })
     }
 
     pub fn push_input_0_signature(
@@ -274,7 +280,6 @@ impl PegInConfirmTransaction {
         );
     }
 }
-
 impl BaseTransaction for PegInConfirmTransaction {
     fn finalize(&self) -> Transaction {
         self.tx.clone()

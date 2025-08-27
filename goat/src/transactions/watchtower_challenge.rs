@@ -15,7 +15,7 @@ use crate::{
         watchtower_connectors::WatchctowerConnectors,
     },
     contexts::{operator::OperatorContext, verifier::VerifierContext},
-    error::Error,
+    error::{Error, TransactionError::InsufficientInputAmount},
     scripts::{generate_data_commitment_outputs, p2a_output},
     transactions::{
         signing::{
@@ -57,6 +57,10 @@ pub fn operator_commit_blockhash(
             })
             .collect::<Vec<TxIn>>(),
     );
+
+    if total_input_amount < fee_amount {
+        return Err(Error::Transaction(InsufficientInputAmount));
+    }
 
     let total_output_amount = total_input_amount - fee_amount;
     let change_output = TxOut {
@@ -102,6 +106,10 @@ pub fn operator_ack(
             .collect::<Vec<TxIn>>(),
     );
 
+    if total_input_amount < fee_amount {
+        return Err(Error::Transaction(InsufficientInputAmount));
+    }
+
     let total_output_amount = total_input_amount - fee_amount;
     let change_output = TxOut {
         value: total_output_amount,
@@ -125,7 +133,7 @@ pub fn watchtower_challenge(
     payer_inputs: Vec<Input>,
     change_address: &Address,
     fee_amount: Amount,
-) -> Transaction {
+) -> Result<Transaction, Error> {
     let input_0_leaf = 0;
     let mut _input_0 = watchtower_connectors
         .0
@@ -143,13 +151,18 @@ pub fn watchtower_challenge(
             .collect::<Vec<TxIn>>(),
     );
 
-    let total_output_amount = total_input_amount - fee_amount;
     let commitment_outputs = generate_data_commitment_outputs(commitment);
-    let change_amount = total_output_amount
-        - commitment_outputs
-            .iter()
-            .map(|out| out.value)
-            .sum::<Amount>();
+    let commitment_amounts = commitment_outputs
+        .iter()
+        .map(|out| out.value)
+        .sum::<Amount>();
+
+    if total_input_amount < fee_amount + commitment_amounts {
+        return Err(Error::Transaction(InsufficientInputAmount));
+    }
+
+    let total_output_amount = total_input_amount - fee_amount;
+    let change_amount = total_output_amount - commitment_amounts;
     let mut txouts = commitment_outputs;
     if change_amount >= Amount::from_sat(DUST_AMOUNT) {
         let change_output = TxOut {
@@ -188,7 +201,7 @@ pub fn watchtower_challenge(
         &vec![watchtower_keypair],
     );
 
-    tx
+    Ok(tx)
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
@@ -223,12 +236,23 @@ impl WatchtowerChallengeInitTransaction {
         connector_f: &ConnectorF,
         watchtower_connectors_array: &Vec<WatchctowerConnectors>,
         input_0: Input,
-    ) -> Self {
+    ) -> Result<Self, Error> {
         let input_0_leaf = 0;
         let _input_0 = connector_b.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
 
-        let mut total_output_amount =
-            input_0.amount - Amount::from_sat(MIN_RELAY_FEE_WATCHTOWER_CHALLENGE_INIT);
+        if input_0.amount
+            < Amount::from_sat(
+                min_relay_fee_watchtower_challenge_init(watchtower_connectors_array.len())
+                    + (watchtower_connectors_array.len() * 2 + 3) as u64 * DUST_AMOUNT,
+            )
+        {
+            return Err(Error::Transaction(InsufficientInputAmount));
+        }
+
+        let mut total_output_amount = input_0.amount
+            - Amount::from_sat(min_relay_fee_watchtower_challenge_init(
+                watchtower_connectors_array.len(),
+            ));
         let mut txouts = vec![];
         for watchtower_connectors in watchtower_connectors_array {
             let challenge_output = TxOut {
@@ -265,7 +289,7 @@ impl WatchtowerChallengeInitTransaction {
         txouts.push(output_connector_f);
         txouts.push(anchor_output);
 
-        WatchtowerChallengeInitTransaction {
+        Ok(WatchtowerChallengeInitTransaction {
             tx: Transaction {
                 version: bitcoin::transaction::Version(2),
                 lock_time: absolute::LockTime::ZERO,
@@ -277,7 +301,7 @@ impl WatchtowerChallengeInitTransaction {
                 script_pubkey: connector_b.generate_taproot_address().script_pubkey(),
             }],
             prev_scripts: vec![connector_b.generate_taproot_leaf_script(input_0_leaf)],
-        }
+        })
     }
 
     pub fn sign_input_0(&mut self, context: &OperatorContext, connector_b: &ConnectorB) {

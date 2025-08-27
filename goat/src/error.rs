@@ -28,6 +28,7 @@ pub enum ConnectorError {
 #[derive(Debug)]
 pub enum TransactionError {
     AlreadyMined(Txid),
+    InsufficientInputAmount,
 }
 
 #[derive(Debug)]

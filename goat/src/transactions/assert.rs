@@ -10,7 +10,7 @@ use crate::{
         connector_d::ConnectorD,
     },
     contexts::{operator::OperatorContext, verifier::VerifierContext},
-    error::Error,
+    error::{Error, TransactionError::InsufficientInputAmount},
     scripts::p2a_output,
     transactions::{
         signing::push_taproot_leaf_script_and_control_block_to_witness,
@@ -120,12 +120,21 @@ impl AssertInitTransaction {
         connector_d: &ConnectorD,
         assert_commit_connectors: &Vec<AssertCommitConnector>,
         input_0: &Input,
-    ) -> Self {
+    ) -> Result<Self, Error> {
         let input_0_leaf = 0;
         let _input_0 = connector_c.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
 
-        let mut total_output_amount =
-            input_0.amount - Amount::from_sat(MIN_RELAY_FEE_WATCHTOWER_CHALLENGE_INIT);
+        if input_0.amount
+            < Amount::from_sat(
+                min_relay_fee_assert_init(assert_commit_connectors.len())
+                    + (assert_commit_connectors.len() as u64 + 2) * DUST_AMOUNT,
+            )
+        {
+            return Err(Error::Transaction(InsufficientInputAmount));
+        }
+
+        let mut total_output_amount = input_0.amount
+            - Amount::from_sat(min_relay_fee_assert_init(assert_commit_connectors.len()));
         let mut txouts = vec![];
         for assert_commit_connector in assert_commit_connectors {
             let commit_output = TxOut {
@@ -146,7 +155,7 @@ impl AssertInitTransaction {
         txouts.push(anchor_output);
         txouts.push(output_connector_d);
 
-        AssertInitTransaction {
+        Ok(AssertInitTransaction {
             tx: Transaction {
                 version: bitcoin::transaction::Version(2),
                 lock_time: absolute::LockTime::ZERO,
@@ -158,7 +167,7 @@ impl AssertInitTransaction {
                 script_pubkey: connector_c.generate_taproot_address().script_pubkey(),
             }],
             prev_scripts: vec![connector_c.generate_taproot_leaf_script(input_0_leaf)],
-        }
+        })
     }
 
     pub fn sign_input_0(&mut self, context: &OperatorContext, connector_c: &ConnectorC) {

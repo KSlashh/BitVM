@@ -11,6 +11,7 @@ use crate::{
         },
     },
     contexts::operator::OperatorContext,
+    error::{Error, TransactionError::InsufficientInputAmount},
     scripts::p2a_output,
     transactions::signing::populate_taproot_input_witness_default,
 };
@@ -23,9 +24,13 @@ pub fn operator_skip_kickoff(
     input_0: Input,
     fee_amount: Amount,
     receiver_address: Address,
-) -> Transaction {
+) -> Result<Transaction, Error> {
     let input_0_leaf = 0;
     let _input_0 = kickoff_connector.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
+
+    if input_0.amount < fee_amount + Amount::from_sat(DUST_AMOUNT) {
+        return Err(Error::Transaction(InsufficientInputAmount));
+    }
 
     let output_0 = TxOut {
         value: input_0.amount - fee_amount,
@@ -54,7 +59,7 @@ pub fn operator_skip_kickoff(
         &vec![&context.operator_keypair],
     );
 
-    tx
+    Ok(tx)
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
@@ -93,7 +98,9 @@ impl PrekickoffTransaction {
         replenish_fee_inputs: Vec<Input>,
         replenish_fee_prev_outs: Vec<TxOut>,
         replenish_fee_prev_scripts: Vec<ScriptBuf>,
-    ) -> Self {
+        watchtower_num: usize,
+        assert_commit_num: usize,
+    ) -> Result<Self, Error> {
         let mut input_amounts = vec![input_0.amount];
         let replenish_fee_input_amounts: Vec<Amount> = replenish_fee_inputs
             .iter()
@@ -116,8 +123,17 @@ impl PrekickoffTransaction {
                 .collect::<Vec<TxIn>>(),
         );
 
-        let total_output_amount = total_input_amount - Amount::from_sat(MIN_RELAY_FEE_TAKE_1);
+        if total_input_amount
+            < Amount::from_sat(
+                MIN_RELAY_FEE_PRE_KICKOFF
+                    + 3 * DUST_AMOUNT
+                    + max_pegout_cost(watchtower_num, assert_commit_num),
+            )
+        {
+            return Err(Error::Transaction(InsufficientInputAmount));
+        }
 
+        let total_output_amount = total_input_amount - Amount::from_sat(MIN_RELAY_FEE_PRE_KICKOFF);
         let output_0 = TxOut {
             value: Amount::from_sat(DUST_AMOUNT),
             script_pubkey: force_skip_connector
@@ -125,7 +141,7 @@ impl PrekickoffTransaction {
                 .script_pubkey(),
         };
         let output_1 = TxOut {
-            value: Amount::from_sat(MAX_PEGOUT_COST),
+            value: Amount::from_sat(max_pegout_cost(watchtower_num, assert_commit_num)),
             script_pubkey: kickoff_connector.generate_taproot_address().script_pubkey(),
         };
         let output_3 = p2a_output();
@@ -148,7 +164,7 @@ impl PrekickoffTransaction {
             vec![prev_prekickoff_connector.generate_taproot_leaf_script(input_0_leaf)];
         prev_scripts.extend(replenish_fee_prev_scripts);
 
-        PrekickoffTransaction {
+        Ok(PrekickoffTransaction {
             tx: Transaction {
                 version: bitcoin::transaction::Version(2),
                 lock_time: absolute::LockTime::ZERO,
@@ -158,7 +174,7 @@ impl PrekickoffTransaction {
             prev_outs,
             prev_scripts,
             input_amounts,
-        }
+        })
     }
 
     pub fn sign_input_0(
