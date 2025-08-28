@@ -1,14 +1,16 @@
 use super::{super::transactions::base::Input, base::*};
 use crate::{
-    constants::CONNECTOR_C_TIMELOCK, error::Error, scripts::generate_timelock_taproot_script,
-    utils::num_blocks_per_network,
+    constants::ASSERT_COMMIT_TIMELOCK,
+    error::Error,
+    scripts::generate_timelock_taproot_script,
+    utils::{num_blocks_per_network, remove_script_and_control_block_from_witness},
 };
 use bitcoin::{
     taproot::{TaprootBuilder, TaprootSpendInfo},
     Address, Network, ScriptBuf, TxIn, Witness, XOnlyPublicKey,
 };
 use bitvm::{
-    chunk::api::PublicKeys as AssertWotsPublicKeys,
+    chunk::api::{type_conversion_utils::RawWitness, PublicKeys as AssertWotsPublicKeys},
     signatures::{
         signing_winternitz::WinternitzPublicKey, CompactWots, WinternitzSecret, Wots, Wots32,
     },
@@ -52,7 +54,7 @@ impl AssertCommitConnector {
             n_of_n_taproot_public_key: *n_of_n_taproot_public_key,
             wots32_pubkeys,
             wots16_pubkeys,
-            assert_commit_blocks_timelock: num_blocks_per_network(network, CONNECTOR_C_TIMELOCK),
+            assert_commit_blocks_timelock: num_blocks_per_network(network, ASSERT_COMMIT_TIMELOCK),
         }
     }
 
@@ -174,6 +176,36 @@ impl TaprootConnector for AssertCommitConnector {
             self.network,
         )
     }
+}
+
+pub fn extract_commits_from_txin(
+    input: &TxIn,
+    wots32_num: usize,
+    wots16_num: usize,
+) -> Result<Vec<RawWitness>, Error> {
+    let mut res = Vec::new();
+    let witness = remove_script_and_control_block_from_witness(input.witness.to_vec());
+    let (wots32_witness_size, wots16_witness_size) = (
+        Wots32::TOTAL_DIGIT_LEN as usize * 2,
+        Wots16::TOTAL_DIGIT_LEN as usize * 2,
+    );
+    let expected_witness_size = wots32_witness_size * wots32_num + wots16_witness_size * wots16_num;
+    if expected_witness_size != witness.len() {
+        return Err(Error::Other(
+            "Invalid witness size for Assert Commit Connector.",
+        ));
+    }
+    for i in 0..wots32_num {
+        let start = i * wots32_witness_size;
+        let end = start + wots32_witness_size;
+        res.push(witness[start..end].to_vec());
+    }
+    for i in 0..wots16_num {
+        let start = wots32_witness_size * wots32_num + i * wots16_witness_size;
+        let end = start + wots16_witness_size;
+        res.push(witness[start..end].to_vec());
+    }
+    Ok(res)
 }
 
 pub fn generate_chunked_assert_commit_connectors(

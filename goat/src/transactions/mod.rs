@@ -1,6 +1,7 @@
 pub mod assert;
 pub mod base;
 pub mod challenge;
+pub mod disprove;
 pub mod kickoff;
 pub mod pegin;
 pub mod pre_signed;

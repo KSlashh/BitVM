@@ -310,6 +310,27 @@ pub fn validate_assertions(
     );
     exec_result
 }
+pub fn validate_assertions_lit(
+    vk: &ark_groth16::VerifyingKey<Bn254>,
+    signed_asserts: Signatures,
+    disprove_scripts: &[ScriptBuf; NUM_TAPS],
+) -> Option<(usize, Script)> {
+    println!("validate_assertions; get_assertions_from_signature");
+    let asserts = get_assertions_from_signature(signed_asserts.clone());
+    println!("validate_assertions; get_segments_from_assertion");
+    let (success, segments) = get_segments_from_assertion(asserts, vk.clone());
+    if !success {
+        println!("invalid tapscript at segment {}", segments.len());
+    }
+    println!("validate_assertions; execute_script_from_signature");
+    let exec_result = execute_script_from_signature(&segments, signed_asserts, disprove_scripts);
+    assert_eq!(
+        success,
+        exec_result.is_none(),
+        "ensure script execution matches rust execution match"
+    );
+    exec_result
+}
 
 // doesn't crash even if the proof may be incorrect
 // should be used only for test purposes,

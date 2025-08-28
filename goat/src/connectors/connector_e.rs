@@ -1,45 +1,10 @@
-use std::{
-    collections::BTreeMap,
-    path::{Path, PathBuf},
-};
-
-use crate::{
-    commitments::CommitmentMessageId,
-    common::ZkProofVerifyingKey,
-    connectors::base::*,
-    error::{ChunkerError, Error},
-    transactions::base::Input,
-    utils::{cleanup_cache_files, remove_script_and_control_block_from_witness},
-};
 use bitcoin::{
-    address::{NetworkChecked, NetworkUnchecked},
-    hashes::{hash160, Hash},
-    hex::DisplayHex,
-    key::TweakedPublicKey,
-    taproot::{ControlBlock, LeafVersion, TaprootBuilder, TaprootSpendInfo},
-    Address, Network, ScriptBuf, TapNodeHash, Transaction, TxIn, XOnlyPublicKey,
+    address::NetworkUnchecked,
+    taproot::{TaprootBuilder, TaprootSpendInfo},
+    Address, Network, ScriptBuf, TapNodeHash, XOnlyPublicKey,
 };
-use num_traits::ToPrimitive;
 use secp256k1::SECP256K1;
 use serde::{Deserialize, Serialize};
-
-use bitvm::{
-    chunk::api::{
-        api_generate_full_tapscripts, api_generate_partial_script,
-        type_conversion_utils::{
-            script_to_witness, utils_signatures_from_raw_witnesses, utils_typed_pubkey_from_raw,
-            RawProof, RawWitness,
-        },
-        validate_assertions, PublicKeys,
-    },
-    // chunker::{
-    //     assigner::BridgeAssigner,
-    //     chunk_groth16_verifier::groth16_verify_to_segments,
-    //     common::RawWitness,
-    //     disprove_execution::{disprove_exec, RawProof},
-    // },
-    signatures::{signing_winternitz::WinternitzPublicKey, winternitz},
-};
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct ConnectorE {

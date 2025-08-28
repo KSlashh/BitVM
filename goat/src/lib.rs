@@ -1,4 +1,3 @@
-pub mod commitments;
 pub mod common;
 pub mod connectors;
 pub mod constants;

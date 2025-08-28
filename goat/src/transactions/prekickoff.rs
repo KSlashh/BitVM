@@ -98,6 +98,7 @@ impl PrekickoffTransaction {
         replenish_fee_inputs: Vec<Input>,
         replenish_fee_prev_outs: Vec<TxOut>,
         replenish_fee_prev_scripts: Vec<ScriptBuf>,
+        fee_amount: u64,
         watchtower_num: usize,
         assert_commit_num: usize,
     ) -> Result<Self, Error> {
@@ -125,15 +126,13 @@ impl PrekickoffTransaction {
 
         if total_input_amount
             < Amount::from_sat(
-                MIN_RELAY_FEE_PRE_KICKOFF
-                    + 3 * DUST_AMOUNT
-                    + max_pegout_cost(watchtower_num, assert_commit_num),
+                fee_amount + 3 * DUST_AMOUNT + max_pegout_cost(watchtower_num, assert_commit_num),
             )
         {
             return Err(Error::Transaction(InsufficientInputAmount));
         }
 
-        let total_output_amount = total_input_amount - Amount::from_sat(MIN_RELAY_FEE_PRE_KICKOFF);
+        let total_output_amount = total_input_amount - Amount::from_sat(fee_amount);
         let output_0 = TxOut {
             value: Amount::from_sat(DUST_AMOUNT),
             script_pubkey: force_skip_connector

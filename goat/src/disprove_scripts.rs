@@ -1,8 +1,13 @@
-use bitvm::signatures::{CompactWots, Wots, Wots32};
+use bitvm::signatures::{Wots, Wots32};
 use bitvm::treepp::*;
 
 pub type PubinValue = [u8; 32];
 pub type ChallengeHashType = [u8; 20]; // OP_HASH160
+
+pub enum PubinDisproveScriptType {
+    Constant(usize),        // the usize is the index of the public input
+    Hashlock(usize, usize), // the first usize is the index of the public input, the second usize is the number of hashes
+}
 
 /// Returns a Bitcoin script that verifies a Winternitz signature for the given `wots_pk`
 /// and additionally checks that message matches the provided `constant_value`
@@ -24,7 +29,7 @@ pub fn verify_constant_pubin_script(
     constant_value: PubinValue,
 ) -> Script {
     script! {
-        { Wots32::compact_checksig_verify(wots_pk) }
+        { Wots32::checksig_verify(wots_pk) }
         { 1 }
         for byte in constant_value.to_vec() {
             OP_SWAP
@@ -62,7 +67,7 @@ pub fn verify_hashlock_pubin_script(
     wots_pk: <Wots32 as Wots>::PublicKey,
     hashes: Vec<ChallengeHashType>,
 ) -> Script {
-    // assert!(hashes.len() <= TODO);
+    // assert!(hashes.len() <= TBD);
     fn chunk_count(len: usize, chunk_size: usize) -> usize {
         (len + chunk_size - 1) / chunk_size
     }
@@ -70,7 +75,7 @@ pub fn verify_hashlock_pubin_script(
         for _ in 0..hashes.len() {
             OP_TOALTSTACK
         }
-        { Wots32::compact_checksig_verify(&wots_pk) }
+        { Wots32::checksig_verify(&wots_pk) }
         { 1 }
         for chunk in hashes.chunks(4) {
             OP_SWAP
@@ -175,7 +180,7 @@ fn test_verify_constant_pubin_script() {
             .unwrap();
 
     let s = script! {
-      { Wots32::compact_sign_to_raw_witness(&secret, &correct_msg) }
+      { Wots32::sign_to_raw_witness(&secret, &correct_msg) }
       { verify_constant_pubin_script(&public_key, constant) }
       { 1 }
       OP_EQUALVERIFY
@@ -187,7 +192,7 @@ fn test_verify_constant_pubin_script() {
     assert_eq!(result.final_stack.len(), 1);
 
     let s = script! {
-      { Wots32::compact_sign_to_raw_witness(&secret, &incorrect_msg) }
+      { Wots32::sign_to_raw_witness(&secret, &incorrect_msg) }
       { verify_constant_pubin_script(&public_key, constant) }
       { 0 }
       OP_EQUALVERIFY
@@ -221,7 +226,7 @@ fn test_verify_hashlock_pubin_script() {
         let mut input_preimages = vec![vec![]; hashes_len];
         input_preimages[1] = preimages[1].clone();
         let s = script! {
-            { Wots32::compact_sign_to_raw_witness(&secret, &bits_to_bytes32(&inclueded)) }
+            { Wots32::sign_to_raw_witness(&secret, &bits_to_bytes32(&inclueded)) }
             { push_preimage_to_stack(&input_preimages) }
             { verify_hashlock_pubin_script(public_key.clone(), hashes.clone()) }
             { 1 }
@@ -239,7 +244,7 @@ fn test_verify_hashlock_pubin_script() {
         let mut input_preimages = vec![vec![]; hashes_len];
         input_preimages[2] = preimages[2].clone();
         let s = script! {
-            { Wots32::compact_sign_to_raw_witness(&secret, &bits_to_bytes32(&inclueded)) }
+            { Wots32::sign_to_raw_witness(&secret, &bits_to_bytes32(&inclueded)) }
             { push_preimage_to_stack(&input_preimages) }
             { verify_hashlock_pubin_script(public_key.clone(), hashes.clone()) }
             { 0 }
@@ -258,7 +263,7 @@ fn test_verify_hashlock_pubin_script() {
         let mut input_preimages = vec![vec![]; hashes_len];
         input_preimages[2] = preimages[2].clone();
         let s = script! {
-            { Wots32::compact_sign_to_raw_witness(&secret, &bits_to_bytes32(&inclueded)) }
+            { Wots32::sign_to_raw_witness(&secret, &bits_to_bytes32(&inclueded)) }
             { push_preimage_to_stack(&input_preimages) }
             { verify_hashlock_pubin_script(public_key.clone(), hashes.clone()) }
             { 0 }
