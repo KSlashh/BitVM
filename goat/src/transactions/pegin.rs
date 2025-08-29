@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     connectors::connector_0::Connector0,
     error::{Error, TransactionError::InsufficientInputAmount},
+    scripts::generate_opreturn_script,
     transactions::signing::populate_taproot_input_witness_with_signature,
 };
 
@@ -228,6 +229,7 @@ impl PegInConfirmTransaction {
         connector_z: &ConnectorZ,
         input_0: Input,
         fee_amount: Amount,
+        message: Vec<u8>,
     ) -> Result<Self, Error> {
         let input_0_leaf = 0;
         let _input_0 = connector_z.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
@@ -237,9 +239,13 @@ impl PegInConfirmTransaction {
         }
 
         let total_output_amount = input_0.amount - fee_amount;
-        let _output_0 = TxOut {
+        let output_0 = TxOut {
             value: total_output_amount,
             script_pubkey: connector_0.generate_taproot_address().script_pubkey(),
+        };
+        let output_1 = TxOut {
+            value: Amount::ZERO,
+            script_pubkey: generate_opreturn_script(message),
         };
 
         Ok(PegInConfirmTransaction {
@@ -247,7 +253,7 @@ impl PegInConfirmTransaction {
                 version: bitcoin::transaction::Version(2),
                 lock_time: absolute::LockTime::ZERO,
                 input: vec![_input_0],
-                output: vec![_output_0],
+                output: vec![output_0, output_1],
             },
             prev_outs: vec![TxOut {
                 value: input_0.amount,
