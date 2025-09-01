@@ -189,7 +189,6 @@ impl PegInRefundTransaction {
         );
     }
 }
-
 impl BaseTransaction for PegInRefundTransaction {
     fn finalize(&self) -> Transaction {
         self.tx.clone()
@@ -198,6 +197,7 @@ impl BaseTransaction for PegInRefundTransaction {
         "PegInRefund"
     }
 }
+
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct PegInConfirmTransaction {
     #[serde(with = "consensus::serde::With::<consensus::serde::Hex>")]

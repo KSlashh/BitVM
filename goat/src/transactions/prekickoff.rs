@@ -97,7 +97,7 @@ impl PrekickoffTransaction {
         input_0: Input,
         replenish_fee_inputs: Vec<Input>,
         replenish_fee_prev_outs: Vec<TxOut>,
-        replenish_fee_prev_scripts: Vec<ScriptBuf>,
+        // replenish_fee_prev_scripts: Vec<ScriptBuf>,
         fee_amount: u64,
         watchtower_num: usize,
         assert_commit_num: usize,
@@ -159,9 +159,9 @@ impl PrekickoffTransaction {
         }];
         prev_outs.extend(replenish_fee_prev_outs);
 
-        let mut prev_scripts =
+        let prev_scripts =
             vec![prev_prekickoff_connector.generate_taproot_leaf_script(input_0_leaf)];
-        prev_scripts.extend(replenish_fee_prev_scripts);
+        // prev_scripts.extend(replenish_fee_prev_scripts);
 
         Ok(PrekickoffTransaction {
             tx: Transaction {
