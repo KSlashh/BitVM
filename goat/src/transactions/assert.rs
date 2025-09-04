@@ -9,12 +9,14 @@ use crate::{
         assert_connectors::AssertCommitConnector, base::TaprootConnector, connector_c::ConnectorC,
         connector_d::ConnectorD,
     },
-    contexts::{operator::OperatorContext, verifier::VerifierContext},
+    contexts::{base::BaseContext, operator::OperatorContext, verifier::VerifierContext},
     error::{Error, TransactionError::InsufficientInputAmount},
     scripts::p2a_output,
     transactions::{
         signing::push_taproot_leaf_script_and_control_block_to_witness,
-        signing_musig2::generate_taproot_partial_signature,
+        signing_musig2::{
+            generate_taproot_aggregated_signature, generate_taproot_partial_signature,
+        },
     },
 };
 
@@ -359,6 +361,58 @@ impl AssertCommitTimeoutTransaction {
         }
     }
 
+    pub fn aggregate_pre_sigs(
+        &self,
+        context: &dyn BaseContext,
+        partial_signatures: &[Vec<PartialSignature>; 2],
+        agg_nonces: &[AggNonce; 2],
+    ) -> Result<[bitcoin::taproot::Signature; 2], Error> {
+        let (input_0_sig, input_1_sig);
+        {
+            let input_index = 0;
+            let sig_index = 0;
+            let sighash_type = TapSighashType::All;
+            input_0_sig = match generate_taproot_aggregated_signature(
+                context,
+                self.tx(),
+                &agg_nonces[sig_index],
+                input_index,
+                self.prev_outs(),
+                &self.prev_scripts()[input_index],
+                sighash_type,
+                partial_signatures[sig_index].clone(),
+            ) {
+                Ok(sig) => bitcoin::taproot::Signature {
+                    signature: sig.into(),
+                    sighash_type,
+                },
+                Err(_) => return Err(Error::Other("Failed to aggregate signatures")),
+            };
+        }
+        {
+            let input_index = 1;
+            let sig_index = 1;
+            let sighash_type = TapSighashType::All;
+            input_1_sig = match generate_taproot_aggregated_signature(
+                context,
+                self.tx(),
+                &agg_nonces[sig_index],
+                input_index,
+                self.prev_outs(),
+                &self.prev_scripts()[input_index],
+                sighash_type,
+                partial_signatures[sig_index].clone(),
+            ) {
+                Ok(sig) => bitcoin::taproot::Signature {
+                    signature: sig.into(),
+                    sighash_type,
+                },
+                Err(_) => return Err(Error::Other("Failed to aggregate signatures")),
+            };
+        }
+        Ok([input_0_sig, input_1_sig])
+    }
+
     pub fn push_pre_sigs(
         &mut self,
         assert_commit_connector: &AssertCommitConnector,
@@ -367,6 +421,14 @@ impl AssertCommitTimeoutTransaction {
     ) {
         self.push_input_0_signature(assert_commit_connector, pre_sigs[0].clone());
         self.push_input_1_signature(connector_d, pre_sigs[1].clone());
+    }
+}
+impl BaseTransaction for AssertCommitTimeoutTransaction {
+    fn finalize(&self) -> Transaction {
+        self.tx.clone()
+    }
+    fn name(&self) -> &'static str {
+        "AssertCommitTimeout"
     }
 }
 

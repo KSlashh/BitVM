@@ -6,8 +6,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     connectors::{connector_b::ConnectorB, connector_c::ConnectorC},
+    contexts::base::BaseContext,
     error::{Error, TransactionError::InsufficientInputAmount},
-    transactions::signing_musig2::generate_taproot_partial_signature,
+    transactions::signing_musig2::{
+        generate_taproot_aggregated_signature, generate_taproot_partial_signature,
+    },
 };
 
 use super::{
@@ -192,6 +195,34 @@ impl Take1Transaction {
             Ok(sigs) => Ok(sigs.try_into().unwrap()),
             Err(e) => Err(e),
         }
+    }
+
+    pub fn aggregate_pre_sigs(
+        &self,
+        context: &dyn BaseContext,
+        partial_signatures: &[Vec<PartialSignature>; 1],
+        agg_nonces: &[AggNonce; 1],
+    ) -> Result<[bitcoin::taproot::Signature; 1], Error> {
+        let input_index = 0;
+        let sig_index = 0;
+        let sighash_type = TapSighashType::All;
+        let input_0_sig = match generate_taproot_aggregated_signature(
+            context,
+            self.tx(),
+            &agg_nonces[sig_index],
+            input_index,
+            self.prev_outs(),
+            &self.prev_scripts()[input_index],
+            sighash_type,
+            partial_signatures[sig_index].clone(),
+        ) {
+            Ok(sig) => bitcoin::taproot::Signature {
+                signature: sig.into(),
+                sighash_type,
+            },
+            Err(_) => return Err(Error::Other("Failed to aggregate signatures")),
+        };
+        Ok([input_0_sig])
     }
 
     pub fn push_pre_sigs(

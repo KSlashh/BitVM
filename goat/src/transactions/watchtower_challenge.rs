@@ -14,7 +14,7 @@ use crate::{
         connector_g::ConnectorG,
         watchtower_connectors::WatchctowerConnectors,
     },
-    contexts::{operator::OperatorContext, verifier::VerifierContext},
+    contexts::{base::BaseContext, operator::OperatorContext, verifier::VerifierContext},
     error::{Error, TransactionError::InsufficientInputAmount},
     scripts::{generate_data_commitment_outputs, p2a_output},
     transactions::{
@@ -22,7 +22,9 @@ use crate::{
             populate_taproot_input_witness_default,
             push_taproot_leaf_script_and_control_block_to_witness,
         },
-        signing_musig2::generate_taproot_partial_signature,
+        signing_musig2::{
+            generate_taproot_aggregated_signature, generate_taproot_partial_signature,
+        },
     },
 };
 
@@ -477,6 +479,34 @@ impl WatchtowerChallengeTimeoutTransaction {
         }
     }
 
+    pub fn aggregate_pre_sigs(
+        &self,
+        context: &dyn BaseContext,
+        partial_signatures: &[Vec<PartialSignature>; 1],
+        agg_nonces: &[AggNonce; 1],
+    ) -> Result<[bitcoin::taproot::Signature; 1], Error> {
+        let input_index = 1;
+        let sig_index = 0;
+        let sighash_type = TapSighashType::None;
+        let input_0_sig = match generate_taproot_aggregated_signature(
+            context,
+            self.tx(),
+            &agg_nonces[sig_index],
+            input_index,
+            self.prev_outs(),
+            &self.prev_scripts()[input_index],
+            sighash_type,
+            partial_signatures[sig_index].clone(),
+        ) {
+            Ok(sig) => bitcoin::taproot::Signature {
+                signature: sig.into(),
+                sighash_type,
+            },
+            Err(_) => return Err(Error::Other("Failed to aggregate signatures")),
+        };
+        Ok([input_0_sig])
+    }
+
     pub fn push_pre_sigs(
         &mut self,
         watchtower_connectors: &WatchctowerConnectors,
@@ -668,6 +698,58 @@ impl NackTransaction {
         }
     }
 
+    pub fn aggregate_pre_sigs(
+        &self,
+        context: &dyn BaseContext,
+        partial_signatures: &[Vec<PartialSignature>; 2],
+        agg_nonces: &[AggNonce; 2],
+    ) -> Result<[bitcoin::taproot::Signature; 2], Error> {
+        let (input_0_sig, input_1_sig);
+        {
+            let input_index = 0;
+            let sig_index = 0;
+            let sighash_type = TapSighashType::All;
+            input_0_sig = match generate_taproot_aggregated_signature(
+                context,
+                self.tx(),
+                &agg_nonces[sig_index],
+                input_index,
+                self.prev_outs(),
+                &self.prev_scripts()[input_index],
+                sighash_type,
+                partial_signatures[sig_index].clone(),
+            ) {
+                Ok(sig) => bitcoin::taproot::Signature {
+                    signature: sig.into(),
+                    sighash_type,
+                },
+                Err(_) => return Err(Error::Other("Failed to aggregate signatures")),
+            };
+        }
+        {
+            let input_index = 1;
+            let sig_index = 1;
+            let sighash_type = TapSighashType::All;
+            input_1_sig = match generate_taproot_aggregated_signature(
+                context,
+                self.tx(),
+                &agg_nonces[sig_index],
+                input_index,
+                self.prev_outs(),
+                &self.prev_scripts()[input_index],
+                sighash_type,
+                partial_signatures[sig_index].clone(),
+            ) {
+                Ok(sig) => bitcoin::taproot::Signature {
+                    signature: sig.into(),
+                    sighash_type,
+                },
+                Err(_) => return Err(Error::Other("Failed to aggregate signatures")),
+            };
+        }
+        Ok([input_0_sig, input_1_sig])
+    }
+
     pub fn push_pre_sigs(
         &mut self,
         watchtower_connectors: &WatchctowerConnectors,
@@ -852,6 +934,58 @@ impl BlockhashCommitTimeoutTransaction {
             Ok(sigs) => Ok(sigs.try_into().unwrap()),
             Err(e) => Err(e),
         }
+    }
+
+    pub fn aggregate_pre_sigs(
+        &self,
+        context: &dyn BaseContext,
+        partial_signatures: &[Vec<PartialSignature>; 2],
+        agg_nonces: &[AggNonce; 2],
+    ) -> Result<[bitcoin::taproot::Signature; 2], Error> {
+        let (input_0_sig, input_1_sig);
+        {
+            let input_index = 0;
+            let sig_index = 0;
+            let sighash_type = TapSighashType::All;
+            input_0_sig = match generate_taproot_aggregated_signature(
+                context,
+                self.tx(),
+                &agg_nonces[sig_index],
+                input_index,
+                self.prev_outs(),
+                &self.prev_scripts()[input_index],
+                sighash_type,
+                partial_signatures[sig_index].clone(),
+            ) {
+                Ok(sig) => bitcoin::taproot::Signature {
+                    signature: sig.into(),
+                    sighash_type,
+                },
+                Err(_) => return Err(Error::Other("Failed to aggregate signatures")),
+            };
+        }
+        {
+            let input_index = 1;
+            let sig_index = 1;
+            let sighash_type = TapSighashType::All;
+            input_1_sig = match generate_taproot_aggregated_signature(
+                context,
+                self.tx(),
+                &agg_nonces[sig_index],
+                input_index,
+                self.prev_outs(),
+                &self.prev_scripts()[input_index],
+                sighash_type,
+                partial_signatures[sig_index].clone(),
+            ) {
+                Ok(sig) => bitcoin::taproot::Signature {
+                    signature: sig.into(),
+                    sighash_type,
+                },
+                Err(_) => return Err(Error::Other("Failed to aggregate signatures")),
+            };
+        }
+        Ok([input_0_sig, input_1_sig])
     }
 
     pub fn push_pre_sigs(

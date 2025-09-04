@@ -9,6 +9,12 @@ pub enum PubinDisproveScriptType {
     Hashlock(usize, usize), // the first usize is the index of the public input, the second usize is the number of hashes
 }
 
+pub fn generate_guest_pubin_commitment(_guest_pubin_num_bytes: usize) -> Script {
+    script! {
+        // TODO
+    }
+}
+
 /// Returns a Bitcoin script that verifies a Winternitz signature for the given `wots_pk`
 /// and additionally checks that message matches the provided `constant_value`
 ///
