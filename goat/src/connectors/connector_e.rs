@@ -18,7 +18,7 @@ impl ConnectorE {
     pub fn new_with_scripts(
         network: Network,
         operator_taproot_public_key: &XOnlyPublicKey,
-        lock_scripts: Vec<ScriptBuf>,
+        lock_scripts: Vec<ScriptBuf>, // guest_validation_scripts || proof_validation_scripts
     ) -> (Self, TaprootSpendInfo) {
         // println!("Generating new taproot spend info for connector E...");
         let script_weights = lock_scripts.into_iter().map(|b| (1, b));

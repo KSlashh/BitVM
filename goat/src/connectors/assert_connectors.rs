@@ -1,6 +1,7 @@
 use super::{super::transactions::base::Input, base::*};
 use crate::{
     constants::ASSERT_COMMIT_TIMELOCK,
+    disprove_scripts::AssertPubkeys as AssertWotsPublicKeys,
     error::Error,
     scripts::generate_timelock_taproot_script,
     utils::{num_blocks_per_network, remove_script_and_control_block_from_witness},
@@ -10,7 +11,7 @@ use bitcoin::{
     Address, Network, ScriptBuf, TxIn, Witness, XOnlyPublicKey,
 };
 use bitvm::{
-    chunk::api::{type_conversion_utils::RawWitness, PublicKeys as AssertWotsPublicKeys},
+    chunk::api::type_conversion_utils::RawWitness,
     signatures::{
         signing_winternitz::WinternitzPublicKey, CompactWots, WinternitzSecret, Wots, Wots32,
     },
@@ -214,8 +215,9 @@ pub fn generate_chunked_assert_commit_connectors(
     wots_keys: AssertWotsPublicKeys,
 ) -> Vec<AssertCommitConnector> {
     let mut wots32_pubkeys = wots_keys.0.to_vec();
-    wots32_pubkeys.extend(wots_keys.1.to_vec());
-    let wots16_pubkeys = wots_keys.2.to_vec();
+    wots32_pubkeys.extend(wots_keys.1 .0.to_vec());
+    wots32_pubkeys.extend(wots_keys.1 .1.to_vec());
+    let wots16_pubkeys = wots_keys.1 .2.to_vec();
 
     let use_compact_wots = false;
     let chunks = chunk_assert_commit(wots32_pubkeys.len(), wots16_pubkeys.len(), use_compact_wots);

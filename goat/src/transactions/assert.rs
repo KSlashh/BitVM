@@ -1,6 +1,6 @@
 use ark_std::iterable::Iterable;
 use bitcoin::{absolute, consensus, Amount, ScriptBuf, TapSighashType, Transaction, TxIn, TxOut};
-use bitvm::{chunk::api::Assertions, signatures::WinternitzSecret};
+use bitvm::signatures::WinternitzSecret;
 use musig2::{errors::SigningError, AggNonce, PartialSignature, SecNonce};
 use serde::{Deserialize, Serialize};
 
@@ -10,6 +10,7 @@ use crate::{
         connector_d::ConnectorD,
     },
     contexts::{base::BaseContext, operator::OperatorContext, verifier::VerifierContext},
+    disprove_scripts::AssertAssertions,
     error::{Error, TransactionError::InsufficientInputAmount},
     scripts::p2a_output,
     transactions::{
@@ -26,7 +27,7 @@ pub fn operator_commit_proof(
     assert_commit_connector: &Vec<AssertCommitConnector>,
     wots_secret_keys: &Vec<WinternitzSecret>,
     assert_commit_inputs: &Vec<Input>,
-    assertions: &Assertions,
+    assertions: &AssertAssertions,
 ) -> Result<Vec<TxIn>, Error> {
     if assert_commit_connector.len() != assert_commit_inputs.len() {
         return Err(Error::Other(
@@ -35,9 +36,10 @@ pub fn operator_commit_proof(
     }
     let mut wots_32_num = 0;
     let mut wots_16_num = 0;
-    let npub = assertions.0.len();
-    let n32 = assertions.1.len();
-    let n16 = assertions.2.len();
+    let nguest = assertions.0.len();
+    let npub = assertions.1 .0.len();
+    let n32 = assertions.1 .1.len();
+    let n16 = assertions.1 .2.len();
     for acc in assert_commit_connector.iter() {
         wots_32_num += acc.wots32_pubkeys.len();
         wots_16_num += acc.wots16_pubkeys.len();
@@ -45,7 +47,7 @@ pub fn operator_commit_proof(
     if (wots_32_num + wots_16_num) != wots_secret_keys.len() {
         return Err(Error::Other("Mismatched number of WOTS keys"));
     }
-    if wots_32_num != npub + n32 {
+    if wots_32_num != nguest + npub + n32 {
         return Err(Error::Other("Mismatched number of WOTS32 assertions"));
     }
     if wots_16_num != n16 {
@@ -60,14 +62,17 @@ pub fn operator_commit_proof(
         let start_index = cur_index;
         let end_index = cur_index + acc.wots32_pubkeys.len() + acc.wots16_pubkeys.len();
 
-        let startpub = start_index.min(npub);
-        let endpub = end_index.min(npub);
+        let startguest = start_index.min(nguest);
+        let endguest = end_index.min(nguest);
 
-        let start32 = start_index.saturating_sub(npub).min(n32);
-        let end32 = end_index.saturating_sub(npub).min(n32);
+        let startpub = start_index.saturating_sub(nguest).min(npub);
+        let endpub = end_index.saturating_sub(nguest).min(npub);
 
-        let start16 = start_index.saturating_sub(npub + n32);
-        let end16 = end_index.saturating_sub(npub + n32);
+        let start32 = start_index.saturating_sub(npub + nguest).min(n32);
+        let end32 = end_index.saturating_sub(npub + nguest).min(n32);
+
+        let start16 = start_index.saturating_sub(nguest + npub + n32);
+        let end16 = end_index.saturating_sub(nguest + npub + n32);
 
         cur_index = end_index;
 
@@ -76,9 +81,10 @@ pub fn operator_commit_proof(
         let wots16_sks =
             wots_secret_keys[(start_index + acc.wots32_pubkeys.len())..end_index].to_vec();
 
-        let mut wots32_values = assertions.0[startpub..endpub].to_vec();
-        wots32_values.extend(assertions.1[start32..end32].to_vec());
-        let wots16_values = assertions.2[start16..end16].to_vec();
+        let mut wots32_values = assertions.0[startguest..endguest].to_vec();
+        wots32_values.extend(assertions.1 .0[startpub..endpub].to_vec());
+        wots32_values.extend(assertions.1 .1[start32..end32].to_vec());
+        let wots16_values = assertions.1 .2[start16..end16].to_vec();
 
         match acc.generate_leaf_0_witness(&wots32_sks, &wots16_sks, &wots32_values, &wots16_values)
         {
@@ -435,15 +441,22 @@ impl BaseTransaction for AssertCommitTimeoutTransaction {
 #[test]
 fn test_operator_commit_proof() {
     use crate::connectors::assert_connectors::generate_chunked_assert_commit_connectors;
+    use crate::disprove_scripts::NUM_GUEST_PUBS_ASSERT;
     use bitcoin::{Network, XOnlyPublicKey};
     use bitvm::chunk::api::{NUM_HASH, NUM_PUBS, NUM_U256};
     use bitvm::signatures::{WinternitzSecret, Wots, Wots16, Wots32};
     use std::str::FromStr;
-    let test_assertions: Assertions = (
-        [[1u8; 32]; NUM_PUBS],
-        [[2u8; 32]; NUM_U256],
-        [[3u8; 16]; NUM_HASH],
+    let test_assertions: AssertAssertions = (
+        [[0u8; 32]; NUM_GUEST_PUBS_ASSERT],
+        (
+            [[1u8; 32]; NUM_PUBS],
+            [[2u8; 32]; NUM_U256],
+            [[3u8; 16]; NUM_HASH],
+        ),
     );
+    let guest_privkeys = (0..NUM_GUEST_PUBS_ASSERT)
+        .map(|_| Wots32::generate_secret_key())
+        .collect::<Vec<WinternitzSecret>>();
     let pub_privkeys = (0..NUM_PUBS)
         .map(|_| Wots32::generate_secret_key())
         .collect::<Vec<WinternitzSecret>>();
@@ -453,6 +466,10 @@ fn test_operator_commit_proof() {
     let hash_privkeys = (0..NUM_HASH)
         .map(|_| Wots16::generate_secret_key())
         .collect::<Vec<WinternitzSecret>>();
+    let guest_pubkeys = guest_privkeys
+        .iter()
+        .map(|sk| Wots32::generate_public_key(sk))
+        .collect::<Vec<<Wots32 as Wots>::PublicKey>>();
     let pub_pubkeys = pub_privkeys
         .iter()
         .map(|sk| Wots32::generate_public_key(sk))
@@ -469,9 +486,12 @@ fn test_operator_commit_proof() {
         Network::Regtest,
         &XOnlyPublicKey::from_slice(&[2u8; 32]).unwrap(),
         (
-            pub_pubkeys.try_into().unwrap(),
-            u32_pubkeys.try_into().unwrap(),
-            hash_pubkeys.try_into().unwrap(),
+            guest_pubkeys.try_into().unwrap(),
+            (
+                pub_pubkeys.try_into().unwrap(),
+                u32_pubkeys.try_into().unwrap(),
+                hash_pubkeys.try_into().unwrap(),
+            ),
         ),
     );
     let test_input = Input {
@@ -489,7 +509,7 @@ fn test_operator_commit_proof() {
         .collect::<Vec<Input>>();
     let res = operator_commit_proof(
         &assert_commit_connector,
-        &[pub_privkeys, u32_privkeys, hash_privkeys].concat(),
+        &[guest_privkeys, pub_privkeys, u32_privkeys, hash_privkeys].concat(),
         &test_inputs,
         &test_assertions,
     )
