@@ -209,6 +209,32 @@ pub fn extract_commits_from_txin(
     Ok(res)
 }
 
+pub fn extract_commits_from_txins(
+    inputs: Vec<TxIn>,
+    wots32_num: usize,
+    wots16_num: usize,
+) -> Result<Vec<RawWitness>, Error> {
+    let mut sorted_inputs = inputs;
+    sorted_inputs.sort_by_key(|txin| txin.previous_output.vout);
+    let mut res = vec![];
+    let use_compact_wots = false;
+    let chunks = chunk_assert_commit(wots32_num, wots16_num, use_compact_wots);
+    for (i, input) in sorted_inputs.into_iter().enumerate() {
+        let (start, len) = chunks[i];
+        let end = start + len;
+
+        let chunk_wots32_num = end.min(wots32_num).saturating_sub(start.min(wots32_num));
+        let chunk_wots16_num = end
+            .saturating_sub(wots32_num)
+            .saturating_sub(start.saturating_sub(wots32_num));
+
+        let mut chunk_commits =
+            extract_commits_from_txin(&input, chunk_wots32_num, chunk_wots16_num)?;
+        res.append(&mut chunk_commits);
+    }
+    Ok(res)
+}
+
 pub fn generate_chunked_assert_commit_connectors(
     network: Network,
     n_of_n_taproot_public_key: &XOnlyPublicKey,
