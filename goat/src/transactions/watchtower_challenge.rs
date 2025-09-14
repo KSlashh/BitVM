@@ -19,7 +19,7 @@ use crate::{
     scripts::{generate_data_commitment_outputs, p2a_output},
     transactions::{
         signing::{
-            populate_taproot_input_witness_default,
+            populate_taproot_input_witness_default, populate_taproot_txin_witness,
             push_taproot_leaf_script_and_control_block_to_witness,
         },
         signing_musig2::{
@@ -30,100 +30,66 @@ use crate::{
 
 use super::{base::*, pre_signed::*};
 
-// Build BlockhashCommitTransaction and set wots sig for blockhash as witness for Connector-G(txin[0])
+// return BlockhashCommitTransaction's necessary txin(Connector-G) and set wots sig for blockhash as witness for it
 pub fn operator_commit_blockhash(
     connector_g: &ConnectorG,
     latest_blockhash: &[u8; 32],
     wots_secret_key: &WinternitzSecret,
     input_0: Input,
-    payer_inputs: Vec<Input>,
-    change_address: &Address,
-    fee_amount: Amount,
-) -> Result<Transaction, Error> {
+) -> Result<TxIn, Error> {
     let input_0_leaf = 0;
     let mut _input_0 = connector_g.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
-    _input_0.witness = match connector_g.generate_leaf_0_witness(wots_secret_key, latest_blockhash)
-    {
-        Ok(witness) => witness,
+    match connector_g.generate_leaf_0_unlock_data(wots_secret_key, latest_blockhash) {
+        Ok(unlock_data) => {
+            populate_taproot_txin_witness(
+                &mut _input_0,
+                &connector_g.generate_taproot_spend_info(),
+                &connector_g.generate_taproot_leaf_script(input_0_leaf),
+                unlock_data,
+            );
+            Ok(_input_0)
+        }
         Err(e) => return Err(e),
-    };
-
-    let mut txins = vec![_input_0];
-    let mut total_input_amount = input_0.amount;
-    txins.extend(
-        payer_inputs
-            .iter()
-            .map(|input| {
-                total_input_amount += input.amount;
-                generate_default_tx_in(input)
-            })
-            .collect::<Vec<TxIn>>(),
-    );
-
-    if total_input_amount < fee_amount {
-        return Err(Error::Transaction(InsufficientInputAmount));
     }
-
-    let total_output_amount = total_input_amount - fee_amount;
-    let change_output = TxOut {
-        value: total_output_amount,
-        script_pubkey: change_address.script_pubkey(),
-    };
-
-    Ok(Transaction {
-        version: bitcoin::transaction::Version(2),
-        lock_time: absolute::LockTime::ZERO,
-        input: txins,
-        output: vec![change_output],
-    })
 }
 
-// Build AckTransaction and set preimage as witness for AckConnector(txin[0])
+// return AckTransaction's necessary txin(AckConnector) and set preimage as witness for it
 pub fn operator_ack(
     watchtower_connectors: &WatchctowerConnectors,
     preimage: &[u8],
     input_0: Input,
-    payer_inputs: Vec<Input>,
-    change_address: &Address,
-    fee_amount: Amount,
-) -> Result<Transaction, Error> {
+) -> Result<TxIn, Error> {
     let input_0_leaf = 1;
     let mut _input_0 = watchtower_connectors
         .1
         .generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
-    _input_0.witness = match watchtower_connectors.1.generate_leaf_1_witness(preimage) {
-        Ok(witness) => witness,
+    match watchtower_connectors
+        .1
+        .generate_leaf_1_unlock_data(preimage)
+    {
+        Ok(unlock_data) => {
+            populate_taproot_txin_witness(
+                &mut _input_0,
+                &watchtower_connectors.1.generate_taproot_spend_info(),
+                &watchtower_connectors
+                    .1
+                    .generate_taproot_leaf_script(input_0_leaf),
+                unlock_data,
+            );
+            Ok(_input_0)
+        }
         Err(e) => return Err(e),
-    };
-
-    let mut txins = vec![_input_0];
-    let mut total_input_amount = input_0.amount;
-    txins.extend(
-        payer_inputs
-            .iter()
-            .map(|input| {
-                total_input_amount += input.amount;
-                generate_default_tx_in(input)
-            })
-            .collect::<Vec<TxIn>>(),
-    );
-
-    if total_input_amount < fee_amount {
-        return Err(Error::Transaction(InsufficientInputAmount));
     }
+}
 
-    let total_output_amount = total_input_amount - fee_amount;
-    let change_output = TxOut {
-        value: total_output_amount,
-        script_pubkey: change_address.script_pubkey(),
-    };
-
-    Ok(Transaction {
-        version: bitcoin::transaction::Version(2),
-        lock_time: absolute::LockTime::ZERO,
-        input: txins,
-        output: vec![change_output],
-    })
+pub fn extract_operator_preimage_from_ack_txin(ack_txin: &TxIn) -> Result<Vec<u8>, Error> {
+    ack_txin
+        .witness
+        .nth(0)
+        .map(|w| w.to_vec())
+        .ok_or(Error::Other(
+            "Unable to extract preimage from ack txin witness",
+        ))
 }
 
 // Build WatchtowerChallenge transaction and sign ChallengeConnector(txin[0])

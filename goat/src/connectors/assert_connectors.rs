@@ -82,13 +82,13 @@ impl AssertCommitConnector {
         .compile()
     }
 
-    pub fn generate_leaf_0_witness(
+    pub fn generate_leaf_0_unlock_data(
         &self,
         wots32_secret_keys: &Vec<WinternitzSecret>,
         wots16_secret_keys: &Vec<WinternitzSecret>,
         wots32_values: &Vec<[u8; 32]>,
         wots16_values: &Vec<[u8; 16]>,
-    ) -> Result<Witness, Error> {
+    ) -> Result<Vec<Vec<u8>>, Error> {
         fn append_witness(a: &mut Witness, b: Witness) {
             for item in b.into_iter() {
                 a.push(item);
@@ -121,7 +121,7 @@ impl AssertCommitConnector {
         let verification_script = witness_script.push_script(self.generate_taproot_leaf_0_script());
         let exec_result = execute_script(verification_script);
         match exec_result.success {
-            true => Ok(witness),
+            true => Ok(witness.to_vec()),
             false => Err(Error::Other(
                 "Invalid WOTS secret-key for Assert Commit Connector.",
             )),
@@ -462,8 +462,8 @@ fn test_assert_commit_connector_leaf_0() {
             &wots16_pubkeys,
         );
 
-        let witness = connector
-            .generate_leaf_0_witness(
+        let unlock_data = connector
+            .generate_leaf_0_unlock_data(
                 &wots32_privkeys,
                 &wots16_privkeys,
                 &wots32_values,
@@ -472,7 +472,7 @@ fn test_assert_commit_connector_leaf_0() {
             .unwrap();
 
         let witness_script = script! {
-            { witness.clone() }
+            { unlock_data }
         };
         let verification_script =
             witness_script.push_script(connector.generate_taproot_leaf_0_script());

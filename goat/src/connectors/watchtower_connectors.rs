@@ -1,6 +1,6 @@
 use bitcoin::{
     taproot::{TaprootBuilder, TaprootSpendInfo},
-    Address, Network, ScriptBuf, TxIn, Witness, XOnlyPublicKey,
+    Address, Network, ScriptBuf, TxIn, XOnlyPublicKey,
 };
 use bitvm::{chunk::api::type_conversion_utils::script_to_witness, treepp::*};
 use secp256k1::SECP256K1;
@@ -139,7 +139,7 @@ impl AckConnector {
         .compile()
     }
 
-    pub fn generate_leaf_1_witness(&self, preimage: &[u8]) -> Result<Witness, Error> {
+    pub fn generate_leaf_1_unlock_data(&self, preimage: &[u8]) -> Result<Vec<Vec<u8>>, Error> {
         let witness_script = script! {
             { preimage.to_vec() }
         };
@@ -147,7 +147,7 @@ impl AckConnector {
         let verification_script = witness_script.push_script(self.generate_taproot_leaf_1_script());
         let exec_result = execute_script(verification_script);
         match exec_result.success {
-            true => Ok(witness.into()),
+            true => Ok(witness),
             false => Err(Error::Other("Invalid preimage for ACK connector.")),
         }
     }
@@ -202,4 +202,52 @@ impl TaprootConnector for AckConnector {
             self.network,
         )
     }
+}
+
+#[test]
+fn test_ack_connector_leaf_1() {
+    use crate::disprove_scripts::hash160;
+
+    let secp = &SECP256K1;
+    let mut rng = rand::thread_rng();
+    let kp = bitcoin::key::Keypair::new(secp, &mut rng);
+    let (xonly_pk, _) = XOnlyPublicKey::from_keypair(&kp);
+
+    let preimage = b"this is a hashlock".to_vec();
+    let hashlock = hash160(&preimage);
+    let ack_connector = AckConnector::new(Network::Regtest, &xonly_pk, &hashlock);
+
+    let unlock_data = ack_connector
+        .generate_leaf_1_unlock_data(&preimage)
+        .unwrap();
+
+    let verification_script = script! {
+        { unlock_data.clone() }
+    }
+    .push_script(ack_connector.generate_taproot_leaf_1_script());
+    let exec_result = execute_script(verification_script);
+    assert!(exec_result.success);
+
+    use crate::transactions::signing::populate_taproot_txin_witness;
+    use crate::transactions::watchtower_challenge::extract_operator_preimage_from_ack_txin;
+    use bitcoin::{Amount, OutPoint, Txid};
+    use std::str::FromStr;
+    let mut txin = ack_connector.generate_taproot_leaf_1_tx_in(&Input {
+        outpoint: OutPoint {
+            txid: Txid::from_str(
+                "4d3c2b1a0f9e8d7c6b5a493827161514131211100f0e0d0c0b0a090807060504",
+            )
+            .unwrap(),
+            vout: 0,
+        },
+        amount: Amount::from_sat(100_000),
+    });
+    populate_taproot_txin_witness(
+        &mut txin,
+        &ack_connector.generate_taproot_spend_info(),
+        &ack_connector.generate_taproot_leaf_1_script(),
+        unlock_data,
+    );
+    let preimage_from_witness = extract_operator_preimage_from_ack_txin(&txin).unwrap();
+    assert_eq!(preimage, preimage_from_witness);
 }

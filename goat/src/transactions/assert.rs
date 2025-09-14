@@ -14,7 +14,9 @@ use crate::{
     error::{Error, TransactionError::InsufficientInputAmount},
     scripts::p2a_output,
     transactions::{
-        signing::push_taproot_leaf_script_and_control_block_to_witness,
+        signing::{
+            populate_taproot_txin_witness, push_taproot_leaf_script_and_control_block_to_witness,
+        },
         signing_musig2::{
             generate_taproot_aggregated_signature, generate_taproot_partial_signature,
         },
@@ -86,9 +88,20 @@ pub fn operator_commit_proof(
         wots32_values.extend(assertions.1 .1[start32..end32].to_vec());
         let wots16_values = assertions.1 .2[start16..end16].to_vec();
 
-        match acc.generate_leaf_0_witness(&wots32_sks, &wots16_sks, &wots32_values, &wots16_values)
-        {
-            Ok(witness) => txin.witness = witness,
+        match acc.generate_leaf_0_unlock_data(
+            &wots32_sks,
+            &wots16_sks,
+            &wots32_values,
+            &wots16_values,
+        ) {
+            Ok(unlock_data) => {
+                populate_taproot_txin_witness(
+                    &mut txin,
+                    &acc.generate_taproot_spend_info(),
+                    &acc.generate_taproot_leaf_script(0),
+                    unlock_data,
+                );
+            }
             Err(e) => return Err(e),
         }
         res.push(txin);

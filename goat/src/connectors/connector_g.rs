@@ -1,6 +1,6 @@
 use bitcoin::{
     taproot::{TaprootBuilder, TaprootSpendInfo},
-    Address, Network, ScriptBuf, TxIn, Witness, XOnlyPublicKey,
+    Address, Network, ScriptBuf, TxIn, XOnlyPublicKey,
 };
 use bitvm::signatures::{signing_winternitz::WinternitzPublicKey, WinternitzSecret, Wots, Wots32};
 use bitvm::treepp::*;
@@ -57,11 +57,11 @@ impl ConnectorG {
         .compile()
     }
 
-    pub fn generate_leaf_0_witness(
+    pub fn generate_leaf_0_unlock_data(
         &self,
         wots_secret_key: &WinternitzSecret,
         latest_blockhash: &[u8; 32],
-    ) -> Result<Witness, Error> {
+    ) -> Result<Vec<Vec<u8>>, Error> {
         let witness = Wots32::sign_to_raw_witness(wots_secret_key, latest_blockhash);
         let witness_script = script! {
             { witness.clone() }
@@ -69,7 +69,7 @@ impl ConnectorG {
         let verification_script = witness_script.push_script(self.generate_taproot_leaf_0_script());
         let exec_result = execute_script(verification_script);
         match exec_result.success {
-            true => Ok(witness),
+            true => Ok(witness.to_vec()),
             false => Err(Error::Other("Invalid WOTS secret-key for Connector G.")),
         }
     }
@@ -138,12 +138,12 @@ fn test_connector_g_leaf_0() {
 
     let connector_g = ConnectorG::new(Network::Regtest, &xonly_pk, &xonly_pk, &wots_pubkey);
 
-    let witness = connector_g
-        .generate_leaf_0_witness(&wots_privkey, &latest_blockhash)
+    let unlock_data = connector_g
+        .generate_leaf_0_unlock_data(&wots_privkey, &latest_blockhash)
         .unwrap();
 
     let verification_script = script! {
-        { witness.clone() }
+        { unlock_data }
     }
     .push_script(connector_g.generate_taproot_leaf_0_script());
     let exec_result = execute_script(verification_script);

@@ -4,7 +4,7 @@ use bitcoin::{
     sighash::{Prevouts, SighashCache},
     taproot::{LeafVersion, TaprootSpendInfo},
     Amount, EcdsaSighashType, PublicKey, Script, ScriptBuf, TapLeafHash, TapNodeHash,
-    TapSighashType, Transaction, TxOut,
+    TapSighashType, Transaction, TxIn, TxOut,
 };
 use secp256k1::SECP256K1;
 
@@ -255,6 +255,30 @@ pub fn populate_taproot_input_witness(
         taproot_spend_info,
         script,
     );
+}
+
+pub fn populate_taproot_txin_witness(
+    txin: &mut TxIn,
+    taproot_spend_info: &TaprootSpendInfo,
+    script: &Script,
+    unlock_data: Vec<Vec<u8>>,
+) {
+    // push unlock data
+    for element in unlock_data.iter() {
+        if element.len() == 1 && element[0] == 0 {
+            txin.witness.push(vec![]); // minimal encoding of 0 is an empty vector
+        } else {
+            txin.witness.push(element);
+        }
+    }
+
+    // push script and control block
+    let prevout_leaf = (ScriptBuf::from(script), LeafVersion::TapScript);
+    let control_block = taproot_spend_info
+        .control_block(&prevout_leaf)
+        .expect("Unable to create Control block");
+    txin.witness.push(prevout_leaf.0.to_bytes());
+    txin.witness.push(control_block.serialize());
 }
 
 /// Use this function to populate taproot input witness for
