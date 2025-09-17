@@ -318,12 +318,12 @@ impl PegInConfirmTransaction {
 
     pub fn push_input_0_signature(
         &mut self,
-        connector_0: &Connector0,
+        connector_z: &ConnectorZ,
         input_0_sig: bitcoin::taproot::Signature,
     ) {
         let input_index = 0;
         let script = self.prev_scripts()[input_index].clone();
-        let spend_info = connector_0.generate_taproot_spend_info();
+        let spend_info = connector_z.generate_taproot_spend_info();
         let tx_mut = self.tx_mut();
         // Push signature to witness
         tx_mut.input[input_index]
