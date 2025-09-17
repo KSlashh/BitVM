@@ -1,15 +1,22 @@
 use bitcoin::{
     absolute,
     consensus::{self},
-    Address, Amount, ScriptBuf, Transaction, TxIn, TxOut,
+    Address, Amount, ScriptBuf, TapSighashType, Transaction, TxIn, TxOut,
 };
+use musig2::{errors::SigningError, AggNonce, PartialSignature, SecNonce};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     connectors::connector_0::Connector0,
+    contexts::{base::BaseContext, verifier::VerifierContext},
     error::{Error, TransactionError::InsufficientInputAmount},
     scripts::generate_opreturn_script,
-    transactions::signing::populate_taproot_input_witness_with_signature,
+    transactions::{
+        signing::populate_taproot_input_witness_with_signature,
+        signing_musig2::{
+            generate_taproot_aggregated_signature, generate_taproot_partial_signature,
+        },
+    },
 };
 
 use super::{
@@ -261,6 +268,52 @@ impl PegInConfirmTransaction {
             }],
             prev_scripts: vec![connector_z.generate_taproot_leaf_script(input_0_leaf)],
         })
+    }
+
+    pub fn sign_input_0_musig2(
+        &mut self,
+        context: &VerifierContext,
+        sec_nonce: &SecNonce,
+        agg_nonce: &AggNonce,
+    ) -> Result<PartialSignature, SigningError> {
+        let input_index = 0;
+        let sighash_type = TapSighashType::All;
+        generate_taproot_partial_signature(
+            &context,
+            self.tx(),
+            sec_nonce,
+            agg_nonce,
+            input_index,
+            self.prev_outs(),
+            &self.prev_scripts()[input_index],
+            sighash_type,
+        )
+    }
+
+    pub fn aggregate_input_0_musig2_signatures(
+        &mut self,
+        context: &dyn BaseContext,
+        partial_sigs: Vec<PartialSignature>,
+        agg_nonce: &AggNonce,
+    ) -> Result<bitcoin::taproot::Signature, Error> {
+        let input_index = 0;
+        let sighash_type = TapSighashType::All;
+        match generate_taproot_aggregated_signature(
+            context,
+            self.tx(),
+            agg_nonce,
+            input_index,
+            self.prev_outs(),
+            &self.prev_scripts()[input_index],
+            sighash_type,
+            partial_sigs,
+        ) {
+            Ok(sig) => Ok(bitcoin::taproot::Signature {
+                signature: sig.into(),
+                sighash_type,
+            }),
+            Err(_) => return Err(Error::Other("Failed to aggregate signatures")),
+        }
     }
 
     pub fn push_input_0_signature(

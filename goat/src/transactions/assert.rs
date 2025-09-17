@@ -26,12 +26,12 @@ use crate::{
 use super::{base::*, pre_signed::*};
 
 pub fn operator_commit_proof(
-    assert_commit_connector: &Vec<AssertCommitConnector>,
+    assert_commit_connectors: &Vec<AssertCommitConnector>,
     wots_secret_keys: &Vec<WinternitzSecret>,
     assert_commit_inputs: &Vec<Input>,
     assertions: &AssertAssertions,
 ) -> Result<Vec<TxIn>, Error> {
-    if assert_commit_connector.len() != assert_commit_inputs.len() {
+    if assert_commit_connectors.len() != assert_commit_inputs.len() {
         return Err(Error::Other(
             "Mismatched number of AssertCommit connectors and inputs",
         ));
@@ -42,7 +42,7 @@ pub fn operator_commit_proof(
     let npub = assertions.1 .0.len();
     let n32 = assertions.1 .1.len();
     let n16 = assertions.1 .2.len();
-    for acc in assert_commit_connector.iter() {
+    for acc in assert_commit_connectors.iter() {
         wots_32_num += acc.wots32_pubkeys.len();
         wots_16_num += acc.wots16_pubkeys.len();
     }
@@ -58,7 +58,7 @@ pub fn operator_commit_proof(
 
     let mut res = vec![];
     let mut cur_index = 0;
-    for (i, acc) in assert_commit_connector.iter().enumerate() {
+    for (i, acc) in assert_commit_connectors.iter().enumerate() {
         let input_0_leaf = 0;
         let mut txin = acc.generate_taproot_leaf_tx_in(input_0_leaf, &assert_commit_inputs[i]);
         let start_index = cur_index;
