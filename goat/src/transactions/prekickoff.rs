@@ -265,11 +265,22 @@ impl ForceSkipKickoffTransaction {
                 input: vec![_input_0, _input_1],
                 output: vec![], // output will be added later
             },
-            prev_outs: vec![TxOut {
-                value: input_0.amount,
-                script_pubkey: kickoff_connector.generate_taproot_address().script_pubkey(),
-            }],
-            prev_scripts: vec![kickoff_connector.generate_taproot_leaf_script(input_0_leaf)],
+            prev_outs: vec![
+                TxOut {
+                    value: input_0.amount,
+                    script_pubkey: kickoff_connector.generate_taproot_address().script_pubkey(),
+                },
+                TxOut {
+                    value: input_1.amount,
+                    script_pubkey: next_force_skip_connector
+                        .generate_taproot_address()
+                        .script_pubkey(),
+                },
+            ],
+            prev_scripts: vec![
+                kickoff_connector.generate_taproot_leaf_script(input_0_leaf),
+                next_force_skip_connector.generate_taproot_leaf_script(input_1_leaf),
+            ],
         }
     }
 
@@ -387,13 +398,24 @@ impl QuickChallengeTransaction {
                 input: vec![_input_0, _input_1],
                 output: vec![], // output will be added later
             },
-            prev_outs: vec![TxOut {
-                value: input_0.amount,
-                script_pubkey: guardian_connector
-                    .generate_taproot_address()
-                    .script_pubkey(),
-            }],
-            prev_scripts: vec![guardian_connector.generate_taproot_leaf_script(input_0_leaf)],
+            prev_outs: vec![
+                TxOut {
+                    value: input_0.amount,
+                    script_pubkey: guardian_connector
+                        .generate_taproot_address()
+                        .script_pubkey(),
+                },
+                TxOut {
+                    value: input_1.amount,
+                    script_pubkey: next_force_skip_connector
+                        .generate_taproot_address()
+                        .script_pubkey(),
+                },
+            ],
+            prev_scripts: vec![
+                guardian_connector.generate_taproot_leaf_script(input_0_leaf),
+                next_force_skip_connector.generate_taproot_leaf_script(input_1_leaf),
+            ],
         }
     }
 
@@ -511,13 +533,24 @@ impl ChallengeIncompleteKickoffTransaction {
                 input: vec![_input_0, _input_1],
                 output: vec![], // output will be added later
             },
-            prev_outs: vec![TxOut {
-                value: input_0.amount,
-                script_pubkey: guardian_connector
-                    .generate_taproot_address()
-                    .script_pubkey(),
-            }],
-            prev_scripts: vec![guardian_connector.generate_taproot_leaf_script(input_0_leaf)],
+            prev_outs: vec![
+                TxOut {
+                    value: input_0.amount,
+                    script_pubkey: guardian_connector
+                        .generate_taproot_address()
+                        .script_pubkey(),
+                },
+                TxOut {
+                    value: input_1.amount,
+                    script_pubkey: next_prekickoff_connector
+                        .generate_taproot_address()
+                        .script_pubkey(),
+                },
+            ],
+            prev_scripts: vec![
+                guardian_connector.generate_taproot_leaf_script(input_0_leaf),
+                next_prekickoff_connector.generate_taproot_leaf_script(input_1_leaf),
+            ],
         }
     }
 

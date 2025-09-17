@@ -556,7 +556,7 @@ impl NackTransaction {
                 watchtower_connectors
                     .1
                     .generate_taproot_leaf_script(input_0_leaf),
-                connector_f.generate_taproot_leaf_script(input_0_leaf),
+                connector_f.generate_taproot_leaf_script(input_1_leaf),
             ],
         }
     }
@@ -794,7 +794,7 @@ impl BlockhashCommitTimeoutTransaction {
             ],
             prev_scripts: vec![
                 connector_g.generate_taproot_leaf_script(input_0_leaf),
-                connector_f.generate_taproot_leaf_script(input_0_leaf),
+                connector_f.generate_taproot_leaf_script(input_1_leaf),
             ],
         }
     }
