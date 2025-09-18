@@ -130,7 +130,7 @@ impl Take2Transaction {
             prev_scripts: vec![
                 connector_0.generate_taproot_leaf_script(input_0_leaf),
                 connector_d.generate_taproot_leaf_script(input_1_leaf),
-                // No `input_2` script - key spend path is used
+                ScriptBuf::default(), // No `input_2` script - key spend path is used
                 connector_f.generate_taproot_leaf_script(input_3_leaf),
                 guardian_connector.generate_taproot_leaf_script(input_4_leaf),
             ],

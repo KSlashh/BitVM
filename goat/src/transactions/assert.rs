@@ -173,8 +173,8 @@ impl AssertInitTransaction {
             value: total_output_amount,
             script_pubkey: connector_d.generate_taproot_address().script_pubkey(),
         };
-        txouts.push(anchor_output);
         txouts.push(output_connector_d);
+        txouts.push(anchor_output);
 
         Ok(AssertInitTransaction {
             tx: Transaction {
