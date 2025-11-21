@@ -1,4 +1,5 @@
 #![allow(deprecated)]
+#![allow(dead_code)]
 use std::ops::Neg;
 
 use crate::bn254::ell_coeffs::AffinePairing;

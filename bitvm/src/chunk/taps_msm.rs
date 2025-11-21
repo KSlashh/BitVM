@@ -12,6 +12,7 @@ use super::elements::ElementType;
 use super::wrap_hasher::hash_messages;
 use crate::bn254::fq2::Fq2;
 
+#[allow(unused)]
 pub(crate) fn chunk_msm(
     input_ks: Vec<ark_ff::BigInt<4>>,
     qs: Vec<ark_bn254::G1Affine>,
