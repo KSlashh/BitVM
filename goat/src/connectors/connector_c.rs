@@ -13,24 +13,26 @@ use super::{
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct ConnectorC {
     pub network: Network,
-    pub operator_taproot_public_key: XOnlyPublicKey,
+    pub n_of_n_taproot_public_key: XOnlyPublicKey,
 }
 
 impl ConnectorC {
-    pub fn new(network: Network, operator_taproot_public_key: &XOnlyPublicKey) -> Self {
+    pub fn new(network: Network, n_of_n_taproot_public_key: &XOnlyPublicKey) -> Self {
         ConnectorC {
             network,
-            operator_taproot_public_key: *operator_taproot_public_key,
+            n_of_n_taproot_public_key: *n_of_n_taproot_public_key,
         }
     }
 
     fn generate_taproot_leaf_0_script(&self) -> ScriptBuf {
-        generate_pay_to_pubkey_taproot_script(&self.operator_taproot_public_key)
+        generate_pay_to_pubkey_taproot_script(&self.n_of_n_taproot_public_key)
     }
 
     fn generate_taproot_leaf_0_tx_in(&self, input: &Input) -> TxIn {
         generate_default_tx_in(input)
     }
+
+    // TODO!: add leaf_1: verify lambort sig of proof
 }
 
 impl TaprootConnector for ConnectorC {
@@ -52,7 +54,7 @@ impl TaprootConnector for ConnectorC {
         TaprootBuilder::new()
             .add_leaf(0, self.generate_taproot_leaf_0_script())
             .expect("Unable to add leaf 0")
-            .finalize(SECP256K1, self.operator_taproot_public_key)
+            .finalize(SECP256K1, self.n_of_n_taproot_public_key)
             .expect("Unable to finalize taproot")
     }
 

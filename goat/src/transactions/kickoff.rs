@@ -7,7 +7,6 @@ use crate::{
         connector_a::ConnectorA,
         connector_b::ConnectorB,
         connector_c::ConnectorC,
-        connector_e::ConnectorE,
         kickoff_connectors::{GuardianConnector, KickoffConnector},
     },
     contexts::operator::OperatorContext,
@@ -53,7 +52,6 @@ impl KickoffTransaction {
         connector_a: &ConnectorA,
         connector_b: &ConnectorB,
         connector_c: &ConnectorC,
-        connector_e: &ConnectorE,
         guardian_connector: &GuardianConnector,
         input_0: &Input,
         watchtower_num: usize,
@@ -81,25 +79,20 @@ impl KickoffTransaction {
             value: Amount::from_sat(max_watchtower_challenge_cost(watchtower_num)),
             script_pubkey: connector_b.generate_taproot_address().script_pubkey(),
         };
-        let output_2 = TxOut {
-            value: Amount::from_sat(max_assert_cost(assert_commit_num)),
-            script_pubkey: connector_c.generate_taproot_address().script_pubkey(),
-        };
-        let output_4 = TxOut {
+        let output_3 = TxOut {
             value: Amount::from_sat(DUST_AMOUNT),
             script_pubkey: guardian_connector
                 .generate_taproot_address()
                 .script_pubkey(),
         };
         let anchor_output = p2a_output();
-        let output_3 = TxOut {
+        let output_2 = TxOut {
             value: total_output_amount
                 - output_0.value
                 - output_1.value
-                - output_2.value
-                - output_4.value
+                - output_3.value
                 - anchor_output.value,
-            script_pubkey: connector_e.generate_taproot_address().script_pubkey(),
+            script_pubkey: connector_c.generate_taproot_address().script_pubkey(),
         };
 
         Ok(KickoffTransaction {
@@ -107,14 +100,7 @@ impl KickoffTransaction {
                 version: bitcoin::transaction::Version(2),
                 lock_time: absolute::LockTime::ZERO,
                 input: vec![_input_0],
-                output: vec![
-                    output_0,
-                    output_1,
-                    output_2,
-                    output_3,
-                    output_4,
-                    anchor_output,
-                ],
+                output: vec![output_0, output_1, output_2, output_3, anchor_output],
             },
             prev_outs: vec![TxOut {
                 value: input_0.amount,

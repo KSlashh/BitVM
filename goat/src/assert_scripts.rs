@@ -1,0 +1,130 @@
+use bitvm::signatures::{Wots, Wots64};
+use bitvm::treepp::*;
+
+pub type LabelHash = [u8; 20];
+pub struct WireHash {
+    pub tree_label_hash: LabelHash,
+    pub false_label_hash: LabelHash,
+}
+
+pub fn label_hash(label: &[u8]) -> LabelHash {
+    use bitcoin::hashes::{hash160, Hash};
+    hash160::Hash::hash(label).to_byte_array()
+}
+
+fn label_hash_script() -> Script {
+    script! {
+        OP_HASH160
+    }
+}
+
+pub fn verify_prover_assert_script(prover_wots_pubkey: &<Wots64 as Wots>::PublicKey) -> Script {
+    script! {
+        { Wots64::checksig_verify_and_clear_stack(prover_wots_pubkey) }
+        OP_TRUE
+    }
+}
+
+pub fn verify_verifier_assert_script(
+    prover_wots_pubkey: &<Wots64 as Wots>::PublicKey,
+    label_hashes: [WireHash; 512],
+) -> Script {
+    script! {
+        { Wots64::checksig_verify(prover_wots_pubkey) }
+        for _ in 0..(Wots64::MSG_BYTE_LEN * 2) {
+            OP_TOALTSTACK
+        }
+        for byte_hashes in label_hashes.chunks(8).rev() {
+            for wire_hashes in byte_hashes.chunks(4).rev() {
+                { 0 }
+                for (bit_index, wire_hash) in wire_hashes.iter().enumerate().rev() {
+                    OP_SWAP
+                    OP_DUP
+                    { label_hash_script() }
+                    { wire_hash.tree_label_hash.to_vec() }
+                    OP_EQUAL
+                    OP_IF
+                        OP_DROP
+                        { 1 << bit_index }
+                        OP_ADD
+                    OP_ELSE
+                        { label_hash_script() }
+                        { wire_hash.false_label_hash.to_vec() }
+                        OP_EQUALVERIFY
+                    OP_ENDIF
+                }
+                OP_FROMALTSTACK
+                OP_EQUALVERIFY
+            }
+        }
+        OP_TRUE
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bitvm::execute_script;
+    use rand::RngCore;
+
+    #[test]
+    fn test_verify_verifier_assert_script() {
+        let secret = Wots64::generate_secret_key();
+        let public_key = Wots64::generate_public_key(&secret);
+
+        let true_labels: Vec<Vec<u8>> = (0..512)
+            .map(|i| {
+                let mut label = vec![0x54; 20];
+                label[0] = (i & 0xff) as u8;
+                label[1] = (i >> 8) as u8;
+                label
+            })
+            .collect();
+        let false_labels: Vec<Vec<u8>> = (0..512)
+            .map(|i| {
+                let mut label = vec![0x46; 20];
+                label[0] = (i & 0xff) as u8;
+                label[1] = (i >> 8) as u8;
+                label
+            })
+            .collect();
+
+        let mut msg: [u8; 64] = [0; 64];
+        rand::thread_rng().fill_bytes(&mut msg);
+
+        let mut bits = [false; 512];
+        for i in 0..512 {
+            bits[i] = (msg[i / 8] >> (i % 8)) & 1 == 1;
+        }
+
+        let label_hashes = std::array::from_fn(|i| WireHash {
+            tree_label_hash: label_hash(&true_labels[i]),
+            false_label_hash: label_hash(&false_labels[i]),
+        });
+        let selected_labels: Vec<Vec<u8>> = (0..512)
+            .map(|i| {
+                if bits[i] {
+                    true_labels[i].clone()
+                } else {
+                    false_labels[i].clone()
+                }
+            })
+            .collect();
+
+        let s = script! {
+            for wire_index in 0..512 {
+                { selected_labels[wire_index].clone() }
+            }
+            { Wots64::sign_to_raw_witness(&secret, &msg) }
+            { verify_verifier_assert_script(&public_key, label_hashes) }
+        };
+        println!("verifier assert full script size: {}", s.len());
+        let result = execute_script(s);
+        println!(
+            "verifier assert max stack item size: {:?}",
+            result.stats.max_nb_stack_items
+        );
+        assert!(result.success);
+        assert_eq!(result.final_stack.len(), 1);
+    }
+}
