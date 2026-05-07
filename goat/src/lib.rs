@@ -9,3 +9,4 @@ pub mod scripts;
 pub mod serialization;
 pub mod transactions;
 pub mod utils;
+pub mod wots;

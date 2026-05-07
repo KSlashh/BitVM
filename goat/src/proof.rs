@@ -84,6 +84,7 @@ pub fn deserialize_pubin(buffer: Vec<u8>) -> Vec<ark_bn254::Fr> {
 #[ignore]
 #[allow(deprecated)]
 fn verify_zkm2_proof() {
+    use crate::wots::{Wots, Wots16, Wots32};
     /// TODO: Update NUM_PUBS, NUM_256, NUM_160, mock_proof
     /// NUM_PUBS = 2
     /// NUM_256 = 14
@@ -92,7 +93,6 @@ fn verify_zkm2_proof() {
         api_generate_full_tapscripts, api_generate_partial_script, generate_signatures,
         validate_assertions, PublicKeys, NUM_HASH, NUM_PUBS, NUM_U256,
     };
-    use bitvm::signatures::{Wots, Wots16, Wots32};
     fn get_pubkeys(secret_key: Vec<String>) -> PublicKeys {
         let mut pubins = vec![];
         for i in 0..NUM_PUBS {
