@@ -15,7 +15,7 @@ use super::{
             base::*, connector_0::Connector0, connector_d::ConnectorD,
             kickoff_connectors::GuardianConnector,
         },
-        contexts::{operator::OperatorContext, verifier::VerifierContext},
+        contexts::{committee::CommitteeContext, operator::OperatorContext},
         error::{Error, TransactionError::InsufficientInputAmount},
         scripts::*,
         transactions::signing_musig2::generate_taproot_partial_signature,
@@ -119,7 +119,7 @@ impl Take2Transaction {
 
     fn sign_input_0_musig2(
         &mut self,
-        context: &VerifierContext,
+        context: &CommitteeContext,
         sec_nonce: &SecNonce,
         agg_nonce: &AggNonce,
     ) -> Result<PartialSignature, SigningError> {
@@ -162,7 +162,7 @@ impl Take2Transaction {
 
     pub fn pre_sign(
         &mut self,
-        context: &VerifierContext,
+        context: &CommitteeContext,
         sec_nonces: &[SecNonce; 1],
         agg_nonces: &[AggNonce; 1],
     ) -> Result<[PartialSignature; 1], SigningError> {

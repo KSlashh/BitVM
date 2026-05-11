@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     connectors::connector_0::Connector0,
-    contexts::{base::BaseContext, verifier::VerifierContext},
+    contexts::{base::BaseContext, committee::CommitteeContext},
     error::{Error, TransactionError::InsufficientInputAmount},
     scripts::generate_opreturn_script,
     transactions::{
@@ -272,7 +272,7 @@ impl PegInConfirmTransaction {
 
     pub fn sign_input_0_musig2(
         &mut self,
-        context: &VerifierContext,
+        context: &CommitteeContext,
         sec_nonce: &SecNonce,
         agg_nonce: &AggNonce,
     ) -> Result<PartialSignature, SigningError> {

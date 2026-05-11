@@ -19,7 +19,7 @@ use super::{
             base::*, connector_0::Connector0, connector_a::ConnectorA,
             kickoff_connectors::GuardianConnector,
         },
-        contexts::{operator::OperatorContext, verifier::VerifierContext},
+        contexts::{committee::CommitteeContext, operator::OperatorContext},
         scripts::*,
     },
     base::*,
@@ -140,7 +140,7 @@ impl Take1Transaction {
 
     fn sign_input_0_musig2(
         &mut self,
-        context: &VerifierContext,
+        context: &CommitteeContext,
         sec_nonce: &SecNonce,
         agg_nonce: &AggNonce,
     ) -> Result<PartialSignature, SigningError> {
@@ -183,7 +183,7 @@ impl Take1Transaction {
 
     pub fn pre_sign(
         &mut self,
-        context: &VerifierContext,
+        context: &CommitteeContext,
         sec_nonces: &[SecNonce; 1],
         agg_nonces: &[AggNonce; 1],
     ) -> Result<[PartialSignature; 1], SigningError> {

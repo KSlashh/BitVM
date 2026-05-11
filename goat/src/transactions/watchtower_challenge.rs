@@ -129,18 +129,13 @@ impl WatchtowerChallengeInitTransaction {
         let _input_0 = connector_b.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
 
         if input_0.amount
-            < Amount::from_sat(
-                min_relay_fee_watchtower_challenge_init(watchtower_challenge_connectors.len())
-                    + (watchtower_challenge_connectors.len() + 1) as u64 * DUST_AMOUNT,
-            )
+            < Amount::from_sat(max_watchtower_challenge_cost(
+                watchtower_challenge_connectors.len(),
+            ))
         {
             return Err(Error::Transaction(InsufficientInputAmount));
         }
 
-        let mut total_output_amount = input_0.amount
-            - Amount::from_sat(min_relay_fee_watchtower_challenge_init(
-                watchtower_challenge_connectors.len(),
-            ));
         let mut txouts = vec![];
         for watchtower_challenge_connector in watchtower_challenge_connectors {
             let challenge_output = TxOut {
@@ -149,7 +144,6 @@ impl WatchtowerChallengeInitTransaction {
                     .generate_taproot_address()
                     .script_pubkey(),
             };
-            total_output_amount = total_output_amount - challenge_output.value;
             txouts.push(challenge_output);
         }
 

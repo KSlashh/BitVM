@@ -289,7 +289,7 @@ impl ForceSkipKickoffTransaction {
         context: &OperatorContext,
         kickoff_connector: &KickoffConnector,
     ) {
-        let input_index = 1;
+        let input_index = 0;
         pre_sign_taproot_input_default(
             self,
             input_index,
@@ -424,7 +424,7 @@ impl QuickChallengeTransaction {
         context: &OperatorContext,
         guardian_connector: &GuardianConnector,
     ) {
-        let input_index = 1;
+        let input_index = 0;
         pre_sign_taproot_input_default(
             self,
             input_index,
@@ -559,7 +559,7 @@ impl ChallengeIncompleteKickoffTransaction {
         context: &OperatorContext,
         guardian_connector: &GuardianConnector,
     ) {
-        let input_index = 1;
+        let input_index = 0;
         pre_sign_taproot_input_default(
             self,
             input_index,

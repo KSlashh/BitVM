@@ -1,13 +1,21 @@
 use crate::wots::{Wots, Wots64, Wots96};
-use bitvm::treepp::*;
+use bitvm::{signatures::WinternitzSecret, treepp::*};
+use serde::{Deserialize, Serialize};
 
+pub const INPUT_WIRE_NUM: usize = 512;
+pub const PROVER_SIG_LEN: usize = 2 * Wots64::TOTAL_DIGIT_LEN as usize;
+pub type OperatorAssertSecretKey = WinternitzSecret;
+pub type OperatorAssertPublicKey = <Wots64 as Wots>::PublicKey;
+
+pub type Label = Vec<u8>;
 pub type LabelHash = [u8; 20];
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct WireHash {
     pub true_label_hash: LabelHash,
     pub false_label_hash: LabelHash,
 }
 
-pub fn label_hash(label: &[u8]) -> LabelHash {
+pub fn label_hash(label: &Label) -> LabelHash {
     use bitcoin::hashes::{hash160, Hash};
     hash160::Hash::hash(label).to_byte_array()
 }
@@ -15,6 +23,15 @@ pub fn label_hash(label: &[u8]) -> LabelHash {
 fn label_hash_script() -> Script {
     script! {
         OP_HASH160
+    }
+}
+
+pub fn wrongly_challenged_script(hashlock: &LabelHash) -> Script {
+    script! {
+        { label_hash_script() }
+        { hashlock.to_vec() }
+        OP_EQUALVERIFY
+        OP_TRUE
     }
 }
 
@@ -29,7 +46,7 @@ pub fn verify_prover_assert_script_512_wire(
 
 pub fn verify_verifier_assert_script_512_wire(
     prover_wots_pubkey: &<Wots64 as Wots>::PublicKey,
-    label_hashes: [WireHash; 512],
+    label_hashes: &[WireHash; 512],
 ) -> Script {
     script! {
         for byte_hashes in label_hashes.chunks(8).rev() {
@@ -161,7 +178,7 @@ mod tests {
             for wire_index in 0..512 {
                 { selected_labels[wire_index].clone() }
             }
-            { verify_verifier_assert_script_512_wire(&public_key, label_hashes) }
+            { verify_verifier_assert_script_512_wire(&public_key, &label_hashes) }
         };
         println!("verifier assert full script size: {}", s.len());
         let result = execute_script(s);
