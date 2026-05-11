@@ -315,7 +315,7 @@ impl DisproveTransaction {
         let input_index = 0;
         let sighash_type = TapSighashType::None;
         generate_taproot_partial_signature(
-            &context,
+            context,
             self.tx(),
             sec_nonce,
             agg_nonce,
@@ -358,7 +358,7 @@ impl DisproveTransaction {
         let input_index = 1;
         let sighash_type = TapSighashType::None;
         generate_taproot_partial_signature(
-            &context,
+            context,
             self.tx(),
             sec_nonce,
             agg_nonce,
@@ -467,8 +467,8 @@ impl DisproveTransaction {
         connector_d: &ConnectorD,
         pre_sigs: [bitcoin::taproot::Signature; 2],
     ) {
-        self.push_input_0_signature(prover_connector, pre_sigs[0].clone());
-        self.push_input_1_signature(connector_d, pre_sigs[1].clone());
+        self.push_input_0_signature(prover_connector, pre_sigs[0]);
+        self.push_input_1_signature(connector_d, pre_sigs[1]);
     }
 }
 
@@ -485,10 +485,10 @@ impl BaseTransaction for DisproveTransaction {
 pub fn wrongly_challenged(
     prover_connector: &ProverConnector,
     input_0: &Input,
-    final_msg: &Vec<u8>,
+    final_msg: &[u8],
 ) -> Result<TxIn, Error> {
     let leaf_index = 0;
-    let unlock_data = vec![final_msg.clone()];
+    let unlock_data = vec![final_msg.to_owned()];
     let witness_script = script! {
         { unlock_data.clone() }
     };

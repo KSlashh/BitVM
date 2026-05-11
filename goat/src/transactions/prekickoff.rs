@@ -89,6 +89,7 @@ impl PreSignedTransaction for PrekickoffTransaction {
     }
 }
 impl PrekickoffTransaction {
+    #[allow(clippy::too_many_arguments)]
     pub fn new_for_validation(
         prev_prekickoff_connector: &PrekickoffConnector,
         force_skip_connector: &ForceSkipConnector,

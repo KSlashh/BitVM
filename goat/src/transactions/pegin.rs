@@ -279,7 +279,7 @@ impl PegInConfirmTransaction {
         let input_index = 0;
         let sighash_type = TapSighashType::All;
         generate_taproot_partial_signature(
-            &context,
+            context,
             self.tx(),
             sec_nonce,
             agg_nonce,
@@ -312,7 +312,7 @@ impl PegInConfirmTransaction {
                 signature: sig.into(),
                 sighash_type,
             }),
-            Err(_) => return Err(Error::Other("Failed to aggregate signatures")),
+            Err(_) => Err(Error::Other("Failed to aggregate signatures")),
         }
     }
 

@@ -140,7 +140,7 @@ pub trait PreSignedMusig2Transaction: PreSignedTransaction {
             musig2_nonce_signatures
                 .get_mut(&index)
                 .unwrap()
-                .insert(*verifier_pubkey, nonce_signature.clone());
+                .insert(*verifier_pubkey, *nonce_signature);
         }
         None
     }

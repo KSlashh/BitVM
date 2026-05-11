@@ -126,7 +126,7 @@ impl Take2Transaction {
         let input_index = 0;
         let sighash_type = TapSighashType::All;
         generate_taproot_partial_signature(
-            &context,
+            context,
             self.tx(),
             sec_nonce,
             agg_nonce,
@@ -209,7 +209,7 @@ impl Take2Transaction {
         connector_0: &Connector0,
         pre_sigs: [bitcoin::taproot::Signature; 1],
     ) {
-        self.push_input_0_signature(connector_0, pre_sigs[0].clone());
+        self.push_input_0_signature(connector_0, pre_sigs[0]);
     }
 
     pub fn sign_input_1(&mut self, context: &OperatorContext, connector_d: &ConnectorD) {

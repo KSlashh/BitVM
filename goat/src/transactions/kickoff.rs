@@ -47,6 +47,7 @@ impl PreSignedTransaction for KickoffTransaction {
     }
 }
 impl KickoffTransaction {
+    #[allow(clippy::too_many_arguments)]
     pub fn new_for_validation(
         kickoff_connector: &KickoffConnector,
         connector_a: &ConnectorA,
@@ -58,7 +59,7 @@ impl KickoffTransaction {
         assert_commit_num: usize,
     ) -> Result<Self, Error> {
         let input_0_leaf = 0;
-        let _input_0 = kickoff_connector.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
+        let _input_0 = kickoff_connector.generate_taproot_leaf_tx_in(input_0_leaf, input_0);
 
         if input_0.amount
             < Amount::from_sat(

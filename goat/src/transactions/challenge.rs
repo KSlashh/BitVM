@@ -92,7 +92,7 @@ impl ChallengeTransaction {
         let input_index = 0;
         let sighash_type = TapSighashType::SinglePlusAnyoneCanPay;
         generate_taproot_partial_signature(
-            &context,
+            context,
             self.tx(),
             sec_nonce,
             agg_nonce,
@@ -175,7 +175,7 @@ impl ChallengeTransaction {
         connector_a: &ConnectorA,
         pre_sigs: [bitcoin::taproot::Signature; 1],
     ) {
-        self.push_input_0_signature(connector_a, pre_sigs[0].clone());
+        self.push_input_0_signature(connector_a, pre_sigs[0]);
     }
 }
 
