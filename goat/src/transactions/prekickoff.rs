@@ -101,7 +101,7 @@ impl PrekickoffTransaction {
         // replenish_fee_prev_scripts: Vec<ScriptBuf>,
         fee_amount: u64,
         watchtower_num: usize,
-        assert_commit_num: usize,
+        verifier_num: usize,
     ) -> Result<Self, Error> {
         let mut input_amounts = vec![input_0.amount];
         let replenish_fee_input_amounts: Vec<Amount> = replenish_fee_inputs
@@ -127,7 +127,7 @@ impl PrekickoffTransaction {
 
         if total_input_amount
             < Amount::from_sat(
-                fee_amount + 3 * DUST_AMOUNT + max_pegout_cost(watchtower_num, assert_commit_num),
+                fee_amount + 3 * DUST_AMOUNT + max_pegout_cost(watchtower_num, verifier_num),
             )
         {
             return Err(Error::Transaction(InsufficientInputAmount));
@@ -141,7 +141,7 @@ impl PrekickoffTransaction {
                 .script_pubkey(),
         };
         let output_1 = TxOut {
-            value: Amount::from_sat(max_pegout_cost(watchtower_num, assert_commit_num)),
+            value: Amount::from_sat(max_pegout_cost(watchtower_num, verifier_num)),
             script_pubkey: kickoff_connector.generate_taproot_address().script_pubkey(),
         };
         let output_3 = p2a_output();

@@ -56,7 +56,7 @@ impl KickoffTransaction {
         guardian_connector: &GuardianConnector,
         input_0: &Input,
         watchtower_num: usize,
-        assert_commit_num: usize,
+        verifier_num: usize,
     ) -> Result<Self, Error> {
         let input_0_leaf = 0;
         let _input_0 = kickoff_connector.generate_taproot_leaf_tx_in(input_0_leaf, input_0);
@@ -66,7 +66,7 @@ impl KickoffTransaction {
                 MIN_RELAY_FEE_KICKOFF
                     + 4 * DUST_AMOUNT
                     + max_watchtower_challenge_cost(watchtower_num)
-                    + max_assert_cost(assert_commit_num),
+                    + max_assert_cost(verifier_num),
             )
         {
             return Err(Error::Transaction(InsufficientInputAmount));
