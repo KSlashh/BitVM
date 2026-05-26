@@ -22,7 +22,7 @@ pub const MIN_RELAY_FEE_KICKOFF: u64 = relay_fee(500);
 pub const MIN_RELAY_FEE_TAKE_1: u64 = relay_fee(500);
 pub const MIN_RELAY_FEE_TAKE_2: u64 = relay_fee(500);
 pub const MIN_RELAY_FEE_VERIFIER_ASSERT: u64 = relay_fee(60000);
-pub const MIN_RELAY_FEE_WRONGLY_CHALLENGED: u64 = relay_fee(500);
+pub const MIN_RELAY_FEE_WRONGLY_CHALLENGED: u64 = relay_fee(1500);
 pub const MIN_RELAY_FEE_DISPROVE: u64 = relay_fee(800);
 pub const P2A_AMOUNT: u64 = 240;
 pub const fn min_relay_fee_watchtower_challenge_init(watchtower_num: usize) -> u64 {

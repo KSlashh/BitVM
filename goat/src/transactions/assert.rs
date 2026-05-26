@@ -485,10 +485,15 @@ impl BaseTransaction for DisproveTransaction {
 pub fn wrongly_challenged(
     prover_connector: &ProverConnector,
     input_0: &Input,
-    final_msg: &[u8],
+    final_msgs: &[Label],
 ) -> Result<TxIn, Error> {
+    if final_msgs.len() != prover_connector.hashlocks.len() {
+        return Err(Error::Other(
+            "Invalid hashlock preimage length for ProverConnector.",
+        ));
+    }
     let leaf_index = 0;
-    let unlock_data = vec![final_msg.to_owned()];
+    let unlock_data = final_msgs.to_vec();
     let witness_script = script! {
         { unlock_data.clone() }
     };

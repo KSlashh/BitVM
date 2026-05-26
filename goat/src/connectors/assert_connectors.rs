@@ -104,25 +104,29 @@ pub struct ProverConnector {
     pub network: Network,
     pub n_of_n_taproot_public_key: XOnlyPublicKey,
     pub disprove_blocks_timelock: u32,
-    pub hashlock: LabelHash,
+    pub hashlocks: Vec<LabelHash>,
 }
 
 impl ProverConnector {
     pub fn new(
         network: Network,
         n_of_n_taproot_public_key: XOnlyPublicKey,
-        hashlock: LabelHash,
+        hashlocks: Vec<LabelHash>,
     ) -> Self {
+        assert!(
+            !hashlocks.is_empty(),
+            "ProverConnector requires at least one hashlock"
+        );
         ProverConnector {
             network,
             n_of_n_taproot_public_key,
             disprove_blocks_timelock: num_blocks_per_network(network, PROVER_CONNECTOR_TIMELOCK),
-            hashlock,
+            hashlocks,
         }
     }
 
     fn generate_taproot_leaf_0_script(&self) -> ScriptBuf {
-        wrongly_challenged_script(&self.hashlock).compile()
+        wrongly_challenged_hashlocks_script(&self.hashlocks).compile()
     }
 
     fn generate_taproot_leaf_0_tx_in(&self, input: &Input) -> TxIn {
