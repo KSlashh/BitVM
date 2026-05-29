@@ -107,17 +107,49 @@ pub fn tx_output_input(transaction: &Transaction, vout: usize) -> Result<Input, 
     })
 }
 
-pub fn tx_output_input_by_script(
-    transaction: &Transaction,
-    script_pubkey: &Script,
-) -> Result<Input, Error> {
-    let vout = transaction
-        .output
-        .iter()
-        .position(|output| output.script_pubkey.as_script() == script_pubkey)
-        .ok_or(Error::Other("transaction output script not found"))?;
+pub mod output_topology {
+    pub mod kickoff {
+        pub const CONNECTOR_A: usize = 0;
+        pub const CONNECTOR_B: usize = 1;
+        pub const CONNECTOR_C: usize = 2;
+        pub const GUARDIAN_CONNECTOR: usize = 3;
+        pub const ANCHOR: usize = 4;
+    }
 
-    tx_output_input(transaction, vout)
+    pub mod prekickoff {
+        pub const FORCE_SKIP_CONNECTOR: usize = 0;
+        pub const KICKOFF_CONNECTOR: usize = 1;
+        pub const PREKICKOFF_CONNECTOR: usize = 2;
+        pub const ANCHOR: usize = 3;
+    }
+
+    pub mod watchtower_challenge_init {
+        pub const WATCHTOWER_CONNECTOR_START: usize = 0;
+
+        pub const fn watchtower_connector(index: usize) -> usize {
+            WATCHTOWER_CONNECTOR_START + index
+        }
+
+        pub const fn anchor(watchtower_num: usize) -> usize {
+            WATCHTOWER_CONNECTOR_START + watchtower_num
+        }
+    }
+
+    pub mod operator_assert {
+        pub const VERIFIER_CONNECTOR_START: usize = 0;
+
+        pub const fn verifier_connector(index: usize) -> usize {
+            VERIFIER_CONNECTOR_START + index
+        }
+
+        pub const fn connector_d(verifier_num: usize) -> usize {
+            VERIFIER_CONNECTOR_START + verifier_num
+        }
+
+        pub const fn anchor(verifier_num: usize) -> usize {
+            connector_d(verifier_num) + 1
+        }
+    }
 }
 
 pub trait BaseTransaction {

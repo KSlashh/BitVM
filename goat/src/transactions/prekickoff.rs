@@ -192,47 +192,20 @@ impl PrekickoffTransaction {
         );
     }
 
-    pub fn force_skip_connector_input(
-        &self,
-        force_skip_connector: &ForceSkipConnector,
-    ) -> Result<Input, Error> {
-        tx_output_input_by_script(
-            &self.tx,
-            force_skip_connector
-                .generate_taproot_address()
-                .script_pubkey()
-                .as_script(),
-        )
+    pub fn force_skip_connector_input(&self) -> Result<Input, Error> {
+        tx_output_input(&self.tx, output_topology::prekickoff::FORCE_SKIP_CONNECTOR)
     }
 
-    pub fn kickoff_connector_input(
-        &self,
-        kickoff_connector: &KickoffConnector,
-    ) -> Result<Input, Error> {
-        tx_output_input_by_script(
-            &self.tx,
-            kickoff_connector
-                .generate_taproot_address()
-                .script_pubkey()
-                .as_script(),
-        )
+    pub fn kickoff_connector_input(&self) -> Result<Input, Error> {
+        tx_output_input(&self.tx, output_topology::prekickoff::KICKOFF_CONNECTOR)
     }
 
-    pub fn prekickoff_connector_input(
-        &self,
-        prekickoff_connector: &PrekickoffConnector,
-    ) -> Result<Input, Error> {
-        tx_output_input_by_script(
-            &self.tx,
-            prekickoff_connector
-                .generate_taproot_address()
-                .script_pubkey()
-                .as_script(),
-        )
+    pub fn prekickoff_connector_input(&self) -> Result<Input, Error> {
+        tx_output_input(&self.tx, output_topology::prekickoff::PREKICKOFF_CONNECTOR)
     }
 
     pub fn anchor_input(&self) -> Result<Input, Error> {
-        tx_output_input_by_script(&self.tx, p2a_output().script_pubkey.as_script())
+        tx_output_input(&self.tx, output_topology::prekickoff::ANCHOR)
     }
 }
 impl BaseTransaction for PrekickoffTransaction {

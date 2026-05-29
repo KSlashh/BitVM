@@ -133,25 +133,31 @@ impl OperatorAssertTransaction {
     }
 
     pub fn verifier_connector_input(&self, index: usize) -> Result<Input, Error> {
-        if index >= self.tx.output.len().saturating_sub(2) {
+        let verifier_num = self.tx.output.len().saturating_sub(2);
+        if index >= verifier_num {
             return Err(Error::Other("verifier connector index out of bounds"));
         }
 
-        tx_output_input(&self.tx, index)
+        tx_output_input(
+            &self.tx,
+            output_topology::operator_assert::verifier_connector(index),
+        )
     }
 
-    pub fn connector_d_input(&self, connector_d: &ConnectorD) -> Result<Input, Error> {
-        tx_output_input_by_script(
+    pub fn connector_d_input(&self) -> Result<Input, Error> {
+        let verifier_num = self.tx.output.len().saturating_sub(2);
+        tx_output_input(
             &self.tx,
-            connector_d
-                .generate_taproot_address()
-                .script_pubkey()
-                .as_script(),
+            output_topology::operator_assert::connector_d(verifier_num),
         )
     }
 
     pub fn anchor_input(&self) -> Result<Input, Error> {
-        tx_output_input_by_script(&self.tx, p2a_output().script_pubkey.as_script())
+        let verifier_num = self.tx.output.len().saturating_sub(2);
+        tx_output_input(
+            &self.tx,
+            output_topology::operator_assert::anchor(verifier_num),
+        )
     }
 }
 

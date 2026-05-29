@@ -177,11 +177,15 @@ impl WatchtowerChallengeInitTransaction {
     }
 
     pub fn watchtower_connector_input(&self, index: usize) -> Result<Input, Error> {
-        if index >= self.tx.output.len().saturating_sub(1) {
+        let watchtower_num = self.tx.output.len().saturating_sub(1);
+        if index >= watchtower_num {
             return Err(Error::Other("watchtower connector index out of bounds"));
         }
 
-        tx_output_input(&self.tx, index)
+        tx_output_input(
+            &self.tx,
+            output_topology::watchtower_challenge_init::watchtower_connector(index),
+        )
     }
 
     pub fn watchtower_connector_inputs(&self) -> Result<Vec<Input>, Error> {
@@ -189,13 +193,18 @@ impl WatchtowerChallengeInitTransaction {
             return Err(Error::Other("watchtower challenge init has no outputs"));
         }
 
-        (0..self.tx.output.len() - 1)
+        let watchtower_num = self.tx.output.len() - 1;
+        (0..watchtower_num)
             .map(|index| self.watchtower_connector_input(index))
             .collect()
     }
 
     pub fn anchor_input(&self) -> Result<Input, Error> {
-        tx_output_input_by_script(&self.tx, p2a_output().script_pubkey.as_script())
+        let watchtower_num = self.tx.output.len().saturating_sub(1);
+        tx_output_input(
+            &self.tx,
+            output_topology::watchtower_challenge_init::anchor(watchtower_num),
+        )
     }
 }
 impl BaseTransaction for WatchtowerChallengeInitTransaction {
