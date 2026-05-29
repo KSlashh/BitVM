@@ -175,6 +175,28 @@ impl WatchtowerChallengeInitTransaction {
             &vec![&context.operator_keypair],
         );
     }
+
+    pub fn watchtower_connector_input(&self, index: usize) -> Result<Input, Error> {
+        if index >= self.tx.output.len().saturating_sub(1) {
+            return Err(Error::Other("watchtower connector index out of bounds"));
+        }
+
+        tx_output_input(&self.tx, index)
+    }
+
+    pub fn watchtower_connector_inputs(&self) -> Result<Vec<Input>, Error> {
+        if self.tx.output.is_empty() {
+            return Err(Error::Other("watchtower challenge init has no outputs"));
+        }
+
+        (0..self.tx.output.len() - 1)
+            .map(|index| self.watchtower_connector_input(index))
+            .collect()
+    }
+
+    pub fn anchor_input(&self) -> Result<Input, Error> {
+        tx_output_input_by_script(&self.tx, p2a_output().script_pubkey.as_script())
+    }
 }
 impl BaseTransaction for WatchtowerChallengeInitTransaction {
     fn finalize(&self) -> Transaction {

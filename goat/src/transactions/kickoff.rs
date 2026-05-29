@@ -14,8 +14,8 @@ use crate::{
     scripts::p2a_output,
     transactions::{
         base::{
-            max_assert_cost, max_watchtower_challenge_cost, BaseTransaction, Input, DUST_AMOUNT,
-            MIN_RELAY_FEE_KICKOFF,
+            max_assert_cost, max_watchtower_challenge_cost, tx_output_input_by_script,
+            BaseTransaction, Input, DUST_AMOUNT, MIN_RELAY_FEE_KICKOFF,
         },
         pre_signed::{pre_sign_taproot_input_default, PreSignedTransaction},
     },
@@ -124,6 +124,53 @@ impl KickoffTransaction {
             kickoff_connector.generate_taproot_spend_info(),
             &vec![&context.operator_keypair],
         );
+    }
+
+    pub fn connector_a_input(&self, connector_a: &ConnectorA) -> Result<Input, Error> {
+        tx_output_input_by_script(
+            &self.tx,
+            connector_a
+                .generate_taproot_address()
+                .script_pubkey()
+                .as_script(),
+        )
+    }
+
+    pub fn connector_b_input(&self, connector_b: &ConnectorB) -> Result<Input, Error> {
+        tx_output_input_by_script(
+            &self.tx,
+            connector_b
+                .generate_taproot_address()
+                .script_pubkey()
+                .as_script(),
+        )
+    }
+
+    pub fn connector_c_input(&self, connector_c: &ConnectorC) -> Result<Input, Error> {
+        tx_output_input_by_script(
+            &self.tx,
+            connector_c
+                .generate_taproot_address()
+                .script_pubkey()
+                .as_script(),
+        )
+    }
+
+    pub fn guardian_connector_input(
+        &self,
+        guardian_connector: &GuardianConnector,
+    ) -> Result<Input, Error> {
+        tx_output_input_by_script(
+            &self.tx,
+            guardian_connector
+                .generate_taproot_address()
+                .script_pubkey()
+                .as_script(),
+        )
+    }
+
+    pub fn anchor_input(&self) -> Result<Input, Error> {
+        tx_output_input_by_script(&self.tx, p2a_output().script_pubkey.as_script())
     }
 }
 impl BaseTransaction for KickoffTransaction {

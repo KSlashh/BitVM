@@ -1,4 +1,5 @@
 use super::pre_signed_musig2::{verify_public_nonce, PreSignedMusig2Transaction};
+use crate::error::Error;
 use bitcoin::policy::{DEFAULT_MIN_RELAY_TX_FEE, DUST_RELAY_TX_FEE};
 use bitcoin::{consensus, Amount, OutPoint, PublicKey, Script, Transaction, Txid, XOnlyPublicKey};
 use core::cmp;
@@ -86,6 +87,37 @@ pub struct InputWithScript<'a> {
     pub outpoint: OutPoint,
     pub amount: Amount,
     pub script: &'a Script,
+}
+
+pub fn tx_output_input(transaction: &Transaction, vout: usize) -> Result<Input, Error> {
+    let output = transaction
+        .output
+        .get(vout)
+        .ok_or(Error::Other("transaction output index out of bounds"))?;
+    let vout = vout
+        .try_into()
+        .map_err(|_| Error::Other("transaction output index exceeds u32"))?;
+
+    Ok(Input {
+        outpoint: OutPoint {
+            txid: transaction.compute_txid(),
+            vout,
+        },
+        amount: output.value,
+    })
+}
+
+pub fn tx_output_input_by_script(
+    transaction: &Transaction,
+    script_pubkey: &Script,
+) -> Result<Input, Error> {
+    let vout = transaction
+        .output
+        .iter()
+        .position(|output| output.script_pubkey.as_script() == script_pubkey)
+        .ok_or(Error::Other("transaction output script not found"))?;
+
+    tx_output_input(transaction, vout)
 }
 
 pub trait BaseTransaction {
