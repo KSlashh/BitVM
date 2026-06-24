@@ -1,63 +1,130 @@
-use bitcoin::{
-    address::NetworkUnchecked,
-    taproot::{TaprootBuilder, TaprootSpendInfo},
-    Address, Network, ScriptBuf, TapNodeHash, XOnlyPublicKey,
+use crate::{
+    assert_scripts::{
+        verify_prover_assert_script_768_wire, OperatorCommitPubinPublicKey,
+        OperatorCommitPubinSecretKey, PROVER_SIG_LEN,
+    },
+    constants::TimelockConfig,
+    utils::remove_script_and_control_block_from_witness,
+    wots::*,
 };
+use bitcoin::{
+    taproot::{TaprootBuilder, TaprootSpendInfo},
+    Address, Network, ScriptBuf, TxIn, XOnlyPublicKey,
+};
+use bitvm::{chunk::api::type_conversion_utils::RawWitness, treepp::*};
 use secp256k1::SECP256K1;
 use serde::{Deserialize, Serialize};
+use serde_big_array::BigArray;
+
+use super::{
+    super::{error::Error, scripts::*, transactions::base::Input},
+    base::*,
+};
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct ConnectorE {
     pub network: Network,
-    pub operator_taproot_public_key: XOnlyPublicKey,
-    pub address: Address<NetworkUnchecked>,
-    pub taproot_merkle_root: Option<TapNodeHash>,
+    pub n_of_n_taproot_public_key: XOnlyPublicKey,
+    #[serde(with = "BigArray")]
+    pub operator_commit_pubin_wots_public_key: OperatorCommitPubinPublicKey,
+    pub operator_commit_blocks_timelock: u32,
 }
 
 impl ConnectorE {
-    pub fn new_with_scripts(
+    pub fn new(
         network: Network,
-        operator_taproot_public_key: &XOnlyPublicKey,
-        lock_scripts: Vec<ScriptBuf>, // guest_validation_scripts || proof_validation_scripts
-    ) -> (Self, TaprootSpendInfo) {
-        // println!("Generating new taproot spend info for connector E...");
-        let script_weights = lock_scripts.into_iter().map(|b| (1, b));
-        let spend_info = TaprootBuilder::with_huffman_tree(script_weights)
-            .expect("Unable to add assert leaves")
-            .finalize(SECP256K1, *operator_taproot_public_key)
-            .expect("Unable to finalize assert transaction connector c taproot");
-        let address = Address::p2tr_tweaked(spend_info.output_key(), network);
-        let merkle_root = spend_info.merkle_root();
-        (
-            ConnectorE {
-                network,
-                operator_taproot_public_key: *operator_taproot_public_key,
-                address: address.as_unchecked().clone(),
-                taproot_merkle_root: merkle_root,
-            },
-            spend_info,
-        )
-    }
-
-    pub fn new_with_precomputed_info(
-        network: Network,
-        operator_taproot_public_key: &XOnlyPublicKey,
-        address: &Address<NetworkUnchecked>,
-        taproot_merkle_root: Option<TapNodeHash>,
+        n_of_n_taproot_public_key: &XOnlyPublicKey,
+        operator_commit_pubin_wots_public_key: &OperatorCommitPubinPublicKey,
+        timelock_config: &TimelockConfig,
     ) -> Self {
         ConnectorE {
             network,
-            operator_taproot_public_key: *operator_taproot_public_key,
-            address: address.clone(),
-            taproot_merkle_root,
+            n_of_n_taproot_public_key: *n_of_n_taproot_public_key,
+            operator_commit_pubin_wots_public_key: *operator_commit_pubin_wots_public_key,
+            operator_commit_blocks_timelock: timelock_config.operator_commit,
         }
     }
 
-    pub fn generate_taproot_address(&self) -> Address {
-        self.address.clone().assume_checked()
+    fn generate_taproot_leaf_0_script(&self) -> ScriptBuf {
+        verify_prover_assert_script_768_wire(&self.operator_commit_pubin_wots_public_key).compile()
     }
 
-    pub fn taproot_merkle_root(&self) -> Option<TapNodeHash> {
-        self.taproot_merkle_root
+    fn generate_taproot_leaf_0_tx_in(&self, input: &Input) -> TxIn {
+        generate_default_tx_in(input)
+    }
+
+    fn generate_taproot_leaf_1_script(&self) -> ScriptBuf {
+        generate_timelock_taproot_script(
+            &self.n_of_n_taproot_public_key,
+            self.operator_commit_blocks_timelock,
+        )
+    }
+
+    fn generate_taproot_leaf_1_tx_in(&self, input: &Input) -> TxIn {
+        generate_timelock_tx_in(input, self.operator_commit_blocks_timelock)
+    }
+
+    pub fn generate_leaf_0_unlock_data(
+        &self,
+        sk: &OperatorCommitPubinSecretKey,
+        pubin_commitment: &[u8; 96],
+    ) -> Result<Vec<Vec<u8>>, Error> {
+        let witness = Wots96::sign_to_raw_witness(sk, pubin_commitment);
+        let witness_script = script! {
+            { witness.clone() }
+        };
+        let verification_script = witness_script.push_script(self.generate_taproot_leaf_0_script());
+        let exec_result = execute_script(verification_script);
+        match exec_result.success {
+            true => Ok(witness.to_vec()),
+            false => Err(Error::Other(
+                "Invalid operator-commit-pubin WOTS secret-key for Connector-E.",
+            )),
+        }
+    }
+
+    pub fn extract_leaf_0_raw_witness(&self, txin: &TxIn) -> Result<RawWitness, Error> {
+        let witness = txin.witness.to_vec();
+        if witness.len() != PROVER_SIG_LEN + 2 {
+            return Err(Error::Other(
+                "Invalid witness length for Connector-E leaf 0.",
+            ));
+        }
+        Ok(remove_script_and_control_block_from_witness(witness))
+    }
+}
+
+impl TaprootConnector for ConnectorE {
+    fn generate_taproot_leaf_script(&self, leaf_index: u32) -> ScriptBuf {
+        match leaf_index {
+            0 => self.generate_taproot_leaf_0_script(),
+            1 => self.generate_taproot_leaf_1_script(),
+            _ => panic!("Invalid leaf index."),
+        }
+    }
+
+    fn generate_taproot_leaf_tx_in(&self, leaf_index: u32, input: &Input) -> TxIn {
+        match leaf_index {
+            0 => self.generate_taproot_leaf_0_tx_in(input),
+            1 => self.generate_taproot_leaf_1_tx_in(input),
+            _ => panic!("Invalid leaf index."),
+        }
+    }
+
+    fn generate_taproot_spend_info(&self) -> TaprootSpendInfo {
+        TaprootBuilder::new()
+            .add_leaf(1, self.generate_taproot_leaf_0_script())
+            .expect("Unable to add leaf 0")
+            .add_leaf(1, self.generate_taproot_leaf_1_script())
+            .expect("Unable to add leaf 1")
+            .finalize(SECP256K1, self.n_of_n_taproot_public_key)
+            .expect("Unable to finalize taproot")
+    }
+
+    fn generate_taproot_address(&self) -> Address {
+        Address::p2tr_tweaked(
+            self.generate_taproot_spend_info().output_key(),
+            self.network,
+        )
     }
 }

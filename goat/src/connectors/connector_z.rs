@@ -5,7 +5,7 @@ use bitcoin::{
 use secp256k1::SECP256K1;
 use serde::{Deserialize, Serialize};
 
-use crate::{constants::CONNECTOR_Z_TIMELOCK, utils::num_blocks_per_network};
+use crate::constants::TimelockConfig;
 
 use super::{
     super::{scripts::*, transactions::base::Input},
@@ -25,12 +25,13 @@ impl ConnectorZ {
         network: Network,
         n_of_n_taproot_public_key: &XOnlyPublicKey,
         user_taproot_public_key: &XOnlyPublicKey,
+        timelock_config: &TimelockConfig,
     ) -> Self {
         ConnectorZ {
             network,
             n_of_n_taproot_public_key: *n_of_n_taproot_public_key,
             user_taproot_public_key: *user_taproot_public_key,
-            refund_blocks_timelock: num_blocks_per_network(network, CONNECTOR_Z_TIMELOCK),
+            refund_blocks_timelock: timelock_config.connector_z,
         }
     }
 

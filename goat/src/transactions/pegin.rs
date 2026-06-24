@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     connectors::connector_0::Connector0,
-    contexts::{base::BaseContext, verifier::VerifierContext},
+    contexts::{base::BaseContext, committee::CommitteeContext},
     error::{Error, TransactionError::InsufficientInputAmount},
     scripts::generate_opreturn_script,
     transactions::{
@@ -91,6 +91,14 @@ impl PegInDepositTransaction {
 
     pub fn tx(&self) -> &Transaction {
         &self.tx
+    }
+
+    pub fn connector_z_input(&self) -> Result<Input, Error> {
+        tx_output_input(&self.tx, output_topology::pegin_deposit::connector_z())
+    }
+
+    pub fn change_input(&self) -> Result<Input, Error> {
+        tx_output_input(&self.tx, output_topology::pegin_deposit::change())
     }
 }
 impl BaseTransaction for PegInDepositTransaction {
@@ -195,6 +203,10 @@ impl PegInRefundTransaction {
             &[signature],
         );
     }
+
+    pub fn refund_input(&self) -> Result<Input, Error> {
+        tx_output_input(&self.tx, output_topology::pegin_refund::refund())
+    }
 }
 impl BaseTransaction for PegInRefundTransaction {
     fn finalize(&self) -> Transaction {
@@ -272,14 +284,14 @@ impl PegInConfirmTransaction {
 
     pub fn sign_input_0_musig2(
         &mut self,
-        context: &VerifierContext,
+        context: &CommitteeContext,
         sec_nonce: &SecNonce,
         agg_nonce: &AggNonce,
     ) -> Result<PartialSignature, SigningError> {
         let input_index = 0;
         let sighash_type = TapSighashType::All;
         generate_taproot_partial_signature(
-            &context,
+            context,
             self.tx(),
             sec_nonce,
             agg_nonce,
@@ -312,7 +324,7 @@ impl PegInConfirmTransaction {
                 signature: sig.into(),
                 sighash_type,
             }),
-            Err(_) => return Err(Error::Other("Failed to aggregate signatures")),
+            Err(_) => Err(Error::Other("Failed to aggregate signatures")),
         }
     }
 
@@ -337,6 +349,14 @@ impl PegInConfirmTransaction {
             &spend_info,
             &script,
         );
+    }
+
+    pub fn connector_0_input(&self) -> Result<Input, Error> {
+        tx_output_input(&self.tx, output_topology::pegin_confirm::connector_0())
+    }
+
+    pub fn op_return_input(&self) -> Result<Input, Error> {
+        tx_output_input(&self.tx, output_topology::pegin_confirm::op_return())
     }
 }
 impl BaseTransaction for PegInConfirmTransaction {
