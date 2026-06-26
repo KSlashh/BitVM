@@ -1,7 +1,7 @@
 use crate::{
     assert_scripts::{
-        verify_prover_assert_script_768_wire, OperatorCommitPubinPublicKey,
-        OperatorCommitPubinSecretKey, PROVER_SIG_LEN,
+        verify_prover_pubin_script, OperatorCommitPubinPublicKey, OperatorCommitPubinSecretKey,
+        PROVER_SIG_LEN,
     },
     constants::TimelockConfig,
     utils::remove_script_and_control_block_from_witness,
@@ -46,7 +46,7 @@ impl ConnectorE {
     }
 
     fn generate_taproot_leaf_0_script(&self) -> ScriptBuf {
-        verify_prover_assert_script_768_wire(&self.operator_commit_pubin_wots_public_key).compile()
+        verify_prover_pubin_script(&self.operator_commit_pubin_wots_public_key).compile()
     }
 
     fn generate_taproot_leaf_0_tx_in(&self, input: &Input) -> TxIn {
