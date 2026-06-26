@@ -123,10 +123,11 @@ impl OperatorAssertTransaction {
         wots_sk: &OperatorAssertSecretKey,
         connector_c: &ConnectorC,
         proof: &[u8; 96],
+        extra_data: &[u8],
     ) -> Result<(), Error> {
         let input_index = 0;
         let leaf_index = 1;
-        match connector_c.generate_leaf_1_unlock_data(wots_sk, proof) {
+        match connector_c.generate_leaf_1_unlock_data(wots_sk, proof, extra_data) {
             Ok(wit) => {
                 populate_taproot_input_witness(
                     self.tx_mut(),

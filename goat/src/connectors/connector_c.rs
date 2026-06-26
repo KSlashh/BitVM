@@ -54,22 +54,28 @@ impl ConnectorC {
         &self,
         sk: &OperatorAssertSecretKey,
         proof: &[u8; 96],
+        extra_data: &[u8],
     ) -> Result<Vec<Vec<u8>>, Error> {
         let witness = Wots96::sign_to_raw_witness(sk, proof);
         let witness_script = script! {
             { witness.clone() }
+            { extra_data.to_vec() }
         };
         let verification_script = witness_script.push_script(self.generate_taproot_leaf_1_script());
         let exec_result = execute_script(verification_script);
         match exec_result.success {
-            true => Ok(witness.to_vec()),
+            true => {
+                let mut unlock_data = witness.to_vec();
+                unlock_data.push(extra_data.to_vec());
+                Ok(unlock_data)
+            }
             false => Err(Error::Other("Invalid WOTS secret-key for Connector-C.")),
         }
     }
 
     pub fn extract_leaf_1_raw_witness(&self, txin: &TxIn) -> Result<RawWitness, Error> {
         let witness = txin.witness.to_vec();
-        if witness.len() != PROVER_SIG_LEN + 2 {
+        if witness.len() != PROVER_SIG_LEN + 3 {
             return Err(Error::Other(
                 "Invalid witness length for Connector-C leaf 1.",
             ));
