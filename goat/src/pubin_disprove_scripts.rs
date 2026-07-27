@@ -1,10 +1,10 @@
 use crate::{
     assert_scripts::{
-        LabelHash, OperatorAssertPublicKey, OperatorCommitPubinPublicKey, OPERATOR_ASSERT_X_D_INDEX,
+        LabelHash, OPERATOR_ASSERT_X_D_INDEX, OperatorAssertPublicKey, OperatorCommitPubinPublicKey,
     },
     wots::{Wots, Wots96},
 };
-use bitvm::{bigint::U256, hash::sha256_u4::sha256 as sha256_u4, treepp::*};
+use bitvm::{bigint::U256, hash::blake3::blake3_compute_script_with_limb, treepp::*};
 
 pub const GUEST_PUBIN_NUM: usize = 3;
 pub const GUEST_PUBIN_BLOCKHASH_INDEX: usize = 0;
@@ -191,12 +191,20 @@ fn copy_guest_pubin_segment_to_top(segment_index: usize) -> Script {
 }
 
 pub fn generate_guest_pubin_commitment(guest_pubin_num: u32) -> Script {
+    let message_len = guest_pubin_num as usize * 32;
+    let padding_bytes = (64 - message_len % 64) % 64;
+
     script! {
         for i in 0..guest_pubin_num as usize {
             { lift_and_reverse_bytes(64 * i, 32) }
             { bytes32_to_u4() }
         }
-        { sha256_u4(guest_pubin_num * 32) }
+
+        // BLAKE3 consumes complete 64-byte blocks, so pad the last packed block.
+        for _ in 0..padding_bytes {
+            OP_0 OP_0
+        }
+        { blake3_compute_script_with_limb(message_len, 4) }
         { reverse_bytes_u4(32) }
         OP_SWAP { mod2_u4() } OP_SWAP
     }
@@ -285,10 +293,10 @@ fn zip_nibbles_bytes32() -> Script {
 mod tests {
     use super::*;
     use crate::{
-        assert_scripts::{label_hash, OPERATOR_ASSERT_X_D_INDEX},
+        assert_scripts::{OPERATOR_ASSERT_X_D_INDEX, label_hash},
         wots::Wots96,
     };
-    use bitvm::{execute_script, FmtStack};
+    use bitvm::{FmtStack, execute_script};
 
     fn guest_pubin(blockhash: &[u8; 32], constant: &[u8; 32], included_map: &[u8; 32]) -> [u8; 96] {
         let mut msg = [0u8; 96];
@@ -362,11 +370,7 @@ mod tests {
 
     fn stack_value_from_bottom(stack: &FmtStack, index_from_bottom: usize) -> u8 {
         let element = stack.get(index_from_bottom);
-        if element.is_empty() {
-            0
-        } else {
-            element[0]
-        }
+        if element.is_empty() { 0 } else { element[0] }
     }
 
     fn run_pubin_disprove(
