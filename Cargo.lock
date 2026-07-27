@@ -3586,6 +3586,7 @@ dependencies = [
  "bitcoin-script",
  "bitcoin-scriptexec",
  "bitvm",
+ "blake3",
  "clap",
  "colored",
  "hex",
