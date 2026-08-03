@@ -1,10 +1,10 @@
 use crate::{
     assert_scripts::{
-        LabelHash, OperatorAssertPublicKey, OperatorCommitPubinPublicKey, OPERATOR_ASSERT_X_D_INDEX,
+        LabelHash, OPERATOR_ASSERT_X_D_INDEX, OperatorAssertPublicKey, OperatorCommitPubinPublicKey,
     },
     wots::{Wots, Wots96},
 };
-use bitvm::{bigint::U256, hash::sha256_u4::sha256 as sha256_u4, treepp::*};
+use bitvm::{bigint::U256, hash::blake3::blake3_compute_script_with_limb, treepp::*};
 
 pub const GUEST_PUBIN_NUM: usize = 3;
 pub const GUEST_PUBIN_BLOCKHASH_INDEX: usize = 0;
@@ -46,8 +46,19 @@ pub fn verify_guest_pubin_commitment(
         }
 
         // Move the 96-byte guest pubin above x_d and compute its commitment.
+        // BLAKE3 requires the main stack to contain only its compact message,
+        // so keep x_d on the alt stack until the digest is available.
         { roll_n(32, wots96_msg_stack_items_num) }
+        for _ in 0..32 {
+            { wots96_msg_stack_items_num } OP_ROLL OP_TOALTSTACK
+        }
         { generate_guest_pubin_commitment(GUEST_PUBIN_NUM as u32) }
+        for _ in 0..32 {
+            OP_FROMALTSTACK
+        }
+        // Restore x_d below the 64-nibble digest, preserving the old comparison
+        // stack layout: x_d | guest pubin commitment (top).
+        { roll_n(32, 64) }
         { zip_nibbles_bytes32() }
 
         { 1 }
@@ -190,13 +201,67 @@ fn copy_guest_pubin_segment_to_top(segment_index: usize) -> Script {
     }
 }
 
-pub fn generate_guest_pubin_commitment(guest_pubin_num: u32) -> Script {
+fn generate_guest_pubin_blake3_input() -> Script {
     script! {
-        for i in 0..guest_pubin_num as usize {
-            { lift_and_reverse_bytes(64 * i, 32) }
-            { bytes32_to_u4() }
+        // Build the four U256s in reverse final-stack order on the alt stack.
+        // The witness has byte 0 at the top. Roll block0.part1 out first, then
+        // consume block0.part0 and block1.part0 from the top of the main stack.
+        // Restoring the four U256s leaves the BLAKE3 format required by the
+        // helper: block1.p0 | block1.p1 | block0.p0 | block0.p1 (top).
+
+        // block 0, part 1.
+        for word_index in 0..8 {
+            for _ in 0..4 {
+                { 32 + 4 * word_index + 3 } OP_ROLL
+            }
         }
-        { sha256_u4(guest_pubin_num * 32) }
+        { bytes32_to_u4() }
+        for _ in 0..64 {
+            OP_TOALTSTACK
+        }
+
+        // block 0, part 0.
+        for word_index in 0..8 {
+            for _ in 0..4 {
+                { 4 * word_index + 3 } OP_ROLL
+            }
+        }
+        { bytes32_to_u4() }
+        for _ in 0..64 {
+            OP_TOALTSTACK
+        }
+
+        // block 1, part 1: zero padding in compact nibble form.
+        for _ in 0..32 {
+            OP_0 OP_0
+        }
+        for _ in 0..64 {
+            OP_TOALTSTACK
+        }
+
+        // block 1, part 0.
+        for word_index in 0..8 {
+            for _ in 0..4 {
+                { 4 * word_index + 3 } OP_ROLL
+            }
+        }
+        { bytes32_to_u4() }
+        for _ in 0..64 {
+            OP_TOALTSTACK
+        }
+
+        for _ in 0..4 * 64 {
+            OP_FROMALTSTACK
+        }
+    }
+}
+
+pub fn generate_guest_pubin_commitment(guest_pubin_num: u32) -> Script {
+    assert_eq!(guest_pubin_num, GUEST_PUBIN_NUM as u32);
+
+    script! {
+        { generate_guest_pubin_blake3_input() }
+        { blake3_compute_script_with_limb(GUEST_PUBIN_NUM * 32, 4) }
         { reverse_bytes_u4(32) }
         OP_SWAP { mod2_u4() } OP_SWAP
     }
@@ -285,10 +350,10 @@ fn zip_nibbles_bytes32() -> Script {
 mod tests {
     use super::*;
     use crate::{
-        assert_scripts::{label_hash, OPERATOR_ASSERT_X_D_INDEX},
+        assert_scripts::{OPERATOR_ASSERT_X_D_INDEX, label_hash},
         wots::Wots96,
     };
-    use bitvm::{execute_script, FmtStack};
+    use bitvm::{FmtStack, execute_script};
 
     fn guest_pubin(blockhash: &[u8; 32], constant: &[u8; 32], included_map: &[u8; 32]) -> [u8; 96] {
         let mut msg = [0u8; 96];
@@ -323,6 +388,32 @@ mod tests {
     }
 
     #[test]
+    fn test_guest_pubin_blake3_input_matches_static_builder() {
+        let guest: [u8; 96] = std::array::from_fn(|index| index as u8);
+        let secret = Wots96::generate_secret_key();
+        let public_key = Wots96::generate_public_key(&secret);
+        let dynamic = execute_script(script! {
+            { Wots96::sign_to_raw_witness(&secret, &guest) }
+            { Wots96::checksig_verify(&public_key) }
+            { generate_guest_pubin_blake3_input() }
+        });
+        let static_input = execute_script(script! {
+            { bitvm::hash::blake3::blake3_push_message_script_with_limb(&guest, 4) }
+        });
+
+        assert_eq!(dynamic.error, None, "{dynamic}");
+        assert_eq!(static_input.error, None, "{static_input}");
+        assert_eq!(dynamic.final_stack.len(), static_input.final_stack.len());
+        for index in 0..dynamic.final_stack.len() {
+            assert_eq!(
+                dynamic.final_stack.get(index),
+                static_input.final_stack.get(index),
+                "different packed BLAKE3 element at stack index {index}"
+            );
+        }
+    }
+
+    #[test]
     fn test_generate_guest_pubin_commitment_matches_reference_vector() {
         let blockhash: [u8; 32] =
             hex::decode("5a690bba0ba076d621f77665398f4b1ddbfc2349bbb3e8880307625ac5cfa900")
@@ -339,14 +430,12 @@ mod tests {
                 .unwrap()
                 .try_into()
                 .unwrap();
-        let expected: [u8; 32] =
-            hex::decode("1a5605834864faf9cb10055606d9ae06425ea5cf8cf757f996182cd1da196158")
-                .unwrap()
-                .try_into()
-                .unwrap();
+        let guest = guest_pubin(&blockhash, &constant, &included_map);
+        let mut expected = *blake3::hash(&guest).as_bytes();
+        // Preserve the existing field-element high-bit reduction.
+        expected[0] &= 0x1f;
 
-        let mut actual_be =
-            compute_guest_commitment(&guest_pubin(&blockhash, &constant, &included_map));
+        let mut actual_be = compute_guest_commitment(&guest);
         actual_be.reverse();
 
         assert_eq!(actual_be, expected);
@@ -362,11 +451,7 @@ mod tests {
 
     fn stack_value_from_bottom(stack: &FmtStack, index_from_bottom: usize) -> u8 {
         let element = stack.get(index_from_bottom);
-        if element.is_empty() {
-            0
-        } else {
-            element[0]
-        }
+        if element.is_empty() { 0 } else { element[0] }
     }
 
     fn run_pubin_disprove(
@@ -398,6 +483,7 @@ mod tests {
             "PubinDisprove exceeded Bitcoin's stack limit: {}",
             result.stats.max_nb_stack_items
         );
+        assert_eq!(result.error, None, "{result}");
         result.success
     }
 
